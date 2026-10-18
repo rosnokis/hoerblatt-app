@@ -1,0 +1,2119 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Hörblatt">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+</head>
+<body>
+<title>Hörblatt</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&display=swap">
+<style>
+/* Layout: one-screen tool. Slim header, the worksheet page in the middle, a tray of big numbered tools at the bottom (same colours and order as the Bildkarte). */
+:root {
+  --bg: #EEF1EC;
+  --tray: #FFFFFF;
+  --fg: #1F2A26;
+  --muted: #5E6B66;
+  --line: #D5DBD6;
+  --paper-shadow: 0 2px 14px rgba(31, 42, 38, .14);
+  --teal: #0F766E;
+  --orange: #E2580B;
+  --purple: #7C3AED;
+  --amber: #A16207;
+  --blue: #2563EB;
+  --slate: #475569;
+  --mark: rgba(250, 204, 21, .48);
+  --answer-ink: #2B1C7A;
+  --answer-bg: rgba(237, 233, 254, .92);
+  --scrim: rgba(20, 28, 25, .55);
+  --font-display: "Fredoka", "Avenir Next Rounded", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --font-body: "Andika", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151B19; --tray: #1E2623; --fg: #E8EEEA; --muted: #9FB0A9; --line: #33403B;
+    --paper-shadow: 0 2px 18px rgba(0,0,0,.5);
+    --teal: #2DD4BF; --orange: #FB923C; --purple: #A78BFA; --amber: #FACC15; --blue: #60A5FA; --slate: #94A3B8;
+    --scrim: rgba(0,0,0,.65);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151B19; --tray: #1E2623; --fg: #E8EEEA; --muted: #9FB0A9; --line: #33403B;
+  --paper-shadow: 0 2px 18px rgba(0,0,0,.5);
+  --teal: #2DD4BF; --orange: #FB923C; --purple: #A78BFA; --amber: #FACC15; --blue: #60A5FA; --slate: #94A3B8;
+  --scrim: rgba(0,0,0,.65);
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px;
+  display: flex; flex-direction: column; overflow: hidden;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+.top {
+  display: flex; align-items: center; gap: 12px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.brand { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 28px; height: 28px; }
+.chip {
+  font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
+  padding: 3px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.chip.warn { color: var(--orange); border-color: var(--orange); }
+.spacer { flex: 1; }
+.iconbtn {
+  width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--tray);
+  display: grid; place-items: center; flex: none;
+}
+.iconbtn svg { width: 24px; height: 24px; }
+
+/* ---------- page area ---------- */
+.desk {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
+  padding-block: 4px 20px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.stage {
+  position: relative; margin: 0 auto; width: 100%; max-width: 100%;
+  background: #fff; box-shadow: var(--paper-shadow); border-radius: 4px;
+  container-type: inline-size; touch-action: pan-y pinch-zoom;
+}
+.stage img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 4px; pointer-events: none; }
+.stage svg.ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ov .hint { fill: none; stroke: var(--orange); stroke-opacity: .55; stroke-width: 2; stroke-dasharray: 6 6; }
+.ov .mk { mix-blend-mode: multiply; }
+.ov .ink { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.ov .flash { fill: rgba(226, 88, 11, .18); stroke: #E2580B; stroke-width: 4; }
+.ov .flash.line { fill: rgba(226, 88, 11, .10); }
+.ov .boxhint { fill: none; stroke: var(--orange); stroke-opacity: .7; stroke-width: 3; stroke-dasharray: 10 7; }
+/* gaps to fill in: purple like the speak tool */
+.ov .gap { fill: rgba(124, 58, 237, .12); stroke: #7C3AED; stroke-width: 3; stroke-dasharray: 10 7; }
+
+/* answer fields live in image coordinates; 1cqw = 1% of the page width.
+   Everything in a field is sized in em of the answer text (--fs), so the field shrinks and grows with the page */
+.ans {
+  position: absolute; display: flex; align-items: flex-start; gap: .15em; font-size: var(--fs, 2.6cqw);
+  background: var(--answer-bg); border: 2px solid #7C3AED; border-radius: .3em; padding: .08em .15em;
+}
+.ans textarea {
+  flex: 1; min-width: 0; border: 0; background: transparent; resize: none; overflow: hidden;
+  font-family: var(--font-body); font-weight: 700; color: var(--answer-ink); line-height: 1.25;
+  font-size: 1em; padding: 0; margin: 0; -webkit-user-select: text; user-select: text;
+}
+.ans textarea:focus { outline: none; }
+.ans:focus-within { box-shadow: 0 0 0 4px rgba(124, 58, 237, .25); }
+.ans .say {
+  flex: none; width: 1.25em; height: 1.25em; border-radius: 50%; padding: 0;
+  background: #7C3AED; color: #fff; border: 0; display: grid; place-items: center;
+}
+.ans .say svg { width: 60%; height: 60%; }
+.ans .mic {
+  flex: none; width: 1.25em; height: 1.25em; border-radius: 50%; padding: 0;
+  background: #fff; color: #7C3AED; border: 2px solid #7C3AED; display: none; place-items: center;
+}
+.ans .mic svg { width: 62%; height: 62%; }
+body.m-schreiben.sr .ans .mic { display: grid; }
+.ans.listening { box-shadow: 0 0 0 6px rgba(124, 58, 237, .45); animation: listen 1.1s ease-in-out infinite; }
+.ans.listening .mic { background: #7C3AED; color: #fff; }
+@keyframes listen { 50% { box-shadow: 0 0 0 12px rgba(124, 58, 237, .18); } }
+.ans .grip {
+  flex: none; width: .8em; align-self: stretch; border: 0; padding: 0; background: transparent; color: #7C3AED;
+  display: none; place-items: center; touch-action: none;
+}
+.ans .grip svg { width: 100%; height: .7em; }
+body.m-schreiben .ans .grip { display: grid; }
+body.m-radieren .ans { border-style: dashed; border-color: var(--slate); }
+.ans.speaking { box-shadow: 0 0 0 5px rgba(226, 88, 11, .45); }
+
+/* ---------- tool tray ---------- */
+.tray {
+  background: var(--tray); border-top: 1px solid var(--line);
+  padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow-x: auto;
+}
+.tools { display: flex; gap: 10px; justify-content: center; min-width: max-content; margin: 0 auto; }
+/* colours for the marker and the pen, shown above the tools while one of them is chosen */
+.palette { display: flex; gap: 12px; justify-content: center; margin: 0 auto 10px; }
+.palette button { width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--line); background: var(--sw); padding: 0; }
+.palette button[aria-pressed="true"] { border-color: var(--fg); box-shadow: 0 0 0 3px var(--tray), 0 0 0 6px var(--fg); }
+.tool {
+  --c: var(--slate);
+  position: relative; width: 82px; height: 82px; border-radius: 20px;
+  border: 3px solid transparent; background: color-mix(in srgb, var(--c) 12%, var(--tray));
+  color: var(--c); display: grid; place-items: center; padding: 0;
+  transition: transform .12s ease, background .12s ease;
+}
+.tool svg { width: 46px; height: 46px; }
+.tool .n {
+  position: absolute; top: 5px; left: 7px; font-family: var(--font-display); font-weight: 600; font-size: 14px; line-height: 1;
+}
+.tool:active { transform: scale(.94); }
+.tool[aria-pressed="true"] { background: var(--c); color: var(--tray); border-color: var(--c); }
+.tool[data-c="teal"] { --c: var(--teal); }
+.tool[data-c="orange"] { --c: var(--orange); }
+.tool[data-c="purple"] { --c: var(--purple); }
+.tool[data-c="amber"] { --c: var(--amber); }
+.tool[data-c="blue"] { --c: var(--blue); }
+.sep { width: 1px; background: var(--line); margin-inline: 2px; flex: none; }
+
+/* ---------- sheets (overlays) ---------- */
+.sheet {
+  position: fixed; inset: 0; z-index: 50; background: var(--scrim);
+  display: grid; place-items: center;
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.card {
+  background: var(--tray); color: var(--fg); border-radius: 20px; padding: 22px;
+  width: min(640px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
+}
+.card h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; margin: 0; text-wrap: balance; }
+.card p { margin: 0; line-height: 1.5; max-width: 65ch; }
+.card .small { font-size: 14px; color: var(--muted); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.big {
+  min-width: 120px; height: 96px; border-radius: 20px; border: 0; display: grid; place-items: center; padding: 0 18px;
+  background: var(--c, var(--slate)); color: #fff; flex: 1;
+}
+.big svg { width: 54px; height: 54px; }
+.textbtn {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 10px 14px; font-size: 15px;
+}
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.step { border: 1px solid var(--line); border-radius: 16px; padding: 12px 8px; display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 14px; min-width: 0; }
+.step svg { width: 44px; height: 44px; color: var(--blue); }
+.step b { font-family: var(--font-display); font-size: 18px; color: var(--blue); }
+.export-img { width: 100%; max-height: 52vh; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: #fff;
+  -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
+.progress { display: grid; justify-items: center; gap: 14px; padding: 10px 0; }
+.ring { width: 120px; height: 120px; }
+.ring circle { fill: none; stroke-width: 12; }
+.ring .bgc { stroke: var(--line); }
+.ring .fgc { stroke: var(--teal); stroke-linecap: round; transition: stroke-dashoffset .3s ease; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.pct { font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+.set { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: center; }
+.set label { font-size: 15px; }
+.set input[type="range"] { width: 180px; }
+.set input[type="checkbox"] { width: 26px; height: 26px; }
+.set select { font: inherit; font-size: 15px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+.facts { margin: 0; padding-left: 20px; line-height: 1.5; display: grid; gap: 4px; }
+@media (max-width: 900px) {
+  .tool { width: 72px; height: 72px; border-radius: 18px; }
+  .tool svg { width: 40px; height: 40px; }
+  .tools { gap: 8px; }
+}
+@media (max-width: 560px) {
+  .tool { width: 64px; height: 64px; border-radius: 16px; }
+  .tool svg { width: 36px; height: 36px; }
+  .steps { grid-template-columns: 1fr; }
+  .brand span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-camera" viewBox="0 0 48 48"><path d="M8 15h7l3-5h12l3 5h7a3 3 0 0 1 3 3v18a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V18a3 3 0 0 1 3-3z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/><circle cx="24" cy="26" r="7.5" fill="none" stroke="currentColor" stroke-width="3.2"/></symbol>
+    <symbol id="i-word" viewBox="0 0 48 48"><rect x="4" y="9" width="22" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="3"/><path d="M16 27v13M16 27c0-2 3-2 3 0v5c0-2 3-2 3 0v1c0-2 3-2 3 0v6c0 3-3 5-6 5h-2c-3 0-5-2-6-4l-3-5c-1-2 1-3 2-2l2 2V27c0-2 3-2 3 0" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 12l4-3v14l-4-3h-3v-8z" fill="currentColor"/><path d="M40 11c2 2 2 8 0 10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-line" viewBox="0 0 48 48"><path d="M5 12h26M5 20h38M5 28h38M5 36h20" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" opacity=".35"/><rect x="2" y="15" width="44" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="3"/><path d="M34 33l4-3v13l-4-3h-3v-7z" fill="currentColor"/><path d="M41 32c2 2 2 7 0 9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 48 48"><rect x="18" y="5" width="12" height="22" rx="6" fill="currentColor"/><path d="M11 22a13 13 0 0 0 26 0M24 35v8M17 43h14" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path d="M4 8l5 4M4 16h5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" opacity=".6"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 48 48"><path d="M30 6l10 10-17 17-11 2 2-11z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/><path d="M26 10l10 10" stroke="currentColor" stroke-width="3.2"/><rect x="4" y="38" width="40" height="7" rx="2" fill="currentColor" opacity=".45"/></symbol>
+    <symbol id="i-draw" viewBox="0 0 48 48"><path d="M33 5l9 9-21 21-11 3 3-11z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/><path d="M6 44c6-6 10 2 16-3s8 1 12-2" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-erase" viewBox="0 0 48 48"><path d="M27 7l14 14-18 18H13L6 32z" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round"/><path d="M16 18l14 14" stroke="currentColor" stroke-width="3.2"/><path d="M23 39h20" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 48 48"><path d="M14 10L6 18l8 8" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 18h20a12 12 0 0 1 0 24H16" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-done" viewBox="0 0 48 48"><rect x="9" y="5" width="30" height="38" rx="3" fill="none" stroke="currentColor" stroke-width="3.2"/><path d="M16 25l6 6 11-12" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-speaker" viewBox="0 0 48 48"><path d="M8 18h8l10-8v28l-10-8H8z" fill="currentColor"/><path d="M32 17c3 3 3 11 0 14M37 12c6 6 6 18 0 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="8" cy="6" r="2"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/></g></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9.2 9.3a2.9 2.9 0 1 1 4 2.7c-.8.4-1.2 1-1.2 1.9v.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="currentColor"/></symbol>
+    <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 48 48"><path d="M10 25l9 9 19-20" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 48 48"><path d="M13 13l22 22M35 13L13 35" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></symbol>
+    <symbol id="i-hold" viewBox="0 0 48 48"><rect x="6" y="6" width="26" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="25" cy="28" r="7" fill="currentColor" opacity=".25"/><path d="M25 28v12c0 3 2 5 5 5h4c3 0 5-2 5-5v-6c0-2-3-2-3 0v-1c0-2-3-2-3 0v-1c0-2-3-2-3 0v-4M25 28c0-2 3-2 3 0v6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 48 48"><path d="M24 6v24M15 15l9-9 9 9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 21h-5v21h28V21h-5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-flat" viewBox="0 0 48 48"><path d="M3 40h42" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M5 34l19-4 19 4-4-20-15 3-15-3z" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M24 17v13" stroke="currentColor" stroke-width="2.4"/><path d="M12 19l8 2M12 24l8 2M28 21l8-2M28 26l8-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-above" viewBox="0 0 48 48"><rect x="12" y="3" width="24" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2.8"/><path d="M24 22v10M19 27l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 43h36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M12 40h24" stroke="currentColor" stroke-width="2.6" opacity=".5"/></symbol>
+    <symbol id="i-whole" viewBox="0 0 48 48"><path d="M4 12V4h8M36 4h8v8M44 36v8h-8M12 44H4v-8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="13" y="10" width="22" height="28" rx="2" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M17 17h14M17 23h14M17 29h9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-again" viewBox="0 0 48 48"><path d="M38 14a16 16 0 1 0 3 14" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M40 5v10H30" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-airdrop" viewBox="0 0 48 48"><circle cx="24" cy="22" r="4" fill="currentColor"/><path d="M16 30a11 11 0 1 1 16 0M10 36a19 19 0 1 1 28 0" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path d="M24 26v18" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-logo" viewBox="0 0 32 32"><rect x="5" y="3" width="19" height="25" rx="2.5" fill="#fff" stroke="#0F766E" stroke-width="2"/><path d="M9 9h11M9 14h11M9 19h7" stroke="#0F766E" stroke-width="2" stroke-linecap="round"/><circle cx="23" cy="22" r="7" fill="#E2580B"/><path d="M20 20.5h1.6l2-1.6v6.2l-2-1.6H20z" fill="#fff"/><path d="M25.3 20.3c.8.8.8 2.6 0 3.4" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="brand"><svg aria-hidden="true"><use href="#i-logo"/></svg><span>Hörblatt</span></div>
+  <div class="chip" id="status">Beispielblatt</div>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="zoomBtn" type="button" aria-label="Ganze Seite oder Seitenbreite"><svg><use href="#i-zoom"/></svg></button>
+  <button class="iconbtn" id="helpBtn" type="button" aria-label="Hilfe und Einstellungen für Lehrkräfte"><svg><use href="#i-help"/></svg></button>
+</header>
+
+<main class="desk" id="desk">
+  <div class="stage" id="stage">
+    <img id="pageImg" alt="Arbeitsblatt">
+    <svg class="ov" id="ov" preserveAspectRatio="none"></svg>
+    <div id="fields"></div>
+  </div>
+</main>
+
+<nav class="tray" aria-label="Werkzeuge">
+  <div class="palette" id="palette" hidden></div>
+  <div class="tools" id="tools">
+    <button class="tool" type="button" data-c="teal" data-act="foto" aria-label="1 Foto machen"><span class="n">1</span><svg><use href="#i-camera"/></svg></button>
+    <div class="sep"></div>
+    <button class="tool" type="button" data-c="orange" data-mode="wort" aria-label="2 Wort vorlesen" aria-pressed="true"><span class="n">2</span><svg><use href="#i-word"/></svg></button>
+    <button class="tool" type="button" data-c="orange" data-mode="zeile" aria-label="Satz vorlesen" aria-pressed="false"><svg><use href="#i-line"/></svg></button>
+    <button class="tool" type="button" data-c="purple" data-mode="schreiben" aria-label="3 Antwort sprechen" aria-pressed="false"><span class="n">3</span><svg><use href="#i-mic"/></svg></button>
+    <button class="tool" type="button" data-c="amber" data-mode="markieren" aria-label="4 Markieren" aria-pressed="false"><span class="n">4</span><svg><use href="#i-pen"/></svg></button>
+    <button class="tool" type="button" data-mode="stift" aria-label="Stift" aria-pressed="false"><svg><use href="#i-draw"/></svg></button>
+    <button class="tool" type="button" data-mode="radieren" aria-label="Radiergummi" aria-pressed="false"><svg><use href="#i-erase"/></svg></button>
+    <button class="tool" type="button" data-act="undo" aria-label="Zurück"><svg><use href="#i-undo"/></svg></button>
+    <div class="sep"></div>
+    <button class="tool" type="button" data-c="blue" data-act="fertig" aria-label="5 Fertig und abgeben"><span class="n">5</span><svg><use href="#i-done"/></svg></button>
+  </div>
+</nav>
+
+<input type="file" id="fileIn" accept="image/*" hidden>
+
+<!-- OCR progress -->
+<div class="sheet" id="ocrSheet" hidden>
+  <div class="card">
+    <div class="progress">
+      <svg class="ring" viewBox="0 0 120 120"><circle class="bgc" cx="60" cy="60" r="50"/><circle class="fgc" id="ringFg" cx="60" cy="60" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16"/></svg>
+      <div class="pct" id="pct">0 %</div>
+      <p class="small" id="ocrMsg">Das Blatt wird gelesen. Das dauert beim ersten Mal etwas länger.</p>
+    </div>
+  </div>
+</div>
+
+<!-- how to take the photo -->
+<div class="sheet" id="photoHelpSheet" hidden>
+  <div class="card">
+    <h2>So wird das Foto gut</h2>
+    <div class="steps">
+      <div class="step"><b>1</b><svg><use href="#i-flat"/></svg>Heft flach hinlegen</div>
+      <div class="step"><b>2</b><svg><use href="#i-above"/></svg>iPad gerade darüber</div>
+      <div class="step"><b>3</b><svg><use href="#i-whole"/></svg>Ganzes Blatt aufs Foto</div>
+    </div>
+    <div class="row"><button class="big" type="button" id="photoGo" style="--c: var(--teal)" aria-label="Foto machen"><svg><use href="#i-camera"/></svg></button></div>
+  </div>
+</div>
+
+<!-- is the photo good enough? -->
+<div class="sheet" id="photoCheckSheet" hidden>
+  <div class="card">
+    <h2 id="photoCheckTitle">Das Foto ist nicht gut</h2>
+    <img class="export-img" id="photoCheckImg" alt="Das Foto">
+    <p class="small" id="photoCheckMsg"></p>
+    <div class="row">
+      <button class="big" type="button" id="photoAgain" style="--c: var(--teal)" aria-label="Nochmal fotografieren"><svg><use href="#i-again"/></svg></button>
+      <button class="big" type="button" id="photoOn" style="--c: var(--slate)" aria-label="Trotzdem weiter"><svg><use href="#i-check"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- confirm new photo -->
+<div class="sheet" id="confirmSheet" hidden>
+  <div class="card">
+    <h2>Neues Blatt?</h2>
+    <p class="small">Die Antworten auf dem jetzigen Blatt werden gelöscht. Vorher mit Fertig (5) abgeben.</p>
+    <div class="row">
+      <button class="big" type="button" id="confirmYes" style="--c: var(--teal)" aria-label="Ja, neues Foto"><svg><use href="#i-check"/></svg></button>
+      <button class="big" type="button" id="confirmNo" style="--c: var(--slate)" aria-label="Nein, zurück"><svg><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- export -->
+<div class="sheet" id="exportSheet" hidden>
+  <div class="card">
+    <h2>Fertig! So gibst du ab:</h2>
+    <img class="export-img" id="exportImg" alt="Fertiges Arbeitsblatt mit Antworten">
+    <div class="steps">
+      <div class="step"><b>1</b><svg><use href="#i-hold"/></svg>Bild lange drücken</div>
+      <div class="step"><b>2</b><svg><use href="#i-share"/></svg>Teilen</div>
+      <div class="step"><b>3</b><svg><use href="#i-airdrop"/></svg>AirDrop, Lehrer-iPad, Code eingeben</div>
+    </div>
+    <p class="small">Oder: Die Lehrkraft schaut sich das Blatt direkt auf diesem iPad an.</p>
+    <div class="row"><button class="big" type="button" id="exportClose" style="--c: var(--slate)" aria-label="Zurück zum Blatt"><svg><use href="#i-x"/></svg></button></div>
+  </div>
+</div>
+
+<!-- teacher help -->
+<div class="sheet" id="helpSheet" hidden>
+  <div class="card">
+    <h2>Hörblatt – für Lehrkräfte</h2>
+    <ol class="facts">
+      <li><b>Foto (1):</b> Erst erscheint ein Bild-Hinweis (Heft flach, iPad gerade darüber, ganzes Blatt), dann die Kamera. Danach prüft das Hörblatt das Foto (zu dunkel, verwackelt, abgeschnitten, kaum lesbar) und bietet „Nochmal“ an. Schräge und quer gehaltene Fotos werden gerade gerückt. Die Schrift wird auf dem iPad erkannt.</li>
+      <li><b>Wort (2):</b> Wort antippen, es wird vorgelesen. Steht das Wort in einem Kasten, wird der ganze Kasten vorgelesen; noch einmal auf dasselbe Wort tippen liest nur dieses Wort. Daneben: den ganzen Satz vorlesen, auch wenn er über zwei Zeilen geht. An einer Lücke ertönt ein kurzer Ton, ist sie ausgefüllt, wird die Antwort mitgelesen.</li>
+      <li><b>Sprechen (3):</b> Auf die Lücke (lila) oder eine andere Stelle tippen und sprechen. Das Hörblatt hört sofort zu, das Feld leuchtet lila. Klappt das nicht, ins Feld tippen und auf der Tastatur das Mikrofon benutzen. Der lila Lautsprecher liest die Antwort vor.</li>
+      <li><b>Markieren (4):</b> Farbe oben wählen. Wort antippen (nochmal antippen nimmt die Farbe weg), mit dem Finger waagerecht über mehrere Wörter wischen, oder langsam über einen Teil eines Worts wischen, um nur diesen Teil zu färben (z. B. „ab“ in „abschreiben“).</li>
+      <li><b>Stift:</b> Mit dem Finger zeichnen – zum Verbinden, Ankreuzen, Einkreisen oder Durchstreichen. Farbe oben wählen.</li>
+      <li><b>Kästchen und Tabellen:</b> Leere Kästchen, graue Quadrate und Schreibfelder sind Lücken. In Tabellen und bei Schreibfeldern unter einer Überschrift sagt das Antippen der leeren Stelle die Überschrift („Nomen“).</li>
+      <li><b>Radiergummi:</b> löscht Antworten, Markierungen und Stiftstriche. Eine falsch erkannte Lücke lässt sich damit auch entfernen.</li>
+      <li><b>Fertig (5):</b> Es entsteht ein Bild mit allen Antworten, das per AirDrop geteilt werden kann.</li>
+    </ol>
+    <div class="set">
+      <label for="rate">Sprechtempo</label><input type="range" id="rate" min="0.5" max="1.1" step="0.05" value="0.85">
+      <label for="announce">Werkzeuge beim Antippen ansagen</label><input type="checkbox" id="announce" checked>
+      <label for="photoHelp">Foto-Hinweis vor dem Fotografieren zeigen</label><input type="checkbox" id="photoHelp" checked>
+      <label for="hints">Erkannte Wörter umranden</label><input type="checkbox" id="hints" checked>
+      <label for="boxes">Wörter in Kästen zusammen vorlesen</label><input type="checkbox" id="boxes" checked>
+      <label for="gaps">Lücken lila markieren</label><input type="checkbox" id="gaps" checked>
+      <label for="tone">Ton für Lücken</label><select id="tone"></select>
+      <label for="mic">Mikrofon-Knopf im Hörblatt (Spracherkennung von Apple)</label><input type="checkbox" id="mic" checked>
+    </div>
+    <p class="small" id="voiceInfo">Stimme: wird gesucht …</p>
+    <p class="small" id="micInfo"></p>
+    <p class="small">Datenschutz: Fotos, erkannter Text und Antworten bleiben auf diesem iPad, in diesem Browser. Die Texterkennung läuft auf dem Gerät. Beim ersten Foto werden einmalig die Erkennungsdaten (ca. 6 MB) geladen. Gesprochene Antworten erkennt Apple wie beim Diktat über die Tastatur; je nach iPad geschieht das auf Apple-Servern.</p>
+    <div class="row">
+      <button class="textbtn" type="button" id="loadSample">Beispielblatt laden</button>
+      <button class="textbtn" type="button" id="testVoice">Stimme testen</button>
+      <div class="spacer"></div>
+      <button class="textbtn" type="button" id="helpClose">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script src="tess/tesseract.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const stage = $("stage"), img = $("pageImg"), ov = $("ov"), fieldsEl = $("fields"), statusEl = $("status");
+  const SVGNS = "http://www.w3.org/2000/svg";
+
+  /* ---------- state ---------- */
+  // doc = { W, H, blob, fs, words:[{t,x0,y0,x1,y1,li,bx,end}], gaps:[{x0,x1,y,h,li,end}], boxes:[{x0,y0,x1,y1}],
+  //         answers:[{id,x,y,w,text}], marks:[{w,c,x0?,x1?}], strokes:[{c,w,pts:[x,y,…]}], sample }
+  // a mark covers a whole word, or with x0/x1 only part of it; strokes are drawn with the pen
+  // bx = index of the printed box a word stands in (-1: none); a gap is an answer line, y = the line, h = text height
+  let doc = null;
+  let mode = "wort";
+  let undoStack = [];
+  let fitPage = false;
+  const settings = { rate: 0.85, announce: true, hints: true, boxes: true, gaps: true, mic: true, tone: "glocke", mark: "gelb", pen: "blau", photoHelp: true };
+  // marker colours (name, fill on the page, swatch) and pen colours (name, ink)
+  const MARKS = {
+    gelb: ["Gelb", "rgba(250, 204, 21, .5)", "#FACC15"], gruen: ["Grün", "rgba(74, 222, 128, .5)", "#4ADE80"],
+    blau: ["Blau", "rgba(96, 165, 250, .5)", "#60A5FA"], orange: ["Orange", "rgba(251, 146, 60, .55)", "#FB923C"]
+  };
+  const PENS = { blau: ["Blau", "#1D4ED8", "#1D4ED8"], rot: ["Rot", "#DC2626", "#DC2626"], schwarz: ["Schwarz", "#1F2937", "#1F2937"] };
+  try { Object.assign(settings, JSON.parse(localStorage.getItem("hb-settings") || "{}")); } catch (e) {}
+  const saveSettings = () => { try { localStorage.setItem("hb-settings", JSON.stringify(settings)); } catch (e) {} };
+
+  /* ---------- speech ---------- */
+  const synth = window.speechSynthesis;
+  let voice = null;
+  function pickVoice() {
+    if (!synth) return;
+    const vs = synth.getVoices().filter(v => /^de/i.test(v.lang));
+    const pref = ["Anna", "Helena", "Petra", "Markus", "Yannick"];
+    voice = vs.find(v => /de-DE/i.test(v.lang) && /premium|enhanced|erweitert/i.test(v.name))
+         || vs.find(v => pref.some(p => v.name.includes(p)))
+         || vs.find(v => /de-DE/i.test(v.lang)) || vs[0] || null;
+    $("voiceInfo").textContent = voice ? "Stimme: " + voice.name + " (" + voice.lang + "). Bessere Stimmen: Einstellungen > Bedienungshilfen > Gesprochene Inhalte > Stimmen > Deutsch." : "Keine deutsche Stimme gefunden. Bitte in den iPad-Einstellungen eine deutsche Stimme laden.";
+  }
+  if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+  else { statusEl.textContent = "Vorlesen ist in diesem Browser nicht verfügbar"; statusEl.classList.add("warn"); }
+
+  // speakToken grows with every new request; anything still running for an older token stops quietly
+  let speakToken = 0;
+  // one utterance; ends via onend, or when the voice has gone quiet (Safari sometimes skips onend)
+  function utter(text, my, onEnd) {
+    if (my !== speakToken) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = voice ? voice.lang : "de-DE";
+    if (voice) u.voice = voice;
+    u.rate = settings.rate;
+    let done = false, t0 = Date.now(), heard = false;
+    const fin = () => { if (done) return; done = true; clearInterval(iv); if (my === speakToken) onEnd && onEnd(); };
+    u.onstart = () => { heard = true; };
+    u.onend = fin;
+    u.onerror = (e) => {
+      // show real failures in the status chip, so a test on the iPad tells what went wrong
+      if (e && e.error && !/interrupted|canceled/.test(e.error)) { statusEl.textContent = "Vorlesen gestört: " + e.error; statusEl.classList.add("warn"); }
+      fin();
+    };
+    const iv = setInterval(() => {
+      if (my !== speakToken) { done = true; clearInterval(iv); return; }
+      if (synth.speaking || synth.pending) { heard = true; return; }
+      if ((heard && Date.now() - t0 > 400) || Date.now() - t0 > 3000 + text.length * 150 / settings.rate) fin();
+    }, 250);
+    synth.speak(u);
+  }
+  function speak(text, onEnd) { speakParts(text ? [text] : [], onEnd); }
+  function stopSpeaking() { speakToken++; if (synth) synth.cancel(); try { tone.pause(); } catch (e) {} }
+  const announce = (t) => { if (settings.announce) speak(t); };
+
+  // a short sound stands for a gap in a sentence. It plays through an <audio> element: iOS mutes Web Audio
+  // when the iPad is set to silent, but not media playback (the voice is not muted either)
+  const TONES = {
+    glocke: { name: "Glöckchen", len: 0.7, f: (t) => Math.exp(-t * 7) * (Math.sin(2 * Math.PI * 1568 * t) * 0.6 + Math.sin(2 * Math.PI * 3136 * t) * 0.2 + Math.sin(2 * Math.PI * 4704 * t) * 0.08) },
+    tropfen: { name: "Tropfen", len: 0.25, f: (t) => Math.exp(-t * 16) * Math.sin(2 * Math.PI * (350 * t + 1400 * t * t)) * 0.8 },
+    holz: { name: "Klopfen", len: 0.35, f: (t) => { const k = (u) => u < 0 ? 0 : Math.exp(-u * 45) * Math.sin(2 * Math.PI * 900 * u) * 0.8; return k(t) + k(t - 0.16); } },
+    pfiff: { name: "Zwei Töne", len: 0.32, f: (t) => Math.min(1, t / 0.02, (0.32 - t) / 0.06) * Math.sin(2 * Math.PI * (t < 0.14 ? 660 : 880) * t) * 0.5 }
+  };
+  function toneURL(kind) {
+    const T = TONES[kind] || TONES.glocke, rate = 22050, n = Math.round(rate * T.len), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, x) => { for (let k = 0; k < x.length; k++) v.setUint8(o + k, x.charCodeAt(k)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVEfmt "); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, n * 2, true);
+    for (let k = 0; k < n; k++) {
+      const t = k / rate, fade = Math.min(1, (T.len - t) / 0.02);
+      v.setInt16(44 + k * 2, Math.round(clamp(T.f(t) * fade, -1, 1) * 32767), true);
+    }
+    return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+  }
+  const tone = new Audio();
+  tone.preload = "auto";
+  function setTone() { const old = tone.src; tone.src = toneURL(settings.tone); if (old) URL.revokeObjectURL(old); }
+  let toneReady = false;
+  // iOS lets a page play sound later only after it played once during a tap: play it silently on the first tap
+  function unlockAudio() {
+    if (toneReady) return;
+    toneReady = true;
+    tone.muted = true;
+    const p = tone.play();
+    const done = () => { tone.pause(); tone.currentTime = 0; tone.muted = false; };
+    if (p && p.then) p.then(done, () => { tone.muted = false; toneReady = false; }); else done();
+  }
+  function playTone(my, onEnd) {
+    let done = false;
+    const fin = () => { if (done) return; done = true; tone.onended = null; setTimeout(() => { if (my === speakToken) onEnd && onEnd(); }, 250); };
+    try {
+      tone.pause(); tone.currentTime = 0; tone.muted = false;
+      tone.onended = fin;
+      const p = tone.play(); if (p && p.catch) p.catch(fin);
+    } catch (e) { fin(); }
+    setTimeout(fin, ((TONES[settings.tone] || TONES.glocke).len + 0.6) * 1000);
+  }
+  const beep = () => { stopSpeaking(); playTone(speakToken); };
+  const BEEP = {};
+  // speak text pieces one after another, with the gap sound for each BEEP; never cancel in between
+  // (Safari drops or cuts an utterance that follows a cancel too closely)
+  function speakParts(parts, onEnd) {
+    // iOS only lets a page speak when speaking starts right during the tap: start at once if nothing is playing;
+    // only after cancelling something wait a moment (Safari drops an utterance that follows cancel too closely)
+    const busy = synth && (synth.speaking || synth.pending);
+    speakToken++;
+    if (busy) synth.cancel();
+    try { tone.pause(); } catch (e) {}
+    const my = speakToken;
+    if (!synth) { onEnd && onEnd(); return; }
+    let k = 0;
+    const next = () => {
+      if (my !== speakToken) return;
+      if (k >= parts.length) { onEnd && onEnd(); return; }
+      const p = parts[k++];
+      if (p === BEEP) playTone(my, next); else utter(p, my, next);
+    };
+    if (busy) setTimeout(next, 60); else next();
+  }
+
+  /* ---------- text helpers ---------- */
+  const cleanWord = (t) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  const speakable = (t) => /[\p{L}\p{N}]/u.test(t) && !/^_+$/.test(t);
+
+  /* ---------- sample worksheet (drawn, so the tool works before any photo) ---------- */
+  async function makeSample() {
+    const W = 1240, H = 1754, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    try { await document.fonts.load('700 40px "Andika"'); await document.fonts.load('400 40px "Andika"'); } catch (e) {}
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#1a1a1a"; g.textBaseline = "alphabetic";
+    const tokens = [];
+    let li = 0;
+    const fam = '"Andika", "Avenir Next", sans-serif';
+    // "_300" in the text draws an answer line 300 px long
+    function line(text, x, y, size, bold) {
+      g.font = (bold ? "700 " : "400 ") + size + "px " + fam;
+      g.fillStyle = "#1a1a1a";
+      let cx = x; const space = g.measureText(" ").width;
+      const top = y - size * 0.82, bot = y + size * 0.24;
+      text.split(" ").forEach(tok => {
+        const r = /^_(\d+)$/.exec(tok);
+        if (r) { rule(cx, y + 6, +r[1]); cx += +r[1] + space; return; }
+        const w = g.measureText(tok).width;
+        g.fillText(tok, cx, y);
+        tokens.push({ t: tok, x0: cx, y0: top, x1: cx + w, y1: bot, li });
+        cx += w + space;
+      });
+      li++;
+      return cx - space;
+    }
+    function rule(x, y, w) { g.strokeStyle = "#555"; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + w, y); g.stroke(); }
+    function box(text, x, y, size) {
+      g.font = "400 " + size + "px " + fam;
+      const w = g.measureText(text).width, p = size * 0.55;
+      g.strokeStyle = "#666"; g.lineWidth = 2.5; g.beginPath();
+      g.roundRect(x - p, y - size * 0.82 - p, w + 2 * p, size * 1.06 + 2 * p, 10); g.stroke();
+      line(text, x, y, size, false);
+      return x + w + p;
+    }
+    const L = 110;
+    line("Name:", L, 130, 34, false); rule(L + 110, 136, 380);
+    line("Datum:", 720, 130, 34, false); rule(840, 136, 290);
+    line("Der Igel", L, 270, 72, true);
+    line("Der Igel schläft im Winter.", L, 380, 46, false);
+    line("Er frisst Käfer und Würmer.", L, 445, 46, false);
+    line("Am Tag versteckt er sich im Laub.", L, 510, 46, false);
+    line("1. Setze ein.", L, 640, 46, true);
+    line("Der Igel schläft im _440 .", L, 730, 46, false);
+    line("Er frisst _440 und Würmer.", L, 820, 46, false);
+    line("2. Was passt zusammen?", L, 950, 46, true);
+    let bx = box("Der Igel", L + 30, 1060, 44);
+    bx = box("frisst Käfer", bx + 70, 1060, 44);
+    box("im Laub.", bx + 70, 1060, 44);
+    line("3. Markiere die Wörter mit ie.", L, 1210, 46, true);
+    line("Tier    Laub    Wiese    Igel    Biene", L + 40, 1310, 52, false);
+    line("4. Wie viele Beine hat der Igel?", L, 1440, 46, true); rule(L, 1540, 420);
+    g.fillStyle = "#8a8a8a"; g.font = "400 26px " + fam; g.fillText("Beispielblatt zum Ausprobieren", L, H - 90);
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.9));
+    const d = buildDoc(c, blob, tokens, true);
+    const tier = d.words.findIndex(w => w.t === "Tier");
+    if (tier >= 0) d.marks.push({ w: tier, c: "gelb" });
+    const first = d.gaps.find(gp => Math.abs(gp.y - 736) < 20);
+    if (first) d.answers.push(Object.assign(answerAt(first, d), { text: "Winter" }));
+    return d;
+  }
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+
+  /* ---------- layout: answer lines (gaps) and printed boxes, found in the picture itself ---------- */
+  function analyzeLayout(c, words) {
+    const W = c.width, H = c.height;
+    const px = c.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    const hs = words.map(w => w.y1 - w.y0).sort((a, b) => a - b);
+    const mh = hs.length ? hs[hs.length >> 1] : H * 0.022;     // typical text height
+
+    // ink = clearly darker than the surroundings, so shadows and tinted paper do not count
+    const gray = new Uint8Array(W * H), W1 = W + 1, S = new Uint32Array(W1 * (H + 1));
+    for (let y = 0; y < H; y++) {
+      let row = 0;
+      for (let x = 0; x < W; x++) {
+        const k = y * W + x, v = (px[k * 4] * 77 + px[k * 4 + 1] * 150 + px[k * 4 + 2] * 29) >> 8;
+        gray[k] = v; row += v;
+        S[(y + 1) * W1 + x + 1] = S[y * W1 + x + 1] + row;
+      }
+    }
+    const r = Math.max(8, Math.round(mh * 0.8)), ink = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+      const ya = Math.max(0, y - r), yb = Math.min(H, y + r + 1);
+      for (let x = 0; x < W; x++) {
+        const xa = Math.max(0, x - r), xb = Math.min(W, x + r + 1);
+        const mean = (S[yb * W1 + xb] - S[ya * W1 + xb] - S[yb * W1 + xa] + S[ya * W1 + xa]) / ((xb - xa) * (yb - ya));
+        const v = gray[y * W + x];
+        ink[y * W + x] = v < mean * 0.8 && mean - v > 18 ? 1 : 0;
+      }
+    }
+    // thin printed lines are often light grey: a pixel clearly darker than both pixels a few rows above and
+    // below lies on a horizontal line (and with left/right on a vertical one), whatever the lighting
+    const k = Math.max(3, Math.round(mh * 0.12)), d = 10;
+    const ridgeH = new Uint8Array(W * H), ridgeV = new Uint8Array(W * H);
+    for (let y = k; y < H - k; y++) for (let x = k; x < W - k; x++) {
+      const i = y * W + x, v = gray[i] + d;
+      if (v < gray[i - k * W] && v < gray[i + k * W]) ridgeH[i] = 1;
+      if (v < gray[i - k] && v < gray[i + k]) ridgeV[i] = 1;
+    }
+
+    // follow ink along a row (or column), allowing a slight slant and tiny breaks; keep long straight runs
+    function trace(horiz, minLen) {
+      const U = horiz ? W : H, V = horiz ? H : W, ink = horiz ? ridgeH : ridgeV;
+      const id = horiz ? (u, v) => v * W + u : (u, v) => u * W + v;
+      const seen = new Uint8Array(W * H), vs = new Int32Array(U), out = [];
+      const maxGap = Math.max(3, Math.round(mh * 0.12)), maxDev = Math.max(2.5, mh * 0.08);
+      for (let v = 1; v < V - 1; v++) for (let u = 0; u < U - 1; u++) {
+        const i0 = id(u, v);
+        if (!ink[i0] || seen[i0]) continue;
+        let cu = u, cv = v, gap = 0, last = u, n = 0;
+        while (cu < U - 1) {
+          const nu = cu + 1;
+          let nv = -1;
+          if (ink[id(nu, cv)]) nv = cv;
+          else if (cv > 0 && ink[id(nu, cv - 1)]) nv = cv - 1;
+          else if (cv < V - 1 && ink[id(nu, cv + 1)]) nv = cv + 1;
+          cu = nu;
+          if (nv < 0) { if (++gap > maxGap) break; vs[n++] = cv; continue; }
+          gap = 0; cv = nv; last = cu; vs[n++] = cv;
+          seen[id(cu, cv)] = 1;
+          if (cv > 0) seen[id(cu, cv - 1)] = 1;
+          if (cv < V - 1) seen[id(cu, cv + 1)] = 1;
+        }
+        const m = last - u;
+        if (m < minLen) continue;
+        let sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (let k = 0; k < m; k++) { sx += k; sy += vs[k]; sxx += k * k; sxy += k * vs[k]; }
+        const b = (m * sxy - sx * sy) / (m * sxx - sx * sx), a = (sy - b * sx) / m;
+        // (up to about 6°: photos taken at an angle tilt lines near the page edge)
+        if (Math.abs(b) > 0.1) continue;
+        let dev = 0;
+        for (let k = 0; k < m; k++) dev = Math.max(dev, Math.abs(vs[k] - a - b * k));
+        // (long lines on a bent page are slightly curved)
+        if (dev > Math.max(maxDev, m * 0.012)) continue;
+        out.push({ u0: u, u1: last, a: a - b * (u + 1), b });
+      }
+      return merge(merge(out));
+    }
+    // pieces of one line (thick lines give several traces, breaks give several pieces) become one
+    function merge(segs) {
+      segs.sort((p, q) => (q.u1 - q.u0) - (p.u1 - p.u0));
+      const out = [], tolV = Math.max(4, mh * 0.18), join = Math.max(8, mh * 0.4);
+      segs.forEach(s => {
+        const um = (s.u0 + s.u1) / 2;
+        const t = out.find(t => s.u0 <= t.u1 + join && s.u1 >= t.u0 - join &&
+          Math.abs((t.a + t.b * clamp(um, t.u0, t.u1)) - (s.a + s.b * clamp(um, t.u0, t.u1))) <= tolV);
+        if (t) { t.u0 = Math.min(t.u0, s.u0); t.u1 = Math.max(t.u1, s.u1); }
+        else out.push({ u0: s.u0, u1: s.u1, a: s.a, b: s.b });
+      });
+      return out;
+    }
+    const hz = trace(true, mh * 1.1).map(s => ({ x0: s.u0, x1: s.u1, y: s.a + s.b * (s.u0 + s.u1) / 2, at: (x) => s.a + s.b * x }));
+    // (vertical strokes inside recognised words are letters like "l", not sides of a box or frame)
+    const vt = trace(false, mh * 1.1).map(s => ({ y0: s.u0, y1: s.u1, x: s.a + s.b * (s.u0 + s.u1) / 2 }))
+      .filter(v => !words.some(w => v.x > w.x0 - 2 && v.x < w.x1 + 2 && (v.y0 + v.y1) / 2 > w.y0 && (v.y0 + v.y1) / 2 < w.y1));
+    const tol = Math.max(mh * 0.7, W * 0.012);
+    if (window.__hb) window.__hb.layout = { hz, vt, mh, words: words.map(w => [w.t, Math.round(w.x0), Math.round(w.y0), Math.round(w.y1), Math.round(w.cf), w.col]) };
+    // tesseract sometimes stretches a word's box over the gap line next to it ("____ nichts" read as one wide
+    // "nichts"): cut such a box back to about the width its letters need, on the side away from the line
+    words.forEach(w => {
+      const h = w.y1 - w.y0, need = cleanWord(w.t).length * h * 0.6 + h * 0.3;
+      if (w.x1 - w.x0 < need * 1.5) return;
+      const s = hz.find(s => s.y > w.y1 - h * 0.5 && s.y < w.y1 + h * 0.6 && s.x0 < w.x1 && s.x1 > w.x0);
+      if (!s) return;
+      if (s.x1 < w.x1 - need * 0.5) w.x0 = Math.max(w.x0, w.x1 - need);
+      else if (s.x0 > w.x0 + need * 0.5) w.x1 = Math.min(w.x1, w.x0 + need);
+    });
+    const vNear = (x, ya, yb, part) => vt.some(v => Math.abs(v.x - x) < tol && Math.min(v.y1, yb) - Math.max(v.y0, ya) >= (yb - ya) * part);
+
+    // boxes: a left and a right side of about the same height around one or two lines of text, with enough of
+    // the top and bottom edge seen; photos of slightly bent pages often lose parts of the edges
+    const frames = [];
+    function edge(xa, xb, ya, yb) {
+      let c = 0, ys = 0;
+      hz.forEach(s => { if (s.y < ya || s.y > yb) return; const o = Math.min(s.x1, xb) - Math.max(s.x0, xa); if (o > 0) { c += o; ys += s.y * o; } });
+      return { c: Math.min(1, c / (xb - xa)), y: c ? ys / c : 0 };
+    }
+    // writing fields (Lineatur), found first: three or more lines of the same width close above each other, often without visible sides
+    {
+      const byX = hz.slice().sort((p, q) => p.y - q.y), used = new Set();
+      byX.forEach(a => {
+        if (used.has(a)) return;
+        const chain = [a];
+        for (const b of byX) {
+          const l = chain[chain.length - 1], dy = b.y - l.y;
+          if (b === l || used.has(b) || dy < mh * 0.2) continue;
+          if (dy > mh * 1.6 || chain.length >= 5) break;
+          // evenly spaced (a field's lines), not the next field below
+          if (chain.length > 1 && Math.abs(dy - (chain[1].y - chain[0].y)) > (chain[1].y - chain[0].y) * 0.6) continue;
+          if (Math.abs(b.x0 - a.x0) < tol && Math.abs(b.x1 - a.x1) < tol) chain.push(b);
+        }
+        const y0 = chain[0].y, y1 = chain[chain.length - 1].y;
+        if (chain.length < 3 || y1 - y0 < mh * 0.7 || y1 - y0 > mh * 3) return;
+        chain.forEach(c => used.add(c));
+        const x0 = Math.min(...chain.map(c => c.x0)), x1 = Math.max(...chain.map(c => c.x1));
+        if (frames.some(f => f.x0 < x1 - tol && f.x1 > x0 + tol && f.y0 < y1 && f.y1 > y0)) return;
+        frames.push({ x0, y0, x1, y1, lin: true });
+      });
+    }
+    const sides = vt.filter(v => v.y1 - v.y0 <= mh * 4).sort((p, q) => p.x - q.x), taken = new Set();
+    sides.forEach(Ls => {
+      if (taken.has(Ls)) return;
+      for (const Rs of sides) {
+        if (Rs.x - Ls.x < mh * 0.6 || taken.has(Rs)) continue;
+        if (Math.abs(Rs.y0 - Ls.y0) > tol || Math.abs(Rs.y1 - Ls.y1) > tol) continue;
+        const ya = Math.min(Ls.y0, Rs.y0), yb = Math.max(Ls.y1, Rs.y1);
+        // another side in between means these are two boxes side by side
+        if (sides.some(v => v !== Ls && v !== Rs && v.x > Ls.x + mh && v.x < Rs.x - mh && Math.min(v.y1, yb) - Math.max(v.y0, ya) > (yb - ya) * 0.5)) break;
+        const t = edge(Ls.x, Rs.x, ya - tol, ya + tol * 0.5), b = edge(Ls.x, Rs.x, yb - tol * 0.5, yb + tol);
+        if (Math.max(t.c, b.c) < 0.4 || t.c + b.c < 0.6) continue;
+        const y0 = t.c >= 0.15 ? t.y : ya - mh * 0.25, y1 = b.c >= 0.15 ? b.y : yb + mh * 0.25;
+        if (y1 - y0 > mh * 4 || frames.some(f => f.x0 < Rs.x - tol && f.x1 > Ls.x + tol && f.y0 < y1 - tol && f.y1 > y0 + tol)) continue;
+        taken.add(Ls); taken.add(Rs);
+        frames.push({ x0: Ls.x, y0, x1: Rs.x, y1 });
+        break;
+      }
+    });
+    // or a top and a bottom line of about the same width, with at least some of the sides
+    hz.forEach(T => hz.forEach(B => {
+      const dy = B.y - T.y;
+      if (dy < mh * 1.2 || dy > mh * 3.8 || Math.abs(B.x0 - T.x0) > tol || Math.abs(B.x1 - T.x1) > tol) return;
+      const x0 = Math.min(T.x0, B.x0), x1 = Math.max(T.x1, B.x1);
+      if (frames.some(f => f.x0 < x1 && f.x1 > x0 && f.y0 < B.y && f.y1 > T.y)) return;
+      if (vNear(x0, T.y, B.y, 0.3) && vNear(x1, T.y, B.y, 0.3)) frames.push({ x0, y0: T.y, x1, y1: B.y });
+    }));
+    if (window.__hb) window.__hb.layout.frames = frames;
+    const inBox = (w, b) => { const cx = (w.x0 + w.x1) / 2, cy = (w.y0 + w.y1) / 2; return cx > b.x0 && cx < b.x1 && cy > b.y0 && cy < b.y1; };
+    // a word belongs into a frame only if most of it lies inside ("▢ift" is often read as one word with the box)
+    const mostlyIn = (w, b) => { const ww = Math.min(w.x1, b.x1) - Math.max(w.x0, b.x0), hh = Math.min(w.y1, b.y1) - Math.max(w.y0, b.y0);
+      return ww > 0 && hh > 0 && ww * hh > 0.6 * (w.x1 - w.x0) * (w.y1 - w.y0); };
+    const boxes = [];
+    frames.forEach(f => {
+      // (in a writing field, an unsure word is letter salad from the lines)
+      words.forEach(w => { if (f.lin && w.cf != null && w.cf < 75 && mostlyIn(w, f)) w.junk = true; });
+      const inside = words.filter(w => w.bx < 0 && !w.junk && mostlyIn(w, f));
+      // a printed box leaves room around its words
+      if (!inside.length || f.y1 - f.y0 < 1.3 * Math.max(...inside.map(w => w.y1 - w.y0))) return;
+      inside.forEach(w => { w.bx = boxes.length; });
+      boxes.push({ x0: Math.round(f.x0), y0: Math.round(f.y0), x1: Math.round(f.x1), y1: Math.round(f.y1) });
+    });
+
+    // empty boxes are gaps as well: a small box inside or after a word ("▢ielen", "Sand▢rand") or a writing field
+    const boxGaps = [];
+    frames.forEach(f => {
+      if (f.y1 - f.y0 < mh * 0.7 || words.some(w => !w.junk && mostlyIn(w, f))) return;
+      boxGaps.push({ x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y1 });
+    });
+    // brightness of the paper: the brightness most pixels inside the recognised words' area have
+    const paperLevel = (() => {
+      const hist = new Uint32Array(256);
+      words.forEach(w => { for (let y = Math.max(0, w.y0 | 0); y < Math.min(H, w.y1); y += 3) for (let x = Math.max(0, w.x0 | 0); x < Math.min(W, w.x1); x += 3) hist[gray[y * W + x]]++; });
+      let tot = hist.reduce((a, b) => a + b, 0), acc = 0;
+      for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > tot * 0.3) return v; }
+      return 200;
+    })();
+    // grey filled squares stand for a missing letter or punctuation mark ("fragt▢", "▢Hast du heute Zeit▢▢"):
+    // pixels a bit darker than the paper around them but no ink, in small compact patches
+    {
+      const R = Math.max(10, Math.round(mh * 2)), w2 = W >> 1, h2 = H >> 1, fill = new Uint8Array(w2 * h2);
+      for (let y = 0; y < h2; y++) {
+        const ya = Math.max(0, y * 2 - R), yb = Math.min(H, y * 2 + R + 1);
+        for (let x = 0; x < w2; x++) {
+          const xa = Math.max(0, x * 2 - R), xb = Math.min(W, x * 2 + R + 1), i = y * 2 * W + x * 2;
+          const mean = (S[yb * W1 + xb] - S[ya * W1 + xb] - S[yb * W1 + xa] + S[ya * W1 + xa]) / ((xb - xa) * (yb - ya));
+          fill[y * w2 + x] = !ink[i] && gray[i] < mean * 0.93 && gray[i] > mean * 0.62 ? 1 : 0;
+        }
+      }
+      const seen = new Uint8Array(w2 * h2), stack = [];
+      for (let k0 = 0; k0 < w2 * h2; k0++) {
+        if (!fill[k0] || seen[k0]) continue;
+        let x0 = W, x1 = 0, y0 = H, y1 = 0, n = 0;
+        seen[k0] = 1; stack.push(k0);
+        while (stack.length) {
+          const k = stack.pop(), x = k % w2, y = (k / w2) | 0;
+          n++; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+          if (x > 0 && fill[k - 1] && !seen[k - 1]) { seen[k - 1] = 1; stack.push(k - 1); }
+          if (x < w2 - 1 && fill[k + 1] && !seen[k + 1]) { seen[k + 1] = 1; stack.push(k + 1); }
+          if (y > 0 && fill[k - w2] && !seen[k - w2]) { seen[k - w2] = 1; stack.push(k - w2); }
+          if (y < h2 - 1 && fill[k + w2] && !seen[k + w2]) { seen[k + w2] = 1; stack.push(k + w2); }
+        }
+        const bw = (x1 - x0 + 1) * 2, bh = (y1 - y0 + 1) * 2;
+        if (bw < mh * 0.35 || bh < mh * 0.35 || bw > mh * 1.6 || bh > mh * 1.6 || bw > bh * 2 || bh > bw * 2) continue;
+        if (n * 4 < bw * bh * 0.75) continue;
+        const sq = { x0: x0 * 2, y0: y0 * 2, x1: x1 * 2 + 2, y1: y1 * 2 + 2, square: true };
+        // only on bright paper (not on cloth or a shadow beside the page), next to text, and not inside a word
+        const cx = (sq.x0 + sq.x1) >> 1, cyy = (sq.y0 + sq.y1) >> 1;
+        const xa = Math.max(0, cx - R), xb = Math.min(W, cx + R + 1), ya = Math.max(0, cyy - R), yb = Math.min(H, cyy + R + 1);
+        const around = (S[yb * W1 + xb] - S[ya * W1 + xb] - S[yb * W1 + xa] + S[ya * W1 + xa]) / ((xb - xa) * (yb - ya));
+        if (around < paperLevel * 0.8) continue;
+        if (words.some(w => mostlyIn(sq, w))) continue;
+        if (!words.some(w => Math.abs((w.y0 + w.y1) / 2 - cyy) < mh * 0.8 && Math.max(sq.x0 - w.x1, w.x0 - sq.x1) < mh * 1.5)) continue;
+        boxGaps.push(sq);
+      }
+    }
+
+    // tables: long vertical lines crossed by long horizontal ones. Columns lie between the vertical lines (and the ends of
+    // the horizontal ones), rows between the horizontal lines (and the ends of the vertical ones); the top row is the header
+    const tables = [], gridH = new Set();
+    {
+      // (very long lines are page or book edges, not table lines)
+      const LV = vt.filter(v => v.y1 - v.y0 > mh * 2.5 && v.y1 - v.y0 < H * 0.45), LH = hz.filter(h => h.x1 - h.x0 > mh * 4 && h.x1 - h.x0 < W * 0.9);
+      // (a real grid line crosses another one somewhere in its middle; the edges of a box only meet at its corners)
+      const crosses = (v, h) => {
+        const y = h.at(v.x);
+        if (!(v.x > h.x0 - tol && v.x < h.x1 + tol && y > v.y0 - tol && y < v.y1 + tol)) return false;
+        return (v.x > h.x0 + tol * 1.5 && v.x < h.x1 - tol * 1.5) || (y > v.y0 + tol * 1.5 && y < v.y1 - tol * 1.5);
+      };
+      const up = new Map(), root = (a) => { while (up.get(a) !== a) a = up.get(a); return a; };
+      [...LV, ...LH].forEach(a => up.set(a, a));
+      LH.forEach(h => LV.forEach(v => { if (crosses(v, h)) up.set(root(v), root(h)); }));
+      const groups = new Map();
+      [...LV, ...LH].forEach(a => { const r = root(a); if (!groups.has(r)) groups.set(r, { V: [], H: [] }); groups.get(r)[LV.includes(a) ? "V" : "H"].push(a); });
+      const merged = (vals) => { const out = []; vals.sort((p, q) => p - q).forEach(v => { if (!out.length || v - out[out.length - 1] > tol) out.push(v); }); return out; };
+      groups.forEach(g => {
+        if (g.V.length < 2 || !g.H.length) return;
+        const cols = merged([...g.V.map(v => v.x), Math.min(...g.H.map(h => h.x0)), Math.max(...g.H.map(h => h.x1))]);
+        const rows = merged([...g.H.map(h => h.y), Math.min(...g.V.map(v => v.y0)), Math.max(...g.V.map(v => v.y1))]);
+        if (cols.length < 3 || rows.length < 3) return;
+        // a table has rows of a few text lines at most (long page borders or a book's edge do not make one)
+        if (rows.some((y, k) => k && y - rows[k - 1] > mh * 12)) return;
+        g.H.forEach(h => gridH.add(h));
+        const t = { x0: cols[0], x1: cols[cols.length - 1], y0: rows[0], y1: rows[rows.length - 1], cols, rows, head: [] };
+        for (let c = 0; c < cols.length - 1; c++) {
+          const cell = { x0: cols[c], x1: cols[c + 1], y0: rows[0], y1: rows[1] };
+          t.head.push(words.filter(w => inBox(w, cell)).sort((p, q) => p.x0 - q.x0).map(w => w.t).join(" "));
+        }
+        const hasHead = t.head.some(Boolean);
+        for (let r = 0; r < rows.length - 1; r++) for (let c = 0; c < cols.length - 1; c++) {
+          const cell = { x0: cols[c], x1: cols[c + 1], y0: rows[r], y1: rows[r + 1] };
+          if (cell.x1 - cell.x0 < mh * 1.5 || cell.y1 - cell.y0 < mh * 0.8) continue;
+          const inside = words.filter(w => w.bx < 0 && inBox(w, cell));
+          if (inside.length) {
+            // a faint row line may be missing: words on clearly separate lines in one cell become separate cells
+            const groups = [];
+            inside.slice().sort((p, q) => p.y0 - q.y0).forEach(w => {
+              const g = groups[groups.length - 1];
+              if (g && w.y0 < Math.max(...g.map(x => x.y1)) + mh * 0.5) g.push(w); else groups.push([w]);
+            });
+            groups.forEach((g, k) => {
+              const top = k ? (Math.max(...groups[k - 1].map(x => x.y1)) + Math.min(...g.map(x => x.y0))) / 2 : cell.y0;
+              const bot = k < groups.length - 1 ? (Math.max(...g.map(x => x.y1)) + Math.min(...groups[k + 1].map(x => x.y0))) / 2 : cell.y1;
+              g.forEach(w => { w.bx = boxes.length; });
+              boxes.push({ x0: Math.round(cell.x0), y0: Math.round(top), x1: Math.round(cell.x1), y1: Math.round(bot) });
+            });
+          } else if (!(r === 0 && hasHead) && !words.some(w => inBox(w, cell)) && !boxGaps.some(b => inBox(b, cell))) {
+            const m = mh * 0.15;
+            boxGaps.push({ x0: cell.x0 + m, y0: cell.y0 + m, x1: cell.x1 - m, y1: cell.y1 - m });
+          }
+        }
+        tables.push(t);
+      });
+    }
+    // what belongs in an empty box: the header of its table column, or the heading above a column of writing fields
+    function headOf(b) {
+      const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+      const t = tables.find(t => cx > t.x0 && cx < t.x1 && cy > t.rows[1] - tol && cy < t.y1);
+      if (t) { for (let c = 0; c < t.cols.length - 1; c++) if (cx > t.cols[c] && cx < t.cols[c + 1]) return t.head[c] || ""; }
+      if (b.square || b.x1 - b.x0 < mh * 2) return "";
+      const col = frames.filter(o => Math.abs(o.x0 - b.x0) < tol && Math.abs(o.x1 - b.x1) < tol);
+      if (col.length < 3) return "";
+      // the heading sits above the first row of the whole group of columns (some fields may be filled in or missed)
+      const cy0 = Math.min(...col.map(o => o.y0)), cy1 = Math.max(...col.map(o => o.y1));
+      const colOf = (o) => frames.filter(q => Math.abs(q.x0 - o.x0) < tol && Math.abs(q.x1 - o.x1) < tol);
+      const grid = frames.filter(o => { const c = colOf(o); return c.length >= 3 && Math.min(...c.map(q => q.y0)) < cy1 && Math.max(...c.map(q => q.y1)) > cy0; });
+      const topY = Math.min(...grid.map(o => o.y0));
+      // (the nearest printed words above the column, not words written into one of the fields)
+      // search as far up as about two rows of fields (photos taken at an angle stretch the distances)
+      const ys = col.map(o => o.y0).sort((p, q) => p - q), steps = ys.slice(1).map((y, k) => y - ys[k]).sort((p, q) => p - q);
+      const reach = Math.max(mh * 4, (steps[steps.length >> 1] || 0) * 2.5);
+      let above = words.filter(w => w.y1 <= topY + mh * 0.3 && w.y1 > topY - reach && (w.x0 + w.x1) / 2 > b.x0 - mh && (w.x0 + w.x1) / 2 < b.x1 + mh
+        && !frames.some(f => mostlyIn(w, f)) && !w.col && !w.junk && !(w.cf != null && w.cf < 60 && !wordLike(w.t)));
+      // an unsure word right at the top of the fields is a handwritten example in a field that was missed, not the heading
+      above = above.filter(w => w.cf == null || w.cf >= 60 || w.y1 < topY - mh * 0.5);
+      if (!above.length) return "";
+      const low = Math.max(...above.map(w => w.y1));
+      const head = above.filter(w => w.y1 > low - mh * 0.6).sort((p, q) => p.x0 - q.x0).map(w => w.t);
+      return (head.some(t => !/^\d+$/.test(t)) ? head.filter(t => !/^\d+$/.test(t)) : head).join(" ");
+    }
+
+    // ink density in a strip, not counting recognised words
+    const wordMask = new Uint8Array(W * H);
+    words.forEach(w => {
+      for (let y = Math.max(0, Math.floor(w.y0) - 3); y < Math.min(H, w.y1 + 3); y++)
+        wordMask.fill(1, y * W + Math.max(0, Math.floor(w.x0) - 3), y * W + Math.min(W, Math.ceil(w.x1) + 3));
+    });
+    // mean brightness of the paper (no ink) in a strip
+    function paper(x0, x1, ya, yb) {
+      let n = 0, k = 0;
+      for (let y = Math.max(0, Math.round(ya)); y < Math.min(H, yb); y += 2)
+        for (let x = Math.max(0, Math.round(x0)); x < Math.min(W, x1); x += 3) { const i = y * W + x; if (!ink[i]) { n++; k += gray[i]; } }
+      return n ? k / n : 0;
+    }
+    function busy(x0, x1, ya, yb) {
+      let n = 0, k = 0;
+      for (let y = Math.max(0, Math.round(ya)); y < Math.min(H, yb); y += 2)
+        for (let x = Math.max(0, Math.round(x0)); x < Math.min(W, x1); x += 2) { const i = y * W + x; if (!wordMask[i]) { n++; k += ink[i]; } }
+      return n ? k / n : 0;
+    }
+
+    // gaps: the other lines, unless they belong to a frame, underline a word, sit in a drawing or above all text
+    const top = words.length ? Math.min(...words.map(w => w.y0)) : 0;
+    const gaps = [];
+    hz.forEach(s => {
+      // (short lines are edges of small boxes, not answer lines)
+      if (s.x1 - s.x0 < Math.max(mh * 3, W * 0.035) || s.x1 - s.x0 > W * 0.97 || s.y < top - mh || gridH.has(s)) return;
+      if (tables.some(t => s.y > t.y0 - tol && s.y < t.y1 + tol && s.x1 > t.x0 && s.x0 < t.x1)) return;
+      if (frames.some(b => s.y > b.y0 - tol && s.y < b.y1 + tol && s.x1 > b.x0 && s.x0 < b.x1)) return;
+      if (vNear(s.x0, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) || vNear(s.x1, s.y - mh * 0.5, s.y + mh * 0.5, 0.3)) return;
+      const over = words.filter(w => { const h = w.y1 - w.y0; return w.x1 > s.x0 && w.x0 < s.x1 && s.y > w.y1 - h * 0.35 && s.y < w.y1 + h * 0.6; });
+      if (over.length) {
+        const cover = Math.max(...over.map(w => w.x1)) - Math.min(...over.map(w => w.x0));
+        if (cover > (s.x1 - s.x0) * 0.75) return;
+      }
+      if (busy(s.x0, s.x1, s.y - mh * 1.1, s.y - mh * 0.15) > 0.06 || busy(s.x0, s.x1, s.y + mh * 0.2, s.y + mh * 0.9) > 0.06) return;
+      // the edge of a grey band or coloured area: the paper is darker on one side than on the other
+      if (Math.abs(paper(s.x0, s.x1, s.y - mh * 0.5, s.y - mh * 0.15) - paper(s.x0, s.x1, s.y + mh * 0.15, s.y + mh * 0.5)) > 14) return;
+      // which text line does it belong to? the closest word sitting on about the same baseline
+      let li = -1, h = mh, bd = Infinity;
+      words.forEach(w => {
+        const wh = w.y1 - w.y0;
+        if (s.y < w.y1 - wh * 0.4 || s.y > w.y1 + wh * 0.9) return;
+        const d = Math.max(s.x0 - w.x1, w.x0 - s.x1, 0);
+        if (d < wh * 4 && d < bd) { bd = d; li = w.li; h = Math.min(wh, mh * 1.3); }
+      });
+      if (li < 0 && s.x1 - s.x0 < W * 0.2) return;   // a short line on its own is decoration, an answer line is long
+      gaps.push({ x0: Math.round(s.x0), x1: Math.round(s.x1), y: Math.round(s.y), h: Math.round(h), li });
+    });
+    // box gaps: inside a line of text (a word right next to it on the same height) they are part of the sentence
+    boxGaps.forEach(b => {
+      const h = b.y1 - b.y0, cy = (b.y0 + b.y1) / 2;
+      let li = -1, bd = Infinity;
+      words.forEach(w => {
+        const wh = w.y1 - w.y0;
+        if (Math.abs((w.y0 + w.y1) / 2 - cy) > Math.max(wh, h) * 0.6) return;
+        const d = Math.max(b.x0 - w.x1, w.x0 - b.x1, 0);
+        if (d < mh * 2 && d < bd) { bd = d; li = w.li; }
+      });
+      // a box with a heading (table cell, writing field in a column) stands alone, whatever is written next to it
+      const touching = words.some(w => Math.abs((w.y0 + w.y1) / 2 - cy) < h * 0.6 && Math.max(b.x0 - w.x1, w.x0 - b.x1) < mh * 0.3);
+      const head = touching ? "" : headOf(b);
+      const g = { x0: Math.round(b.x0), x1: Math.round(b.x1), y0: Math.round(b.y0), y: Math.round(b.y1), h: Math.round(h), li: head ? -1 : li };
+      if (head) g.head = head;
+      if (b.square) g.sq = 1;
+      gaps.push(g);
+    });
+    // a "." right after the line ends the sentence; tesseract often misses such small dots.
+    // Look at the ink just right of the line: a dot is small and round, a comma is taller, quotes sit high
+    gaps.forEach(g => {
+      if (g.y0 != null) return;
+      let x0 = W, x1 = -1, y0 = H, y1 = -1;
+      for (let y = Math.max(0, Math.round(g.y - mh * 0.8)); y < Math.min(H, g.y + mh * 0.6); y++)
+        for (let x = Math.round(g.x1 + mh * 0.12); x < Math.min(W, g.x1 + mh * 0.8); x++) {
+          const i = y * W + x;
+          if (ink[i] && !wordMask[i]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+        }
+      const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+      if (x1 >= 0 && bw <= mh * 0.3 && bh <= mh * 0.3 && bh < bw * 1.6 && y0 > g.y - mh * 0.45) g.end = true;
+    });
+    gaps.sort((p, q) => p.y - q.y || p.x0 - q.x0);
+    return { gaps, boxes, mh };
+  }
+
+  // OCR (or the sample) gives tokens; turn them into words, gaps and boxes
+  function buildDoc(c, blob, tokens, sample) {
+    const W = c.width, H = c.height;
+    const px = c.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    // mean colour of the ink of a word (pixels clearly darker than the word's box on average)
+    function inkOf(t) {
+      let n = 0, r = 0, g = 0, b = 0, sum = 0, cnt = 0;
+      const x0 = Math.max(0, Math.floor(t.x0)), x1 = Math.min(W, Math.ceil(t.x1)), y0 = Math.max(0, Math.floor(t.y0)), y1 = Math.min(H, Math.ceil(t.y1));
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const k = (y * W + x) * 4; sum += px[k] + px[k + 1] + px[k + 2]; cnt++; }
+      const lim = sum / Math.max(1, cnt) * 0.75;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const k = (y * W + x) * 4;
+        if (px[k] + px[k + 1] + px[k + 2] < lim) { n++; r += px[k]; g += px[k + 1]; b += px[k + 2]; }
+      }
+      return n > 4 ? { br: (b - r) / n, gr: (g - r) / n } : null;
+    }
+    let ws = tokens.filter(t => speakable(t.t)).map(t => Object.assign({}, t, { cf: t.cf == null ? 100 : t.cf }));
+    // a box much taller than the others on its line gets the line's height
+    const byLi = new Map();
+    ws.forEach(t => { if (!byLi.has(t.li)) byLi.set(t.li, []); byLi.get(t.li).push(t); });
+    byLi.forEach(ts => {
+      if (ts.length < 3) return;
+      const med = (f) => ts.map(f).sort((p, q) => p - q)[ts.length >> 1];
+      const h = med(t => t.y1 - t.y0), y0 = med(t => t.y0), y1 = med(t => t.y1);
+      ts.forEach(t => { if (t.y1 - t.y0 > h * 1.7) { t.y0 = y0; t.y1 = y1; } });
+    });
+    // a word read twice (two passes, or tesseract repeating a line) or a box squeezed to a few pixels: keep the surer one
+    ws = ws.filter(t => t.x1 - t.x0 > 3 && t.y1 - t.y0 > 3);
+    ws.sort((p, q) => q.cf - p.cf);
+    const kept = [];
+    // (boxes of neighbouring words often overlap a little: only the same word, or a large overlap, is a repeat)
+    const core = (t) => cleanWord(t.t).toLowerCase();
+    ws.forEach(t => {
+      const a = (t.x1 - t.x0) * (t.y1 - t.y0);
+      const k = kept.find(k => {
+        const w = Math.min(k.x1, t.x1) - Math.max(k.x0, t.x0), h = Math.min(k.y1, t.y1) - Math.max(k.y0, t.y0);
+        if (w <= 0 || h <= 0) return false;
+        const ka = (k.x1 - k.x0) * (k.y1 - k.y0);
+        return w * h > 0.5 * Math.max(a, ka) || (w * h > 0.3 * Math.min(a, ka) && core(k) === core(t));
+      });
+      if (!k) { kept.push(t); return; }
+      if (core(k) === core(t) && t.t.length > k.t.length) k.t = t.t;   // keep "freundlich." over "freundlich"
+    });
+    // example answers are often printed in coloured handwriting, which tesseract reads badly ("das Lama" → "aslan"):
+    // an unsure word whose ink differs in colour from the usual print is left out rather than read out wrong
+    const inks = kept.map(inkOf), ok = inks.filter(Boolean);
+    const med = (f) => ok.length ? ok.map(f).sort((p, q) => p - q)[ok.length >> 1] : 0;
+    const mbr = med(c => c.br), mgr = med(c => c.gr);
+    // (coloured words that are kept are marked: an example answer is never a heading)
+    const odd = (k) => !!inks[k] && Math.hypot(inks[k].br - mbr, inks[k].gr - mgr) > 40;
+    const all = kept.map((t, k) => ({ t: t.t, x0: t.x0, y0: t.y0, x1: t.x1, y1: t.y1, li: t.li, bx: -1, cf: t.cf, col: odd(k) }))
+      .filter(w => !(w.cf < 80 && w.col))
+      .sort((p, q) => p.li - q.li || p.x0 - q.x0);
+    const { gaps, boxes, mh } = analyzeLayout(c, all);
+    // letter salad read into an empty writing field is dropped (the field then counts as empty)
+    const words = all.filter(w => !w.junk);
+    words.forEach(w => { delete w.cf; delete w.col; delete w.junk; });
+    // a lone "." (often right after a gap) ends the sentence of whatever stands before it
+    tokens.forEach(p => {
+      if (speakable(p.t) || !/[.!?]\W?$/.test(p.t) || /[_\-–—]/.test(p.t) || p.t.length > 3) return;
+      // tesseract reads a gap line as "____." – that dot is checked in the picture instead
+      if (gaps.some(g => g.x0 < p.x1 && g.x1 > p.x0 && Math.abs(g.y - p.y1) < mh)) return;
+      let best = null, bx = -Infinity;
+      words.forEach(w => { if (w.li === p.li && w.x1 <= p.x0 + 4 && w.x1 > bx) { bx = w.x1; best = w; } });
+      gaps.forEach(g => { if (g.li === p.li && g.x0 < p.x1 && g.x1 <= p.x1 + mh && g.x1 > bx) { bx = g.x1; best = g; } });
+      if (best) best.end = true;
+    });
+    // "dienen ____ als Nahrung": a word in small letters right after a gap means the sentence goes on
+    gaps.forEach(g => {
+      const nx = words.find(w => w.x0 > g.x1 - mh * 0.3 && w.x0 < g.x1 + mh * 2.5 && g.y > w.y0 && g.y < w.y1 + mh * 0.9);
+      if (nx && /^[a-zäöüß]/.test(nx.t)) g.end = false;
+    });
+    return { W, H, blob, words, gaps, boxes, fs: clamp(mh * 0.85, H * 0.014, H * 0.03), answers: [], marks: [], strokes: [], sample: !!sample };
+  }
+
+  /* ---------- persistence (IndexedDB, this browser only) ---------- */
+  function idb() {
+    return new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open("hoerblatt", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("s");
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      } catch (e) { rej(e); }
+    });
+  }
+  async function dbGet() {
+    try { const d = await idb(); return await new Promise((res) => { const q = d.transaction("s").objectStore("s").get("cur"); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); }
+    catch (e) { return null; }
+  }
+  let saveTimer = 0;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      if (!doc || doc.sample) return;
+      try { const d = await idb(); d.transaction("s", "readwrite").objectStore("s").put(doc, "cur"); } catch (e) {}
+    }, 400);
+  }
+
+  /* ---------- rendering ---------- */
+  let imgURL = null;
+  function loadDoc(d) {
+    // pages saved by an older version have no gaps or boxes
+    d.gaps = d.gaps || []; d.boxes = d.boxes || []; d.fs = d.fs || d.H * 0.024; d.strokes = d.strokes || [];
+    d.marks = d.marks.map(m => typeof m === "number" ? { w: m, c: "gelb" } : m);
+    d.words.forEach(w => { if (w.bx == null) w.bx = -1; });
+    doc = d; undoStack = []; lastTap = null;
+    if (imgURL) URL.revokeObjectURL(imgURL);
+    imgURL = URL.createObjectURL(d.blob);
+    img.src = imgURL;
+    ov.setAttribute("viewBox", "0 0 " + d.W + " " + d.H);
+    stage.style.aspectRatio = d.W + " / " + d.H;
+    applyFit();
+    renderOverlay(); renderFields();
+    statusEl.classList.remove("warn");
+    statusEl.textContent = d.sample ? "Beispielblatt" : (d.words.length ? d.words.length + " Wörter erkannt" : "Keine Schrift erkannt – nur Antworten möglich");
+    if (!d.sample && !d.words.length) statusEl.classList.add("warn");
+  }
+  function rect(cls, b, pad) {
+    const r = document.createElementNS(SVGNS, "rect");
+    const p = pad || 0;
+    r.setAttribute("x", b.x0 - p); r.setAttribute("y", b.y0 - p);
+    r.setAttribute("width", b.x1 - b.x0 + 2 * p); r.setAttribute("height", b.y1 - b.y0 + 2 * p);
+    r.setAttribute("rx", 6); r.setAttribute("class", cls);
+    return r;
+  }
+  function renderOverlay() {
+    ov.textContent = "";
+    if (!doc) return;
+    (preview ? doc.marks.concat(preview) : doc.marks).forEach(m => {
+      const b = markRect(m); if (!b) return;
+      const r = rect("mk", b, 0); r.style.fill = (MARKS[m.c] || MARKS.gelb)[1]; ov.appendChild(r);
+    });
+    if (settings.gaps) doc.gaps.forEach(g => ov.appendChild(rect("gap", gapBox(g), 0)));
+    if (settings.hints && (mode === "wort" || mode === "zeile")) {
+      if (settings.boxes) doc.boxes.forEach(b => ov.appendChild(rect("boxhint", b, -4)));
+      doc.words.forEach(w => { if (!(settings.boxes && w.bx >= 0)) ov.appendChild(rect("hint", w, 3)); });
+    }
+    doc.strokes.forEach(st => ov.appendChild(inkPath(st)));
+  }
+  let preview = null;   // the part of a word being swiped with the marker
+  function markRect(m) {
+    const w = doc.words[m.w];
+    if (!w) return null;
+    return m.x0 != null ? { x0: m.x0, y0: w.y0 - 3, x1: m.x1, y1: w.y1 + 3 } : { x0: w.x0 - 4, y0: w.y0 - 4, x1: w.x1 + 4, y1: w.y1 + 4 };
+  }
+  const inkD = (pts) => "M" + pts[0] + " " + pts[1] + (pts.length > 2 ? "L" + pts.slice(2).join(" ") : "l0.1 0");
+  function inkPath(st) {
+    const el = document.createElementNS(SVGNS, "path");
+    el.setAttribute("class", "ink"); el.setAttribute("d", inkD(st.pts));
+    el.setAttribute("stroke", (PENS[st.c] || PENS.blau)[1]); el.setAttribute("stroke-width", st.w);
+    return el;
+  }
+  const gapBox = (g) => g.y0 != null ? { x0: g.x0, y0: g.y0, x1: g.x1, y1: g.y } : { x0: g.x0, y0: g.y - g.h * 1.1, x1: g.x1, y1: g.y + 3 };
+  let flashEl = null;
+  function flash(b, isLine) {
+    if (flashEl) flashEl.remove();
+    flashEl = document.createElementNS(SVGNS, "g");
+    (Array.isArray(b) ? b : [b]).forEach(x => flashEl.appendChild(rect("flash" + (isLine ? " line" : ""), x, 6)));
+    ov.appendChild(flashEl);
+    const me = flashEl;
+    return () => { if (flashEl === me) { me.remove(); flashEl = null; } };
+  }
+
+  function renderFields() {
+    fieldsEl.textContent = "";
+    if (!doc) return;
+    doc.answers.forEach(a => fieldsEl.appendChild(fieldEl(a)));
+  }
+  function fieldEl(a) {
+    const box = document.createElement("div");
+    box.className = "ans"; box.dataset.id = a.id;
+    place(box, a);
+    const say = document.createElement("button");
+    say.type = "button"; say.className = "say"; say.setAttribute("aria-label", "Antwort vorlesen");
+    say.innerHTML = '<svg><use href="#i-speaker"/></svg>';
+    const ta = document.createElement("textarea");
+    ta.rows = 1; ta.value = a.text; ta.setAttribute("aria-label", "Antwort");
+    ta.setAttribute("autocapitalize", "sentences"); ta.spellcheck = false;
+    ta.readOnly = mode !== "schreiben";
+    box.style.setProperty("--fs", (doc.fs / doc.W * 100) + "cqw");
+    const mic = document.createElement("button");
+    mic.type = "button"; mic.className = "mic"; mic.setAttribute("aria-label", "Antwort sprechen");
+    mic.innerHTML = '<svg><use href="#i-mic"/></svg>';
+    const grip = document.createElement("button");
+    grip.type = "button"; grip.className = "grip"; grip.setAttribute("aria-label", "Antwort verschieben");
+    grip.innerHTML = '<svg><use href="#i-grip"/></svg>';
+    box.append(say, ta, mic, grip);
+    mic.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (rec && recBox === box) stopDictation(); else if (!dictate(box, a)) { ta.readOnly = false; ta.focus(); }
+    });
+    let snap = false;
+    ta.addEventListener("focus", () => { snap = false; });
+    ta.addEventListener("input", () => {
+      if (!snap) { pushUndo(); snap = true; }
+      a.text = ta.value; grow(ta); save();
+    });
+    ta.addEventListener("blur", () => { if (!a.text.trim() && mode !== "schreiben") removeAnswer(a.id); });
+    say.addEventListener("click", (e) => { e.stopPropagation(); speakAnswer(box, a); });
+    // move by dragging the grip
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); e.stopPropagation(); grip.setPointerCapture(e.pointerId);
+      pushUndo();
+      const start = toImg(e), ox = a.x, oy = a.y;
+      const mv = (ev) => { const p = toImg(ev); a.x = clamp(ox + p.x - start.x, 0, doc.W - 60); a.y = clamp(oy + p.y - start.y, 0, doc.H - 40); place(box, a); };
+      const up = () => { grip.removeEventListener("pointermove", mv); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); save(); };
+      grip.addEventListener("pointermove", mv); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+    });
+    requestAnimationFrame(() => grow(ta));
+    return box;
+  }
+  function place(box, a) {
+    box.style.left = (a.x / doc.W * 100) + "%";
+    box.style.top = (a.y / doc.H * 100) + "%";
+    box.style.width = (a.w / doc.W * 100) + "%";
+  }
+  function grow(ta) { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; }
+  function speakAnswer(box, a) {
+    stopDictation();
+    const t = (a.text || "").trim();
+    if (!t) { speak("Noch leer"); return; }
+    box.classList.add("speaking");
+    speak(t, () => box.classList.remove("speaking"));
+  }
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  /* ---------- dictation: the page listens itself (Apple speech recognition, like keyboard dictation) ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, recBox = null, micBlocked = false;
+  // where the browser does not allow listening (e.g. inside the Artifact preview) remember it on this device
+  try { micBlocked = localStorage.getItem("hb-mic-blocked") === "1"; } catch (e) {}
+  const micOn = () => !!SR && settings.mic && !micBlocked;
+  function micState() {
+    document.body.classList.toggle("sr", micOn());
+    $("micInfo").textContent = !SR ? "Mikrofon-Knopf: Dieser Browser kann nicht selbst zuhören. Antworten über das Mikrofon der Tastatur sprechen."
+      : micBlocked ? "Mikrofon-Knopf: Das Zuhören ist hier nicht erlaubt, deshalb wird die Tastatur benutzt. Zum erneuten Versuchen den Schalter aus- und wieder einschalten."
+      : "";
+  }
+  function stopDictation() { if (rec) { try { rec.stop(); } catch (e) {} } }
+  // returns false when the page cannot listen; the caller then opens the keyboard
+  function dictate(box, a) {
+    if (!micOn()) return false;
+    if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
+    stopSpeaking();
+    const r = new SR(), ta = box.querySelector("textarea"), before = (a.text || "").trim();
+    r.lang = "de-DE"; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+    let heard = false, snap = false;
+    r.onresult = (e) => {
+      let t = "";
+      for (let k = 0; k < e.results.length; k++) t += e.results[k][0].transcript;
+      if (!snap) { pushUndo(); snap = true; }
+      heard = true;
+      a.text = (before ? before + " " : "") + t.trim();
+      ta.value = a.text; grow(ta);
+    };
+    r.onerror = (e) => {
+      if (/not-allowed|service-not-allowed|audio-capture/.test(e.error)) {
+        micBlocked = true; micState();
+        try { localStorage.setItem("hb-mic-blocked", "1"); } catch (e) {}
+        speak("Tippe in das Feld und dann auf das Mikrofon der Tastatur.");
+      }
+    };
+    r.onend = () => {
+      if (rec === r) { rec = null; recBox = null; }
+      box.classList.remove("listening");
+      save();
+      if (heard && a.text.trim()) speakAnswer(box, a);
+      else if (!micBlocked) speak("Ich habe nichts gehört. Tippe auf das Mikrofon und sprich.");
+    };
+    try { r.start(); } catch (e) { return false; }
+    rec = r; recBox = box;
+    box.classList.add("listening");
+    return true;
+  }
+
+  function applyFit() {
+    if (!doc) return;
+    const desk = $("desk");
+    const availH = desk.clientHeight - 28;
+    const availW = desk.clientWidth - parseFloat(getComputedStyle(desk).paddingLeft) - parseFloat(getComputedStyle(desk).paddingRight);
+    const pageW = availH * doc.W / doc.H;
+    stage.style.width = fitPage ? Math.min(availW, pageW) + "px" : Math.min(availW, 1100) + "px";
+  }
+  window.addEventListener("resize", applyFit);
+
+  /* ---------- geometry ---------- */
+  function toImg(e) {
+    const r = stage.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * doc.W, y: (e.clientY - r.top) / r.height * doc.H };
+  }
+  function hitWord(p, loose) {
+    let best = -1, bd = Infinity;
+    doc.words.forEach((w, i) => {
+      const h = w.y1 - w.y0, px = h * 0.25, py = h * 0.3;
+      if (p.x >= w.x0 - px && p.x <= w.x1 + px && p.y >= w.y0 - py && p.y <= w.y1 + py) {
+        const d = Math.abs(p.x - (w.x0 + w.x1) / 2) + Math.abs(p.y - (w.y0 + w.y1) / 2) * 2;
+        if (d < bd) { bd = d; best = i; }
+      }
+    });
+    if (best < 0 && loose) {
+      doc.words.forEach((w, i) => {
+        const h = w.y1 - w.y0;
+        const dx = Math.max(w.x0 - p.x, 0, p.x - w.x1), dy = Math.max(w.y0 - p.y, 0, p.y - w.y1);
+        const d = Math.hypot(dx, dy * 1.5);
+        if (d < h * 0.9 && d < bd) { bd = d; best = i; }
+      });
+    }
+    return best;
+  }
+  function hitGap(p) {
+    return doc.gaps.findIndex(g => {
+      const b = gapBox(g), h = g.y0 != null ? Math.min(g.h, doc.fs) : g.h;
+      return p.x >= b.x0 - h * 0.2 && p.x <= b.x1 + h * 0.2 && p.y >= b.y0 - h * 0.3 && p.y <= b.y1 + h * 0.5;
+    });
+  }
+
+  // the answer written into a gap, if any
+  function answerOn(g) {
+    const a = doc.answers.find(a => a.text.trim() && a.x < g.x1 && a.x + a.w > g.x0 && a.y < g.y + g.h * 0.5 && a.y + doc.fs * 1.6 > g.y - g.h);
+    return a ? a.text.trim() : "";
+  }
+  // a new answer field sitting on the gap's line
+  function answerAt(g, d = doc) {
+    const fs = d.fs;
+    // a box: the field sits in it (at least wide enough for a few letters)
+    if (g.y0 != null) {
+      const x = clamp(g.x0, 0, d.W - 120);
+      return { id: uid(), x, y: clamp(g.y0 + Math.max(0, (g.y - g.y0 - fs * 1.45) / 2), 0, d.H - fs * 2), w: Math.min(Math.max(g.x1 - g.x0, fs * 3.2), d.W - x), text: "" };
+    }
+    // as wide as the gap, bottom about on the line
+    return { id: uid(), x: clamp(g.x0, 0, d.W - 120), y: clamp(g.y - fs * 1.45, 0, d.H - fs * 2), w: Math.min(Math.max(g.x1 - g.x0, d.W * 0.15), d.W - clamp(g.x0, 0, d.W - 120)), text: "" };
+  }
+  function boxWords(bx) {
+    return doc.words.filter(w => w.bx === bx).sort((p, q) => p.li - q.li || p.x0 - q.x0);
+  }
+  // reading order, built from where words and gaps sit (tesseract's own lines sometimes mix two rows):
+  // chain neighbours at the same height from left to right into rows, rows from top to bottom
+  let seqCache = null;
+  function seq() {
+    if (seqCache && seqCache.words === doc.words && seqCache.gaps === doc.gaps) return seqCache.items;
+    const all = [];
+    doc.words.forEach((w, i) => all.push({ w: i, b: w }));
+    doc.gaps.forEach((g, k) => all.push({ g: k, b: gapBox(g) }));
+    all.sort((p, q) => p.b.x0 - q.b.x0);
+    const hOf = (x) => x.b.y1 - x.b.y0, cy = (x) => (x.b.y0 + x.b.y1) / 2;
+    // join it to the row whose last item ends left of it at about the same height; close neighbours first
+    function place(rows, it, maxGap) {
+      let best = null, bd = Infinity;
+      rows.forEach(r => {
+        const l = r[r.length - 1], h = Math.min(hOf(l), hOf(it)), dx = it.b.x0 - l.b.x1, dy = Math.abs(cy(it) - cy(l));
+        const over = Math.min(it.b.y1, l.b.y1) - Math.max(it.b.y0, l.b.y0);
+        // (tesseract's boxes of neighbouring words may overlap a bit)
+        if (it.b.x0 < l.b.x0 + (l.b.x1 - l.b.x0) * 0.5 || dx > Math.max(hOf(l), hOf(it)) * maxGap || (dy > h * 0.6 && over < h * 0.5)) return;
+        const d = dy + Math.max(dx, 0) * 0.05;
+        if (d < bd) { bd = d; best = r; }
+      });
+      if (best) best.push(...(Array.isArray(it.its) ? it.its : [it])); else rows.push(Array.isArray(it.its) ? it.its.slice() : [it]);
+    }
+    const segs = [];
+    all.forEach(it => place(segs, it, 6));
+    // pieces of one row with more room between them (e.g. around an arrow or a picture)
+    const rows = [];
+    // (answer lines or writing fields on their own stay a row of their own)
+    segs.map(s => ({ its: s, b: { x0: s[0].b.x0, y0: s[0].b.y0, x1: s[0].b.x1, y1: s[0].b.y1 } }))
+      .sort((p, q) => p.b.x0 - q.b.x0).forEach(s => { if (s.its.every(it => it.g != null)) rows.push(s.its.slice()); else place(rows, s, 25); });
+    rows.sort((p, q) => cy(p[0]) - cy(q[0]));
+    const items = [];
+    rows.forEach((r, k) => {
+      r.sort((p, q) => p.b.x0 - q.b.x0);
+      const onlyGaps = r.every(it => it.g != null);   // an answer line on its own, e.g. for writing a sentence
+      const hs = r.filter(it => it.w != null).map(it => it.b.y1 - it.b.y0).sort((p, q) => p - q);
+      r.rowH = hs.length ? hs[hs.length >> 1] : 0;
+      r.forEach((it, n) => { it.li = k; it.first = n === 0; it.rowX = r[0].b.x0; it.rowY1 = r[0].b.y1; it.gapRow = onlyGaps; it.rowRight = r[r.length - 1].b.x1; it.rowH = r.rowH; items.push(it); });
+    });
+    // right edge of the text block: the furthest line end among rows starting at about the same place, a few rows around
+    rows.forEach((r, k) => {
+      const h = r[0].b.y1 - r[0].b.y0;
+      const near = rows.slice(Math.max(0, k - 3), k + 4).filter(o => Math.abs(o[0].b.x0 - r[0].b.x0) < h * 2.5);
+      const right = Math.max(...near.map(o => o[o.length - 1].b.x1));
+      r.forEach(it => { it.blockRight = right; });
+    });
+    seqCache = { words: doc.words, gaps: doc.gaps, items };
+    return items;
+  }
+  // a sentence runs across lines until . ! ? (but not "1."), a clear gap between lines, or the edge of a box
+  function sentenceAt(pos) {
+    const it = seq();
+    // "Name: ____" – a colon followed by a gap on the same line keeps the gap
+    const isEnd = (k) => {
+      const x = it[k];
+      if (x.g != null) return !!doc.gaps[x.g].end;
+      const w = doc.words[x.w], nx = it[k + 1];
+      if (/:$/.test(w.t) && nx && nx.g != null && nx.li === x.li) return false;
+      return !!w.end || (/[.!?:]["“”»«‘’)]*$/.test(w.t) && !/^\d+\.$/.test(w.t));
+    };
+    const bxOf = (x) => x.w != null ? doc.words[x.w].bx : -1;
+    const apart = (a, b) => {
+      if (bxOf(a) !== bxOf(b)) return true;
+      const solo = (x) => x.g != null && doc.gaps[x.g].li < 0;   // a gap not inside a line of text stands alone
+      if (solo(a) || solo(b)) return true;
+      if (a.li === b.li) return false;
+      if (a.gapRow || b.gapRow) return true;
+      const h = a.rowH || a.b.y1 - a.b.y0, h2 = b.rowH || b.b.y1 - b.b.y0;
+      if (Math.max(h, h2) > Math.min(h, h2) * 1.4) return true;   // heading and text (typical height of each line)
+      if (b.first && b.w != null && /^\d+[.)]$/.test(doc.words[b.w].t)) return true;   // next numbered task
+      if (b.b.y0 < a.b.y0 - h) return true;
+      // measured at the start of the line: on a slanted photo the end of a line sits higher or lower
+      const dy = b.b.y0 - (b.first ? a.rowY1 : a.b.y1);
+      if (dy <= h * 1.3) return false;
+      // worksheets space lines widely (room for gaps): a line starting under the start of the previous one goes on
+      if (!(b.first && dy < h * 3.2 && Math.abs(b.rowX - a.rowX) < h * 2.5)) return true;
+      // a line that stops clearly before the right edge of the text around it was not wrapped: it ends there
+      // (only a clearly short line, and only if the next one starts with a capital: "… 1,10 Meter / bis 1,30 Meter." goes on)
+      return a.rowRight < a.blockRight - (a.blockRight - a.rowX) * 0.25 && b.w != null && /^[„"]?[A-ZÄÖÜ]/.test(doc.words[b.w].t);
+    };
+    let s = pos, e = pos;
+    while (s > 0 && !isEnd(s - 1) && !apart(it[s - 1], it[s])) s--;
+    while (e < it.length - 1 && !isEnd(e) && !apart(it[e], it[e + 1])) e++;
+    const part = it.slice(s, e + 1), boxes = {}, parts = [];
+    let buf = [], prev = null, prevText = false;
+    part.forEach(x => {
+      const b = boxes[x.li] || (boxes[x.li] = { x0: x.b.x0, y0: x.b.y0, x1: x.b.x1, y1: x.b.y1 });
+      b.x0 = Math.min(b.x0, x.b.x0); b.y0 = Math.min(b.y0, x.b.y0); b.x1 = Math.max(b.x1, x.b.x1); b.y1 = Math.max(b.y1, x.b.y1);
+      // a box inside a word: its answer and the rest of the word are read as one word ("Sp" + "ielen")
+      const isBox = (y) => y && y.g != null && doc.gaps[y.g].y0 != null;
+      const glue = prev && prev.li === x.li && (isBox(x) || isBox(prev)) && x.b.x0 - prev.b.x1 < (x.b.y1 - x.b.y0) * 0.25;
+      const add = (t) => { if (glue && buf.length && prevText) buf[buf.length - 1] += t; else buf.push(t); prevText = true; };
+      prev = x;
+      if (x.w != null) { add(doc.words[x.w].t.replace(/_+/g, " ")); return; }
+      const t = answerOn(doc.gaps[x.g]);
+      if (t) add(t);
+      else { if (buf.length) parts.push(buf.join(" ")); buf = []; parts.push(BEEP); prevText = false; }
+    });
+    if (buf.length) parts.push(buf.join(" "));
+    return { parts, boxes: Object.values(boxes) };
+  }
+  const posOf = (key, i) => seq().findIndex(x => x[key] === i);
+
+  /* ---------- undo ---------- */
+  function pushUndo() {
+    undoStack.push(JSON.stringify({ answers: doc.answers, marks: doc.marks, gaps: doc.gaps, strokes: doc.strokes }));
+    if (undoStack.length > 60) undoStack.shift();
+  }
+  function undo() {
+    if (!undoStack.length) { announce("Nichts zum Zurücknehmen"); return; }
+    stopDictation();
+    const s = JSON.parse(undoStack.pop());
+    doc.answers = s.answers; doc.marks = s.marks; doc.gaps = s.gaps || doc.gaps; doc.strokes = s.strokes || [];
+    renderOverlay(); renderFields(); save();
+    announce("Zurück");
+  }
+  function removeAnswer(id) {
+    const i = doc.answers.findIndex(a => a.id === id);
+    if (i < 0) return;
+    doc.answers.splice(i, 1);
+    const el = fieldsEl.querySelector('[data-id="' + id + '"]'); if (el) el.remove();
+    save();
+  }
+
+  /* ---------- modes ---------- */
+  const modeNames = { wort: "Wort vorlesen", zeile: "Satz vorlesen", schreiben: "Antwort sprechen. Tippe auf die Stelle.", markieren: "Markieren", stift: "Stift", radieren: "Radiergummi" };
+  function setMode(m, quiet) {
+    mode = m;
+    stopDictation();
+    document.querySelectorAll(".tool[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
+    document.body.className = "m-" + m;
+    micState();
+    fieldsEl.querySelectorAll("textarea").forEach(t => { t.readOnly = m !== "schreiben"; if (m !== "schreiben") t.blur(); });
+    // the pen needs the finger for drawing, not for moving the page
+    stage.style.touchAction = m === "stift" ? "none" : "pan-y pinch-zoom";
+    renderPalette();
+    renderOverlay();
+    if (!quiet) announce(modeNames[m]);
+  }
+  function renderPalette() {
+    const set = mode === "markieren" ? MARKS : mode === "stift" ? PENS : null, key = mode === "markieren" ? "mark" : "pen", pal = $("palette");
+    pal.hidden = !set; pal.textContent = "";
+    if (!set) { applyFit(); return; }
+    if (!set[settings[key]]) settings[key] = Object.keys(set)[0];
+    Object.entries(set).forEach(([k, [name, , sw]]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.style.setProperty("--sw", sw); b.setAttribute("aria-label", name); b.setAttribute("aria-pressed", String(settings[key] === k));
+      b.onclick = () => { settings[key] = k; saveSettings(); renderPalette(); announce(name); };
+      pal.appendChild(b);
+    });
+    applyFit();
+  }
+  $("tools").addEventListener("click", (e) => {
+    const b = e.target.closest(".tool"); if (!b) return;
+    unlockAudio();
+    if (b.dataset.mode) { setMode(b.dataset.mode); return; }
+    const act = b.dataset.act;
+    if (act === "foto") askNewPhoto();
+    else if (act === "undo") undo();
+    else if (act === "fertig") exportPage();
+  });
+
+  /* ---------- tapping the page ---------- */
+  let lastTap = null;   // a second tap on the same word in a box reads just that word
+  stage.addEventListener("pointerdown", unlockAudio);
+  stage.addEventListener("click", (e) => {
+    if (!doc) return;
+    const field = e.target.closest(".ans");
+    const p = toImg(e);
+    if (mode === "wort" || mode === "zeile") {
+      if (field) { const a = doc.answers.find(x => x.id === field.dataset.id); if (a) speakAnswer(field, a); return; }
+      let i = hitWord(p, false);
+      const k = i < 0 ? hitGap(p) : -1;
+      if (i < 0 && k < 0) i = hitWord(p, true);
+      if (k >= 0) {
+        const g = doc.gaps[k], pos = posOf("g", k);
+        // an empty table cell or writing field says what belongs there (its column heading)
+        if (g.head) speak(g.head, flash(gapBox(g)));
+        else if (mode === "zeile" && pos >= 0) { const S = sentenceAt(pos); speakParts(S.parts, flash(S.boxes, true)); }
+        else { stopSpeaking(); const off = flash(gapBox(g)); beep(); setTimeout(off, 600); }
+        return;
+      }
+      if (i < 0) return;
+      const w = doc.words[i];
+      if (w.bx >= 0 && (mode === "zeile" || (settings.boxes && !(lastTap && lastTap.i === i && Date.now() - lastTap.t < 8000)))) {
+        lastTap = mode === "wort" ? { i, t: Date.now() } : null;
+        const off = flash(doc.boxes[w.bx]);
+        speak(boxWords(w.bx).map(x => x.t).join(" "), off);
+        return;
+      }
+      lastTap = null;
+      if (mode === "wort") { const off = flash(w); speak(cleanWord(w.t) || w.t, off); }
+      else { const S = sentenceAt(posOf("w", i)); speakParts(S.parts, flash(S.boxes, true)); }
+    } else if (mode === "schreiben") {
+      if (field) return;
+      stopDictation();
+      pushUndo();
+      const k = hitGap(p);
+      let a;
+      if (k >= 0) a = answerAt(doc.gaps[k]);
+      else {
+        const fs = doc.fs, w = Math.min(doc.W * 0.55, doc.W - p.x + doc.W * 0.02);
+        a = { id: uid(), x: clamp(p.x - doc.W * 0.02, 0, doc.W - 120), y: clamp(p.y - fs * 0.9, 0, doc.H - fs * 2), w: Math.max(w, doc.W * 0.25), text: "" };
+      }
+      doc.answers.push(a);
+      const el = fieldEl(a); fieldsEl.appendChild(el);
+      const ta = el.querySelector("textarea");
+      if (!dictate(el, a)) { ta.readOnly = false; ta.focus(); }
+      save();
+    } else if (mode === "radieren") {
+      if (field) { pushUndo(); removeAnswer(field.dataset.id); announce("Gelöscht"); return; }
+      // the pen stroke closest to the finger, then a mark under it
+      let si = -1, sd = doc.fs * 0.7;
+      doc.strokes.forEach((st, k) => { for (let j = 0; j < st.pts.length; j += 2) { const d = Math.hypot(st.pts[j] - p.x, st.pts[j + 1] - p.y); if (d < sd) { sd = d; si = k; } } });
+      if (si >= 0) { pushUndo(); doc.strokes = doc.strokes.filter((st, k) => k !== si); renderOverlay(); save(); announce("Gelöscht"); return; }
+      const mk = doc.marks.slice().reverse().find(m => { const b = markRect(m); return b && p.x >= b.x0 - 4 && p.x <= b.x1 + 4 && p.y >= b.y0 - 4 && p.y <= b.y1 + 4; });
+      if (mk) { pushUndo(); doc.marks = doc.marks.filter(m => m !== mk); renderOverlay(); save(); return; }
+      const k = hitGap(p);
+      if (k >= 0) { pushUndo(); doc.gaps = doc.gaps.filter((g, j) => j !== k); renderOverlay(); save(); announce("Gelöscht"); }
+    }
+  });
+  // highlighting: tap a word (on/off, or change its colour), swipe sideways across several words,
+  // or swipe slowly within one word to mark just that part ("ab" in "abschreiben")
+  (() => {
+    let active = false, i0 = -1, xs = [], multi = false, adding = true, touched = null, started = false;
+    stage.addEventListener("pointerdown", (e) => {
+      if (mode !== "markieren" || !doc || e.target.closest(".ans")) return;
+      const p = toImg(e);
+      i0 = hitWord(p, true); xs = [p.x];
+      active = true; multi = false; touched = new Set(); started = false;
+      adding = i0 < 0 || !doc.marks.some(m => m.w === i0);
+    });
+    const part = () => { const w = doc.words[i0]; return [clamp(Math.min(...xs), w.x0, w.x1), clamp(Math.max(...xs), w.x0, w.x1)]; };
+    stage.addEventListener("pointermove", (e) => {
+      if (!active) return;
+      const p = toImg(e), i = hitWord(p, false);
+      xs.push(p.x);
+      if (!multi && i >= 0 && i !== i0) { multi = true; preview = null; if (i0 >= 0) apply(i0); }
+      if (multi) { if (i >= 0) apply(i); return; }
+      if (i0 >= 0) { const [a, b] = part(); preview = { w: i0, c: settings.mark, x0: a, x1: b }; renderOverlay(); }
+    });
+    const end = () => {
+      if (!active) return;
+      active = false; preview = null;
+      if (multi) { renderOverlay(); if (started) save(); return; }
+      if (i0 < 0) { renderOverlay(); return; }
+      const w = doc.words[i0], [a, b] = part();
+      pushUndo();
+      if (b - a < (w.y1 - w.y0) * 0.3) {
+        // a tap: the whole word in this colour; tapping it again (same colour) takes the mark off
+        const same = doc.marks.some(m => m.w === i0 && m.x0 == null && m.c === settings.mark);
+        doc.marks = doc.marks.filter(m => m.w !== i0);
+        if (!same) doc.marks.push({ w: i0, c: settings.mark });
+      } else if (b - a > (w.x1 - w.x0) * 0.85) {
+        doc.marks = doc.marks.filter(m => !(m.w === i0 && m.x0 == null));
+        doc.marks.push({ w: i0, c: settings.mark });
+      } else doc.marks.push({ w: i0, c: settings.mark, x0: Math.round(a), x1: Math.round(b) });
+      renderOverlay(); save();
+    };
+    stage.addEventListener("pointerup", end); stage.addEventListener("pointercancel", end);
+    function apply(i) {
+      if (touched.has(i)) return;
+      touched.add(i);
+      if (!started) { pushUndo(); started = true; }
+      const has = doc.marks.some(m => m.w === i);
+      if (adding && !has) doc.marks.push({ w: i, c: settings.mark });
+      if (!adding && has) doc.marks = doc.marks.filter(m => m.w !== i);
+      renderOverlay();
+    }
+  })();
+  // the pen: draw with the finger (connect, tick a box, cross out, circle)
+  (() => {
+    let st = null, el = null;
+    stage.addEventListener("pointerdown", (e) => {
+      if (mode !== "stift" || !doc || e.target.closest(".ans")) return;
+      e.preventDefault();
+      try { stage.setPointerCapture(e.pointerId); } catch (er) {}
+      pushUndo();
+      const p = toImg(e);
+      st = { c: settings.pen, w: Math.round(Math.max(3, doc.fs * 0.14)), pts: [Math.round(p.x), Math.round(p.y)] };
+      doc.strokes.push(st);
+      el = inkPath(st); ov.appendChild(el);
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!st) return;
+      const p = toImg(e), n = st.pts.length;
+      if (Math.hypot(p.x - st.pts[n - 2], p.y - st.pts[n - 1]) < doc.W / 500) return;
+      st.pts.push(Math.round(p.x), Math.round(p.y));
+      el.setAttribute("d", inkD(st.pts));
+    });
+    const end = () => { if (!st) return; st = null; el = null; save(); };
+    stage.addEventListener("pointerup", end); stage.addEventListener("pointercancel", end);
+  })();
+
+  /* ---------- new photo + OCR ---------- */
+  function askNewPhoto() {
+    if (doc && !doc.sample && (doc.answers.some(a => a.text.trim()) || doc.marks.length || doc.strokes.length)) {
+      $("confirmSheet").hidden = false; announce("Neues Blatt? Die Antworten werden gelöscht.");
+    } else photoHelp();
+  }
+  // the child takes the photo: first a short picture guide (the camera must open from a tap, so it has its own button)
+  function photoHelp() {
+    if (!settings.photoHelp) { openPicker(); return; }
+    $("photoHelpSheet").hidden = false;
+    speak("Leg das Heft flach hin. Halte das iPad gerade darüber. Das ganze Blatt muss auf das Foto. Dann tippe auf die Kamera.");
+  }
+  $("photoGo").onclick = () => { $("photoHelpSheet").hidden = true; openPicker(); };
+  function openPicker() { $("fileIn").value = ""; $("fileIn").click(); }
+  $("confirmYes").onclick = () => { $("confirmSheet").hidden = true; photoHelp(); };
+  $("confirmNo").onclick = () => { $("confirmSheet").hidden = true; };
+  $("fileIn").addEventListener("change", async () => {
+    const f = $("fileIn").files[0]; if (!f) return;
+    try { await processPhoto(f); }
+    catch (err) {
+      $("ocrSheet").hidden = true;
+      statusEl.textContent = "Texterkennung fehlgeschlagen: " + (err && err.message ? err.message : err) + ". Foto neu aufnehmen.";
+      statusEl.classList.add("warn");
+    }
+  });
+
+  let worker = null, ocrPass = 0, ocrPasses = 2, ocrQuiet = false;
+  function setProgress(v, msg) {
+    const c = 314.16;
+    $("ringFg").setAttribute("stroke-dashoffset", String(c * (1 - v)));
+    $("pct").textContent = Math.round(v * 100) + " %";
+    if (msg) $("ocrMsg").textContent = msg;
+  }
+  async function getWorker() {
+    if (worker) return worker;
+    const base = new URL("tess/", location.href).href;
+    worker = await Tesseract.createWorker("deu", 1, {
+      workerPath: base + "boot-worker.js",
+      corePath: base,
+      langPath: base + "lang",
+      gzip: false,
+      workerBlobURL: false,
+      logger: (m) => {
+        if (m.status === "recognizing text" && !ocrQuiet) setProgress(0.15 + 0.85 * (ocrPass + m.progress) / ocrPasses, "Das Blatt wird gelesen …");
+        else if (/load|initializ/.test(m.status)) setProgress(0.15 * (m.progress || 0), "Texterkennung wird vorbereitet …");
+      }
+    });
+    return worker;
+  }
+  // too dark or shaken: measured on a small grey copy (paper level = mean of the brighter half; sharpness = spread of
+  // the Laplacian). Good photos of the test pages: paper ≥ 170, sharpness ≥ 400; darkened ≈ 65, blurred ≈ 5
+  function photoQuality(src) {
+    const s = 1000 / Math.max(src.width, src.height), w = Math.round(src.width * s), h = Math.round(src.height * s);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data, v = new Uint8Array(w * h), hist = new Uint32Array(256);
+    for (let i = 0; i < w * h; i++) { v[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8; hist[v[i]]++; }
+    let n = 0, sum = 0;
+    for (let t = 255; t >= 0 && n < w * h / 2; t--) { const k = Math.min(hist[t], w * h / 2 - n); n += k; sum += k * t; }
+    let m = 0, q = 0, k = 0;
+    for (let y = 1; y < h - 1; y += 2) for (let x = 1; x < w - 1; x += 2) {
+      const i = y * w + x, l = 4 * v[i] - v[i - 1] - v[i + 1] - v[i - w] - v[i + w];
+      m += l; q += l * l; k++;
+    }
+    return { paper: sum / n, sharp: q / k - (m / k) * (m / k) };
+  }
+  // shows the photo with what is wrong; resolves true to go on, false when the child takes a new photo
+  function photoCheck(src, title, msg) {
+    return new Promise(res => {
+      const t = document.createElement("canvas"), s = 900 / Math.max(src.width, src.height);
+      t.width = Math.round(src.width * s); t.height = Math.round(src.height * s); t.getContext("2d").drawImage(src, 0, 0, t.width, t.height);
+      $("photoCheckImg").src = t.toDataURL("image/jpeg", 0.8);
+      $("photoCheckTitle").textContent = title; $("photoCheckMsg").textContent = msg;
+      $("ocrSheet").hidden = true; $("photoCheckSheet").hidden = false;
+      speak(title + ". " + msg + " Tippe auf den Pfeil für ein neues Foto, oder auf den Haken für weiter.");
+      $("photoAgain").onclick = () => { $("photoCheckSheet").hidden = true; openPicker(); res(false); };
+      $("photoOn").onclick = () => { $("photoCheckSheet").hidden = true; $("ocrSheet").hidden = false; res(true); };
+    });
+  }
+  async function processPhoto(file) {
+    $("ocrSheet").hidden = false; setProgress(0, "Foto wird vorbereitet …");
+    speak("Einen Moment. Ich lese das Blatt.");
+    const w = await getWorker();
+    const img0 = await loadImage(file);
+    const qual = photoQuality(img0);
+    if (window.__hb) window.__hb.quality = qual;
+    if (qual.paper < 110 && !(await photoCheck(img0, "Das Foto ist zu dunkel", "Mach mehr Licht an oder geh näher ans Fenster."))) return;
+    if (qual.sharp < 80 && !(await photoCheck(img0, "Das Foto ist verwackelt", "Halte das iPad ganz ruhig, bis das Foto gemacht ist."))) return;
+    // a page photographed sideways is turned upright first
+    setProgress(0.15, "Das Foto wird ausgerichtet …");
+    let bmp = quarterTurn(img0, await uprightTurns(img0, w), 2000);
+    // a page photographed at an angle is pulled straight (only if the page is clearly found and really slanted)
+    const q = /nowarp/.test(location.search) ? null : findPage(bmp), unwarpedOf = bmp;
+    let warped = null;
+    if (window.__hb) window.__hb.quad = q;
+    if (q) {
+      const off = Math.max(...q.map((p, i) => Math.hypot(p[0] - [0, bmp.width, bmp.width, 0][i], p[1] - [0, 0, bmp.height, bmp.height][i])));
+      // sides of the page lying on the photo's border: there the "corners" are only where the photo cuts the page off
+      const m = Math.max(bmp.width, bmp.height) * 0.01, edge = (i, j) => {
+        const a = q[i], b = q[j];
+        return (a[0] < m && b[0] < m) || (a[0] > bmp.width - m && b[0] > bmp.width - m) || (a[1] < m && b[1] < m) || (a[1] > bmp.height - m && b[1] > bmp.height - m);
+      };
+      const sides = [edge(0, 1), edge(1, 2), edge(2, 3), edge(3, 0)], cut = sides.filter(Boolean).length;
+      // a single corner on the border (its side not cut off as a whole) is a guess: then leave the photo as it is
+      const onBorder = (p) => p[0] < m || p[1] < m || p[0] > bmp.width - m || p[1] > bmp.height - m;
+      const loose = q.some((p, i) => onBorder(p) && !sides[i] && !sides[(i + 3) % 4]);
+      if (window.__hb) window.__hb.warp = { off: Math.round(off), cut, loose, undone: false };
+      if (off > Math.max(bmp.width, bmp.height) * 0.04 && cut <= 1 && !loose) warped = unwarp(bmp, q);
+    }
+    let W, H, lit, c, cl, tokens;
+    const prepare = async (src) => {
+      bmp = src; W = bmp.width; H = bmp.height;
+      // tesseract reads an evenly lit copy; finding lines and boxes and the picture the child sees use the photo as it is
+      // (brightening also lifts paper texture and the background, which then looks like lines)
+      lit = /nolight/.test(location.search) ? bmp : evenLight(drawTurned(bmp, W, H, 0));
+      c = drawTurned(bmp, W, H, 0); cl = lit === bmp ? c : lit;
+      tokens = await read(w, cl, 0);
+    };
+    // two passes: the normal one (psm 6, the tesseract.js default) reads lines of text well, the one for scattered text (psm 11) finds
+    // single words in boxes and short lines beside gaps that the first one drops
+    ocrPass = 0; ocrPasses = 2;
+    await prepare(warped || bmp);
+    let a = slantOf(tokens, W);
+    // text still clearly slanted after pulling the page straight: the corners were wrong (e.g. the neighbouring page of
+    // an open book taken for part of this one) and the picture is skewed – read the photo as it is instead
+    if (warped && Math.abs(a) > 0.05) {
+      if (window.__hb) window.__hb.warp.undone = true;
+      ocrPasses = 3; ocrPass = 1;
+      await prepare(unwarpedOf);
+      a = slantOf(tokens, W);
+    }
+    // a slanted photo is turned straight and read again: recognition and finding lines both work better
+    if (window.__hb) window.__hb.slant = a;
+    // (only clearly slanted ones: on a bent page turning by one angle makes parts worse)
+    if (Math.abs(a) > 0.03) {
+      ocrPasses++; ocrPass++;
+      c = drawTurned(bmp, W, H, -a);
+      cl = lit === bmp ? c : drawTurned(lit, W, H, -a);
+      tokens = await read(w, cl, 0);
+    }
+    const shown = Math.abs(a) > 0.03 ? drawTurned(bmp, W, H, -a, true) : c;
+    const blob = await new Promise(r => shown.toBlob(r, "image/jpeg", 0.88));
+    ocrPass = ocrPasses - 1;
+    await w.setParameters({ tessedit_pageseg_mode: "11" });
+    try { addTokens(tokens, await read(w, cl, 1000)); }
+    finally { await w.setParameters({ tessedit_pageseg_mode: "6" }); }
+    setProgress(1, "Lücken und Kästen werden gesucht …");
+    await new Promise(r => setTimeout(r, 30));
+    const d = buildDoc(c, blob, tokens, false);
+    // after reading: little text, or text running off the edge of the photo (page not fully on it). Words cut at the
+    // left or right are often the neighbouring page of an open book, so those count only when there are many
+    const at = (f) => d.words.filter(x => wordLike(x.t) && f(x)).length;
+    const tb = at(x => x.y0 < d.H * 0.01 || x.y1 > d.H * 0.99), lr = at(x => x.x0 < d.W * 0.01 || x.x1 > d.W * 0.99);
+    const edge = tb >= 5 || lr >= 8 ? tb + lr : 0;
+    if (window.__hb) window.__hb.quality.edge = edge, window.__hb.quality.words = d.words.length;
+    if (d.words.length < 12 && !(await photoCheck(c, "Ich kann kaum etwas lesen", "Das Blatt muss groß, hell und gerade auf dem Foto sein."))) return;
+    if (edge >= 4 && !(await photoCheck(c, "Das Blatt ist abgeschnitten", "Das ganze Blatt muss auf das Foto. Geh mit dem iPad etwas höher."))) return;
+    $("ocrSheet").hidden = true;
+    loadDoc(d);
+    save();
+    setMode("wort", true);
+    speak(d.words.length ? "Fertig. Tippe auf ein Wort." : "Ich konnte keine Schrift finden. Mach das Foto noch einmal, gerade und hell.");
+  }
+  // the page in the photo: the largest bright area (paper is brighter than table, clothes or sofa). Its four corners are
+  // the points furthest out towards the photo's corners. Returns the corners in the photo, or null if no clear page
+  function findPage(src) {
+    const s = Math.min(1, 500 / Math.max(src.width, src.height)), w = Math.round(src.width * s), h = Math.round(src.height * s);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data, v = new Uint8Array(w * h), hist = new Uint32Array(256);
+    for (let i = 0; i < w * h; i++) { v[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8; hist[v[i]]++; }
+    // Otsu: the brightness that best splits paper from the rest
+    let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+    let sB = 0, wB = 0, best = 0, th = 128;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t]; if (!wB) continue;
+      const wF = w * h - wB; if (!wF) break;
+      sB += t * hist[t];
+      const mB = sB / wB, mF = (sum - sB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; th = t; }
+    }
+    // largest bright area; ink inside the page is closed by looking at a small neighbourhood
+    const on = new Uint8Array(w * h);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      let n = 0; for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) if (v[(y + yy) * w + x + xx] > th) n++;
+      on[y * w + x] = n >= 4 ? 1 : 0;
+    }
+    const lab = new Int32Array(w * h).fill(-1), stack = [];
+    let bestId = -1, bestN = 0, id = 0;
+    for (let i = 0; i < w * h; i++) {
+      if (!on[i] || lab[i] >= 0) continue;
+      let n = 0; lab[i] = id; stack.push(i);
+      while (stack.length) {
+        const k = stack.pop(), x = k % w; n++;
+        for (const j of [k - 1, k + 1, k - w, k + w]) if (j >= 0 && j < w * h && on[j] && lab[j] < 0 && Math.abs((j % w) - x) <= 1) { lab[j] = id; stack.push(j); }
+      }
+      if (n > bestN) { bestN = n; bestId = id; }
+      id++;
+    }
+    if (bestN < w * h * 0.25) return null;
+    let tl = [0, 0, Infinity], tr = [0, 0, -Infinity], bl = [0, 0, -Infinity], br = [0, 0, -Infinity];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (lab[y * w + x] !== bestId) continue;
+      if (x + y < tl[2]) tl = [x, y, x + y];
+      if (x - y > tr[2]) tr = [x, y, x - y];
+      if (y - x > bl[2]) bl = [x, y, y - x];
+      if (x + y > br[2]) br = [x, y, x + y];
+    }
+    const q = [tl, tr, br, bl].map(p => [p[0] / s, p[1] / s]);
+    // a sensible four-cornered page: big enough, corners about square
+    const area = Math.abs(q.reduce((a, p, i) => { const n = q[(i + 1) % 4]; return a + p[0] * n[1] - n[0] * p[1]; }, 0)) / 2;
+    if (area < src.width * src.height * 0.25) return null;
+    for (let i = 0; i < 4; i++) {
+      const a = q[(i + 3) % 4], b = q[i], c2 = q[(i + 1) % 4];
+      const u = [a[0] - b[0], a[1] - b[1]], t = [c2[0] - b[0], c2[1] - b[1]];
+      const cos = (u[0] * t[0] + u[1] * t[1]) / (Math.hypot(...u) * Math.hypot(...t));
+      if (Math.abs(cos) > 0.5) return null;   // angle outside 60°–120°
+    }
+    return q;
+  }
+  // the page pulled straight: the four corners become a rectangle (perspective of a photo taken at an angle)
+  function unwarp(src, q) {
+    const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    let W = Math.round((len(q[0], q[1]) + len(q[3], q[2])) / 2), H = Math.round((len(q[0], q[3]) + len(q[1], q[2])) / 2);
+    const s = Math.min(1, 2000 / Math.max(W, H)); W = Math.round(W * s); H = Math.round(H * s);
+    // homography from the output rectangle to the photo: solve the 8 unknowns from the 4 corner pairs
+    const dst = [[0, 0], [W, 0], [W, H], [0, H]], A = [], bv = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = dst[i], [u, v] = q[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); bv.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); bv.push(v);
+    }
+    for (let i = 0; i < 8; i++) {
+      let m = i; for (let r = i + 1; r < 8; r++) if (Math.abs(A[r][i]) > Math.abs(A[m][i])) m = r;
+      [A[i], A[m]] = [A[m], A[i]]; [bv[i], bv[m]] = [bv[m], bv[i]];
+      for (let r = 0; r < 8; r++) if (r !== i) { const f = A[r][i] / A[i][i]; for (let k = i; k < 8; k++) A[r][k] -= f * A[i][k]; bv[r] -= f * bv[i]; }
+    }
+    const hm = bv.map((x, i) => x / A[i][i]);
+    const sd = src.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, src.width, src.height).data, SW = src.width, SH = src.height;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d", { willReadFrequently: true }), out = g.createImageData(W, H), od = out.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const z = hm[6] * x + hm[7] * y + 1, u = (hm[0] * x + hm[1] * y + hm[2]) / z, v = (hm[3] * x + hm[4] * y + hm[5]) / z;
+      const x0 = Math.floor(u), y0 = Math.floor(v), o = (y * W + x) * 4;
+      if (x0 < 0 || y0 < 0 || x0 >= SW - 1 || y0 >= SH - 1) { od[o] = od[o + 1] = od[o + 2] = 255; od[o + 3] = 255; continue; }
+      const tx = u - x0, ty = v - y0, i = (y0 * SW + x0) * 4, j = i + SW * 4;
+      for (let ch = 0; ch < 3; ch++)
+        od[o + ch] = (sd[i + ch] * (1 - tx) + sd[i + 4 + ch] * tx) * (1 - ty) + (sd[j + ch] * (1 - tx) + sd[j + 4 + ch] * tx) * ty;
+      od[o + 3] = 255;
+    }
+    g.putImageData(out, 0, 0);
+    return c;
+  }
+  // even out the light: shadows and a darker corner make tesseract lose words. The paper level is estimated from
+  // the brightest pixels in small blocks (paper, not ink), smoothed, and every pixel is scaled towards white paper
+  function evenLight(c) {
+    const W = c.width, H = c.height, g = c.getContext("2d", { willReadFrequently: true }), im = g.getImageData(0, 0, W, H), d = im.data;
+    const B = 16, bw = Math.ceil(W / B), bh = Math.ceil(H / B), blk = new Float32Array(bw * bh);
+    for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
+      let m = 0;
+      for (let y = by * B; y < Math.min(H, by * B + B); y += 2) for (let x = bx * B; x < Math.min(W, bx * B + B); x += 2) {
+        const k = (y * W + x) * 4, v = (d[k] * 77 + d[k + 1] * 150 + d[k + 2] * 29) >> 8;
+        if (v > m) m = v;
+      }
+      blk[by * bw + bx] = m;
+    }
+    // widen (paper around dark pictures) and smooth the paper level
+    const tmp = new Float32Array(bw * bh), R = 2;
+    for (let pass = 0; pass < 2; pass++) {
+      const src = pass ? tmp : blk, dst = pass ? blk : tmp;
+      for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+        let sum = 0, n = 0, mx = 0;
+        for (let yy = Math.max(0, y - R); yy <= Math.min(bh - 1, y + R); yy++) for (let xx = Math.max(0, x - R); xx <= Math.min(bw - 1, x + R); xx++) {
+          const v = src[yy * bw + xx]; sum += v; n++; if (v > mx) mx = v;
+        }
+        dst[y * bw + x] = pass ? sum / n : mx;
+      }
+    }
+    for (let y = 0; y < H; y++) {
+      const fy = Math.min(bh - 1.001, Math.max(0, y / B - 0.5)), y0 = fy | 0, ty = fy - y0;
+      for (let x = 0; x < W; x++) {
+        const fx = Math.min(bw - 1.001, Math.max(0, x / B - 0.5)), x0 = fx | 0, tx = fx - x0, i = y0 * bw + x0;
+        const p = (blk[i] * (1 - tx) + blk[i + 1] * tx) * (1 - ty) + (blk[i + bw] * (1 - tx) + blk[i + bw + 1] * tx) * ty;
+        const f = Math.min(2.5, Math.max(0.9, 240 / Math.max(1, p))), k = (y * W + x) * 4;
+        d[k] = Math.min(255, d[k] * f); d[k + 1] = Math.min(255, d[k + 1] * f); d[k + 2] = Math.min(255, d[k + 2] * f);
+      }
+    }
+    g.putImageData(im, 0, 0);
+    return c;
+  }
+  // a copy turned by k quarter turns clockwise, longest side at most max
+  function quarterTurn(src, k, max) {
+    const s = Math.min(1, max / Math.max(src.width, src.height)), w = Math.round(src.width * s), h = Math.round(src.height * s);
+    const c = document.createElement("canvas");
+    c.width = k % 2 ? h : w; c.height = k % 2 ? w : h;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    g.translate(c.width / 2, c.height / 2); g.rotate(k * Math.PI / 2); g.drawImage(src, -w / 2, -h / 2, w, h);
+    return c;
+  }
+  // how many quarter turns make the text upright: read a small copy; only if that finds little real text, try sideways
+  async function uprightTurns(src, w) {
+    const score = async (k) => {
+      ocrQuiet = true;
+      try { return tokensOf((await w.recognize(quarterTurn(src, k, 1100))).data, 0).filter(t => wordLike(t.t) && t.cf >= 60).length; }
+      finally { ocrQuiet = false; }
+    };
+    const s0 = await score(0);
+    if (s0 >= 12) return 0;
+    let best = 0, bs = s0;
+    for (const k of [1, 3]) { const sk = await score(k); if (sk > bs * 1.5 && sk > bs + 3) { best = k; bs = sk; } }
+    return best;
+  }
+  function drawTurned(src, W, H, a, photoCorners) {
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    // for the picture the child sees, the corners a turn leaves empty show the photo itself (table, background) instead of
+    // white wedges; reading and finding lines use white corners (the photo there gets in the way)
+    if (photoCorners) g.drawImage(src, 0, 0, W, H); else { g.fillStyle = "#fff"; g.fillRect(0, 0, W, H); }
+    g.translate(W / 2, H / 2); g.rotate(a); g.drawImage(src, -W / 2, -H / 2, W, H);
+    return c;
+  }
+  // slant of the text (radians, positive = lines run down to the right): median over the longer lines
+  function slantOf(tokens, W) {
+    const by = new Map(), as = [];
+    tokens.forEach(t => { if (speakable(t.t)) { if (!by.has(t.li)) by.set(t.li, []); by.get(t.li).push(t); } });
+    by.forEach(ts => {
+      if (ts.length < 3) return;
+      ts.sort((p, q) => p.x0 - q.x0);
+      const f = ts[0], l = ts[ts.length - 1], dx = (l.x0 + l.x1 - f.x0 - f.x1) / 2;
+      if (dx > W * 0.2) as.push(Math.atan2(l.y1 - f.y1, dx));
+    });
+    if (as.length < 2) return 0;
+    as.sort((p, q) => p - q);
+    return as[as.length >> 1];
+  }
+  // tesseract reads small print better when it is bigger: read an enlarged copy (long side about 2600 px)
+  // and bring the word boxes back to the photo's coordinates
+  async function read(w, c, liBase) {
+    const f = /noscale/.test(location.search) ? 1 : Math.max(1, Math.min(2, 2600 / Math.max(c.width, c.height)));
+    let src = c;
+    if (f > 1.05) {
+      src = document.createElement("canvas"); src.width = Math.round(c.width * f); src.height = Math.round(c.height * f);
+      const g = src.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(c, 0, 0, src.width, src.height);
+    }
+    const toks = tokensOf((await w.recognize(src)).data, liBase);
+    if (src !== c) toks.forEach(t => { t.x0 /= f; t.y0 /= f; t.x1 /= f; t.y1 /= f; });
+    return toks;
+  }
+  // OCR words → tokens; li numbers the text lines. Lone punctuation is kept: a "." after a gap ends the sentence
+  const wordLike = (t) => /^[„"‚]?[A-ZÄÖÜa-zäöüß][a-zäöüß]{2,}[.,!?:;"“‘]?$/.test(t) && /[aeiouäöüy]/i.test(t) && !/(.)\1\1/i.test(t);
+  const SHORT = new Set("er es du im in an am um zu ab ob so da wo ja".split(" "));
+  // drawings produce letter salad like "EN EEE AN" or "0000"; tesseract also gives some clean words a confidence of 0
+  function plausible(t, cf) {
+    const core = cleanWord(t);
+    if (/^\d+([.,:]\d+)?$/.test(core)) return cf >= (core.length < 2 ? 75 : 50) && !/(\d)\1\1|^0\d/.test(core);
+    if (/^[A-ZÄÖÜ]{2,}$/.test(core)) return cf >= 85;
+    if (core.length < 2) return cf >= 75;
+    if (cf >= 50) return true;
+    return wordLike(t) || (SHORT.has(core.toLowerCase()) && cf >= 20);
+  }
+  function tokensOf(data, liBase) {
+    const out = [];
+    (data.lines || []).forEach((ln, li) => (ln.words || []).forEach(wd => {
+      let t = (wd.text || "").trim(), b = wd.bbox;
+      const cf = wd.confidence;
+      // "____nichts", "Fell____.": tesseract read the gap line as part of the word; keep only the word's part of the box
+      const m = /^([.…]*[_\-–—…]{2,}|_+)?(.*?)([_\-–—…]{2,}[.,]?|_+)?$/.exec(t);
+      if (m && m[2] && (m[1] || m[3])) {
+        m[1] = m[1] || ""; m[3] = m[3] || "";
+        const cw = (b.x1 - b.x0) / t.length;
+        b = { x0: b.x0 + cw * m[1].length, y0: b.y0, x1: b.x1 - cw * m[3].length, y1: b.y1 };
+        t = m[2];
+      }
+      if (!t || (speakable(t) ? !plausible(t, cf) : cf < 20)) return;
+      out.push({ t, x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, li: liBase + li, cf });
+    }));
+    return out;
+  }
+  // add tokens of the second pass that the first did not find; they join a text line on the same baseline
+  function addTokens(tokens, extra) {
+    const area = (a) => (a.x1 - a.x0) * (a.y1 - a.y0);
+    const overlaps = (a, b) => {
+      const w = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), h = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      return w > 0 && h > 0 && w * h > 0.3 * Math.min(area(a), area(b));
+    };
+    const sameRow = (a, b) => Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.6 * Math.min(a.y1 - a.y0, b.y1 - b.y0);
+    const first = tokens.slice();
+    extra.forEach(e => {
+      if (first.some(t => overlaps(t, e))) return;
+      const h = e.y1 - e.y0;
+      let near = null, bd = Infinity;
+      first.forEach(t => { if (!sameRow(t, e)) return; const d = Math.max(t.x0 - e.x1, e.x0 - t.x1, 0); if (d < bd) { bd = d; near = t; } });
+      tokens.push(Object.assign({}, e, near ? { li: near.li } : {}));
+    });
+  }
+  function loadImage(file) {
+    return new Promise((res, rej) => {
+      const u = URL.createObjectURL(file), im = new Image();
+      im.onload = () => { res(im); setTimeout(() => URL.revokeObjectURL(u), 1000); };
+      im.onerror = () => rej(new Error("Das Bild konnte nicht geöffnet werden"));
+      im.src = u;
+    });
+  }
+
+  /* ---------- export ---------- */
+  async function exportPage() {
+    if (!doc) return;
+    document.activeElement && document.activeElement.blur && document.activeElement.blur();
+    const c = document.createElement("canvas"); c.width = doc.W; c.height = doc.H;
+    const g = c.getContext("2d");
+    const im = new Image(); im.src = imgURL; await im.decode().catch(() => {});
+    g.drawImage(im, 0, 0, doc.W, doc.H);
+    g.globalCompositeOperation = "multiply";
+    doc.marks.forEach(m => { const b = markRect(m); if (!b) return; g.fillStyle = (MARKS[m.c] || MARKS.gelb)[1]; roundRect(g, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 6); });
+    g.globalCompositeOperation = "source-over";
+    g.lineCap = "round"; g.lineJoin = "round";
+    doc.strokes.forEach(st => {
+      g.strokeStyle = (PENS[st.c] || PENS.blau)[1]; g.lineWidth = st.w; g.beginPath(); g.moveTo(st.pts[0], st.pts[1]);
+      if (st.pts.length < 4) g.lineTo(st.pts[0] + 0.1, st.pts[1]);
+      for (let k = 2; k < st.pts.length; k += 2) g.lineTo(st.pts[k], st.pts[k + 1]);
+      g.stroke();
+    });
+    const fs = doc.fs;
+    doc.answers.forEach(a => {
+      const t = (a.text || "").trim(); if (!t) return;
+      g.font = "700 " + fs + "px \"Andika\", sans-serif";
+      const lns = wrap(g, t, a.w - fs * 0.6);
+      const h = lns.length * fs * 1.25 + fs * 0.4;
+      g.fillStyle = "rgba(237, 233, 254, .9)"; roundRect(g, a.x, a.y, a.w, h, fs * 0.3);
+      g.strokeStyle = "#7C3AED"; g.lineWidth = Math.max(2, fs * 0.07); g.stroke();
+      g.fillStyle = "#2B1C7A"; g.textBaseline = "top";
+      lns.forEach((l, k) => g.fillText(l, a.x + fs * 0.3, a.y + fs * 0.25 + k * fs * 1.25));
+    });
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.9));
+    const ex = $("exportImg"); if (ex.dataset.url) URL.revokeObjectURL(ex.dataset.url);
+    const u = URL.createObjectURL(blob); ex.dataset.url = u; ex.src = u;
+    $("exportSheet").hidden = false;
+    announce("Fertig. Drücke lange auf das Bild. Dann Teilen und AirDrop.");
+  }
+  function roundRect(g, x, y, w, h, r) { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h); g.fill(); }
+  function wrap(g, text, maxW) {
+    const out = [];
+    text.split(/\n/).forEach(par => {
+      let cur = "";
+      par.split(/\s+/).forEach(w => { const t = cur ? cur + " " + w : w; if (g.measureText(t).width > maxW && cur) { out.push(cur); cur = w; } else cur = t; });
+      out.push(cur);
+    });
+    return out;
+  }
+  $("exportClose").onclick = () => { $("exportSheet").hidden = true; };
+
+  /* ---------- teacher panel ---------- */
+  $("helpBtn").onclick = () => { $("helpSheet").hidden = false; pickVoice(); };
+  $("helpClose").onclick = () => { $("helpSheet").hidden = true; };
+  $("rate").value = settings.rate; $("announce").checked = settings.announce; $("hints").checked = settings.hints;
+  $("rate").oninput = (e) => { settings.rate = parseFloat(e.target.value); saveSettings(); };
+  $("rate").onchange = () => speak("So schnell lese ich vor.");
+  $("announce").onchange = (e) => { settings.announce = e.target.checked; saveSettings(); };
+  $("hints").onchange = (e) => { settings.hints = e.target.checked; saveSettings(); renderOverlay(); };
+  Object.entries(TONES).forEach(([k, T]) => { const o = document.createElement("option"); o.value = k; o.textContent = T.name; $("tone").appendChild(o); });
+  if (!TONES[settings.tone]) settings.tone = "glocke";
+  $("tone").value = settings.tone; setTone();
+  $("tone").onchange = (e) => { settings.tone = e.target.value; saveSettings(); setTone(); toneReady = false; unlockAudio(); setTimeout(beep, 150); };
+  $("photoHelp").checked = settings.photoHelp;
+  $("photoHelp").onchange = (e) => { settings.photoHelp = e.target.checked; saveSettings(); };
+  $("boxes").checked = settings.boxes; $("gaps").checked = settings.gaps; $("mic").checked = settings.mic;
+  $("boxes").onchange = (e) => { settings.boxes = e.target.checked; saveSettings(); renderOverlay(); };
+  $("gaps").onchange = (e) => { settings.gaps = e.target.checked; saveSettings(); renderOverlay(); };
+  $("mic").onchange = (e) => {
+    settings.mic = e.target.checked; saveSettings();
+    if (settings.mic) { micBlocked = false; try { localStorage.removeItem("hb-mic-blocked"); } catch (er) {} }
+    micState();
+  };
+  $("testVoice").onclick = () => speak("Hallo! Tippe auf ein Wort, dann lese ich es dir vor.");
+  $("loadSample").onclick = async () => { $("helpSheet").hidden = true; loadDoc(await makeSample()); setMode("wort", true); };
+  $("zoomBtn").onclick = () => { fitPage = !fitPage; applyFit(); };
+  document.querySelectorAll(".sheet").forEach(s => s.addEventListener("click", (e) => { if (e.target === s && s.id !== "ocrSheet") s.hidden = true; }));
+
+  // for automated checks only: hoerblatt?debug
+  if (/[?&]debug\b/.test(location.search)) window.__hb = { doc: () => doc, seq, sentenceAt, posOf, boxWords, setMode };
+
+  /* ---------- start ---------- */
+  (async () => {
+    fitPage = window.innerWidth > window.innerHeight;
+    const saved = await dbGet();
+    if (saved && saved.blob) loadDoc(saved); else loadDoc(await makeSample());
+    setMode("wort", true);
+  })();
+})();
+</script>
+</body>
+</html>

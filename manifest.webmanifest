@@ -1,0 +1,10 @@
+{
+  "name": "Hörblatt",
+  "short_name": "Hörblatt",
+  "display": "standalone",
+  "lang": "de",
+  "start_url": "./",
+  "background_color": "#EEF1EC",
+  "theme_color": "#EEF1EC",
+  "icons": [{ "src": "icon.png", "sizes": "180x180", "type": "image/png" }]
+}
