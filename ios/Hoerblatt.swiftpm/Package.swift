@@ -16,7 +16,12 @@ let package = Package(
             appIcon: .placeholder(icon: .openBook),
             accentColor: .presetColor(.teal),
             supportedDeviceFamilies: [.pad, .phone],
-            supportedInterfaceOrientations: [.portrait, .landscapeRight, .landscapeLeft],
+            supportedInterfaceOrientations: [
+                .portrait,
+                .landscapeRight,
+                .landscapeLeft,
+                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+            ],
             capabilities: [
                 .camera(purposeString: "Das Hörblatt fotografiert das Arbeitsblatt, um es vorzulesen."),
                 .photoLibrary(purposeString: "Zum Testen kann ein vorhandenes Foto eines Arbeitsblatts gewählt werden."),
