@@ -105,10 +105,11 @@ struct SettingsView: View {
             Toggle("Kästen zusammen vorlesen", isOn: $app.settings.boxesTogether)
             Toggle("Lücken markieren", isOn: $app.settings.markGaps)
             Toggle("Foto-Hinweis vor der Kamera", isOn: $app.settings.photoHelp)
+            Toggle("Vor dem Abschicken der Lehrkraft zeigen", isOn: $app.settings.showTeacherFirst)
         } header: {
             Text("Blatt und Foto")
         } footer: {
-            Text("Wort-Umrandungen: dünne Rahmen um erkannte Wörter. Kästen zusammen: Ein Wort in einem gedruckten Kasten liest den ganzen Kasten, dasselbe Wort noch einmal angetippt nur dieses Wort. Lücken markieren: Schreiblinien und Kästchen lila zeigen. Foto-Hinweis: kurze Bildanleitung (Heft flach, iPad gerade darüber, ganzes Blatt) vor jedem Foto.")
+            Text("Wort-Umrandungen: dünne Rahmen um erkannte Wörter. Kästen zusammen: Ein Wort in einem gedruckten Kasten liest den ganzen Kasten, dasselbe Wort noch einmal angetippt nur dieses Wort. Lücken markieren: Schreiblinien und Kästchen lila zeigen. Foto-Hinweis: kurze Bildanleitung (Heft flach, iPad gerade darüber, ganzes Blatt) vor jedem Foto. Der Lehrkraft zeigen: Bei „Fertig“ erscheint zuerst ein Daumen-Knopf; erst danach kann das Kind teilen.")
         }
     }
 
@@ -178,7 +179,7 @@ struct SettingsView: View {
             SettingsStepRow(number: nil, symbol: "pencil.tip", color: SettingsStyle.slate, title: "Stift",
                             text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Radiergummi: Antworten, Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nimmt den letzten Schritt zurück.")
             SettingsStepRow(number: "5", symbol: "checkmark.square.fill", color: SettingsStyle.blue, title: "Fertig",
-                            text: "Ein Bild des Blatts mit allen Antworten, Markierungen und Stiftstrichen. Über „Teilen“ geht es per AirDrop an die Lehrkraft.")
+                            text: "Ein Bild des Blatts mit allen Antworten, Markierungen und Stiftstrichen. Das Kind zeigt es zuerst der Lehrkraft und tippt auf den Daumen. Danach geht es über „Teilen“ per AirDrop an die Lehrkraft.")
             SettingsStepRow(number: nil, symbol: "folder.fill", color: SettingsStyle.teal, title: "Mappe und zwei Seiten",
                             text: "Jede Seite bleibt in der Mappe (Ordner oben links). Oben in der Leiste stehen die letzten Seiten: ein Tipp wechselt die Seite. Im Querformat zeigt der Knopf mit den zwei Rechtecken zwei Seiten nebeneinander, z. B. links das Buch und rechts das Arbeitsblatt. Die zuletzt berührte Seite hat einen türkisen Rahmen; eine Seite aus der Mappe oder der Leiste öffnet sich dort.")
         } header: {

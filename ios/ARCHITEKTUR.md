@@ -288,6 +288,8 @@ struct FinishView: View { @ObservedObject var app: AppState; let image: UIImage 
 ```
 Fertig-Ansicht: großes Bild, großer blauer Teilen-Knopf (`ShareLink(item: Image(uiImage:), preview: …)`) → AirDrop,
 Zurück-Knopf; gesprochen: „Fertig. Tippe auf Teilen und dann auf AirDrop.“
+Vorher (Einstellung `showTeacherFirst`, Standard an): gelber Daumen-Knopf „Gezeigt“ – das Kind zeigt das Bild der
+Lehrkraft, tippt auf den Daumen, erst dann erscheint „Teilen“ (auch im Kontextmenü des Bildes).
 
 ## Prüfregeln für alle Dateien
 - Jede verwendete Funktion/Eigenschaft eines anderen Moduls steht genau so in diesem Bauplan.

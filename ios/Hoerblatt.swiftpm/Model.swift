@@ -196,6 +196,8 @@ struct AppSettings: Codable, Equatable {
     var photoHelp: Bool = true
     var markColor: MarkColor = .gelb
     var penColor: PenColor = .blau
+    /// Fertig: first show the picture to the teacher (thumb), only then "Teilen" appears.
+    var showTeacherFirst: Bool = true
 
     private static let key = "hoerblatt.settings"
 
@@ -209,6 +211,29 @@ struct AppSettings: Codable, Equatable {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: AppSettings.key)
         }
+    }
+}
+
+extension AppSettings {
+    enum CodingKeys: String, CodingKey {
+        case rate, announce, outlines, boxesTogether, markGaps, mic, tone, photoHelp, markColor, penColor, showTeacherFirst
+    }
+
+    /// Settings saved by an older version lack newer keys: those keep their defaults instead of losing all settings.
+    init(from decoder: Decoder) throws {
+        self.init()
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        rate = try c.decodeIfPresent(Double.self, forKey: .rate) ?? rate
+        announce = try c.decodeIfPresent(Bool.self, forKey: .announce) ?? announce
+        outlines = try c.decodeIfPresent(Bool.self, forKey: .outlines) ?? outlines
+        boxesTogether = try c.decodeIfPresent(Bool.self, forKey: .boxesTogether) ?? boxesTogether
+        markGaps = try c.decodeIfPresent(Bool.self, forKey: .markGaps) ?? markGaps
+        mic = try c.decodeIfPresent(Bool.self, forKey: .mic) ?? mic
+        tone = (try? c.decodeIfPresent(ToneKind.self, forKey: .tone)) ?? tone
+        photoHelp = try c.decodeIfPresent(Bool.self, forKey: .photoHelp) ?? photoHelp
+        markColor = (try? c.decodeIfPresent(MarkColor.self, forKey: .markColor)) ?? markColor
+        penColor = (try? c.decodeIfPresent(PenColor.self, forKey: .penColor)) ?? penColor
+        showTeacherFirst = try c.decodeIfPresent(Bool.self, forKey: .showTeacherFirst) ?? showTeacherFirst
     }
 }
 

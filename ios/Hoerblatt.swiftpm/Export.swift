@@ -57,10 +57,15 @@ enum Exporter {
 
 // MARK: - Fertig view
 
-/// Big preview, big blue "Teilen" (→ AirDrop), back arrow. Spoken on appearing.
+/// Big preview, first a yellow thumb "Gezeigt" (the teacher has seen it, can be switched off), then the big blue
+/// "Teilen" (→ AirDrop); back arrow. Spoken on appearing.
 struct FinishView: View {
     @ObservedObject var app: AppState
     let image: UIImage
+    /// The child has shown the picture to the teacher (thumb tapped); only then sharing is offered.
+    @State private var shown = false
+
+    private var canShare: Bool { shown || !app.settings.showTeacherFirst }
 
     var body: some View {
         let picture = SwiftUI.Image(uiImage: image)
@@ -105,37 +110,67 @@ struct FinishView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.black.opacity(0.12), lineWidth: 1))
                 .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
-                // (pressing long on the picture shares too, as on the printed picture card)
+                // (pressing long on the picture shares too, once the teacher has seen it)
                 .contextMenu {
-                    ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
-                        SwiftUI.Label("Teilen", systemImage: "square.and.arrow.up")
+                    if canShare {
+                        ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
+                            SwiftUI.Label("Teilen", systemImage: "square.and.arrow.up")
+                        }
                     }
                 }
                 .accessibilityLabel(Text("Das fertige Blatt"))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
-                HStack(spacing: 16) {
-                    SwiftUI.Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 36, weight: .bold))
-                    Text("Teilen")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+            if !canShare {
+                // first step: show the picture to the teacher, then the thumb
+                Button(action: {
+                    shown = true
+                    app.say("Tippe auf Teilen und dann auf AirDrop.")
+                }) {
+                    HStack(spacing: 16) {
+                        SwiftUI.Image(systemName: "hand.thumbsup.fill")
+                            .font(.system(size: 40, weight: .bold))
+                        Text("Gezeigt")
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(ExportStyle.ink)
+                    .padding(.horizontal, 48)
+                    .frame(minWidth: 300)
+                    .frame(height: 96)
+                    .background(Capsule().fill(ExportStyle.thumb))
+                    .overlay(Capsule().stroke(ExportStyle.ink, lineWidth: 3))
+                    .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
                 }
-                .foregroundColor(.white)
-                .padding(.horizontal, 48)
-                .frame(minWidth: 300)
-                .frame(height: 96)
-                .background(Capsule().fill(ExportStyle.blue))
-                .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
+                .buttonStyle(ExportPressStyle())
+                .accessibilityLabel(Text("Der Lehrkraft gezeigt"))
+            } else {
+                ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
+                    HStack(spacing: 16) {
+                        SwiftUI.Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 36, weight: .bold))
+                        Text("Teilen")
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 48)
+                    .frame(minWidth: 300)
+                    .frame(height: 96)
+                    .background(Capsule().fill(ExportStyle.blue))
+                    .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
+                }
+                .buttonStyle(ExportPressStyle())
+                .accessibilityLabel(Text("Teilen, dann AirDrop"))
             }
-            .buttonStyle(ExportPressStyle())
-            .accessibilityLabel(Text("Teilen, dann AirDrop"))
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ExportStyle.background.ignoresSafeArea())
         .onAppear {
-            app.say("Fertig. Tippe auf Teilen und dann auf AirDrop.")
+            if canShare {
+                app.say("Fertig. Tippe auf Teilen und dann auf AirDrop.")
+            } else {
+                app.say("Fertig. Zeig das Bild deiner Lehrkraft. Dann tippe auf den Daumen.")
+            }
         }
     }
 }
@@ -147,6 +182,8 @@ fileprivate enum ExportStyle {
     static let blue = Color(red: 37.0 / 255, green: 99.0 / 255, blue: 235.0 / 255)
     static let slate = Color(red: 71.0 / 255, green: 85.0 / 255, blue: 105.0 / 255)
     static let background = Color(red: 238.0 / 255, green: 241.0 / 255, blue: 236.0 / 255)
+    static let ink = Color(red: 30.0 / 255, green: 41.0 / 255, blue: 59.0 / 255)
+    static let thumb = Color(red: 253.0 / 255, green: 230.0 / 255, blue: 138.0 / 255)
 }
 
 /// Answer fields look as on the screen (PageCanvas): light purple, purple edge, blue rounded writing.
