@@ -57,6 +57,8 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     private let previewLayer = CAShapeLayer()
     private let tapGesture = UITapGestureRecognizer(target: nil, action: nil)
     private let markPan = UIPanGestureRecognizer(target: nil, action: nil)
+    /// Markieren: finger held still on a word opens the word lens.
+    private let lensPress = UILongPressGestureRecognizer(target: nil, action: nil)
 
     private var controller: PageController?
     private var app: AppState?
@@ -94,18 +96,11 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     // Marker swipe (page pixels, plus the length in screen points for the speed)
     private var markSwipeActive = false
     private var markPoints: [CGPoint] = []
-    private var markMinX: CGFloat = 0
-    private var markMaxX: CGFloat = 0
     private var markStartWord: Int?
     private var markMulti = false
     private var markTouched: [Int] = []
     private var markAdding = true
-    private var markScreenLast = CGPoint.zero
-    private var markScreenLength: CGFloat = 0
-    private var markDownTime: TimeInterval = 0
     private let previewMarkId = UUID()
-    /// Below this average speed (screen points per second) a swipe within one word marks only the swiped part.
-    private let slowSwipeSpeed: CGFloat = 250
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -179,6 +174,15 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         markPan.delegate = self
         markPan.isEnabled = false
         scroller.addGestureRecognizer(markPan)
+
+        lensPress.addTarget(self, action: #selector(handleLensPress(_:)))
+        lensPress.minimumPressDuration = 0.45
+        lensPress.allowableMovement = 12
+        lensPress.delegate = self
+        lensPress.isEnabled = false
+        scroller.addGestureRecognizer(lensPress)
+        // a finger that moves before the lens opens is a swipe
+        markPan.require(toFail: lensPress)
 
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
@@ -313,6 +317,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         let oneFingerWorks = mode == .markieren || mode == .stift || mode == .radieren
         scroller.panGestureRecognizer.minimumNumberOfTouches = oneFingerWorks ? 2 : 1
         markPan.isEnabled = mode == .markieren
+        lensPress.isEnabled = mode == .markieren
         if mode != .markieren { endMarkSwipe() }
     }
 
@@ -598,9 +603,6 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             inkChangedInTouch = false
             touchStoppedScroll = scroller.isDecelerating
         }
-        if gestureRecognizer === markPan {
-            markDownTime = ProcessInfo.processInfo.systemUptime
-        }
         // typing into the open answer field stays with the text view
         if let v = touch.view, isEditableText(v) { return false }
         return true
@@ -612,7 +614,8 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         guard tapFirst || otherGestureRecognizer === tapGesture else { return false }
         let other = tapFirst ? otherGestureRecognizer : gestureRecognizer
         // a swipe or a scroll is no tap; the pen canvas and the eraser may see the same touch
-        if other === markPan || other === scroller.panGestureRecognizer || other === scroller.pinchGestureRecognizer {
+        if other === markPan || other === lensPress || other === scroller.panGestureRecognizer
+            || other === scroller.pinchGestureRecognizer {
             return false
         }
         return true
@@ -660,8 +663,6 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             let reading = c.reading
             markSwipeActive = true
             markPoints = [start]
-            markMinX = start.x
-            markMaxX = start.x
             markStartWord = wordIndex(reading.wordAt(start, loose: true), c)
             markMulti = false
             markTouched = []
@@ -670,36 +671,29 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             } else {
                 markAdding = true
             }
-            let screenTr = g.translation(in: self)
-            markScreenLength = (screenTr.x * screenTr.x + screenTr.y * screenTr.y).squareRoot()
-            markScreenLast = g.location(in: self)
-            if markDownTime <= 0 { markDownTime = ProcessInfo.processInfo.systemUptime - 0.1 }
             addMarkPoint(loc, reading, c)
             showMarkPreview(c)
         case .changed:
             guard markSwipeActive else { return }
-            addScreenDistance(g.location(in: self))
             addMarkPoint(g.location(in: contentView), c.reading, c)
             showMarkPreview(c)
         case .ended:
             guard markSwipeActive else { return }
-            addScreenDistance(g.location(in: self))
             addMarkPoint(g.location(in: contentView), c.reading, c)
-            let duration = max(0.05, ProcessInfo.processInfo.systemUptime - markDownTime)
-            let speed = markScreenLength / CGFloat(duration)
             let points = markPoints
             endMarkSwipe()
-            c.markStroke(points, slow: speed < slowSwipeSpeed)
+            c.markStroke(points)
         default:
             endMarkSwipe()
         }
     }
 
-    private func addScreenDistance(_ p: CGPoint) {
-        let dx = p.x - markScreenLast.x
-        let dy = p.y - markScreenLast.y
-        markScreenLength += (dx * dx + dy * dy).squareRoot()
-        markScreenLast = p
+    @objc private func handleLensPress(_ g: UILongPressGestureRecognizer) {
+        guard g.state == .began, let c = controller else { return }
+        let p = g.location(in: contentView)
+        if answerHit(p, c) != nil { return }
+        endMarkSwipe()
+        c.openLens(at: p)
     }
 
     /// Same reading of the swipe as `markStroke`: leaving the first word makes it a swipe across words.
@@ -710,8 +704,6 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             if dx * dx + dy * dy < 0.25 { return }
         }
         markPoints.append(p)
-        markMinX = min(markMinX, p.x)
-        markMaxX = max(markMaxX, p.x)
         guard let h = wordIndex(reading.wordAt(p, loose: false), c) else { return }
         if !markMulti && h != markStartWord {
             markMulti = true
@@ -734,11 +726,11 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
                 }
             }
         } else if let i = markStartWord, i >= 0, i < c.page.words.count {
+            // a swipe within one word marks the whole word (as in `markStroke`)
             let w = c.page.words[i].rect
-            let lo = min(max(markMinX, w.minX), w.maxX)
-            let hi = min(max(markMaxX, w.minX), w.maxX)
-            if hi - lo >= w.height * 0.3 {
-                let m = Mark(id: previewMarkId, word: i, color: color, from: lo, to: hi)
+            let xs = markPoints.map { min(max($0.x, w.minX), w.maxX) }
+            if let lo = xs.min(), let hi = xs.max(), hi - lo >= w.height * 0.3 {
+                let m = Mark(id: previewMarkId, word: i, color: color, from: nil, to: nil)
                 if let r = reading.markRect(m) { rects.append(r) }
             }
         }
@@ -760,8 +752,6 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         markTouched = []
         markMulti = false
         markStartWord = nil
-        markDownTime = 0
-        markScreenLength = 0
         if previewLayer.path != nil {
             CATransaction.begin()
             CATransaction.setDisableActions(true)

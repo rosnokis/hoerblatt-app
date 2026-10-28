@@ -42,6 +42,10 @@ struct ContentView: View {
             .sheet(isPresented: $app.showSettings) {
                 SettingsView(app: app)
             }
+            if let c = app.active {
+                WordLensHost(app: app, controller: c)
+                    .id(c.id)
+            }
             if let info = app.busy {
                 CVBusyCard(info: info)
             }

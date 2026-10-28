@@ -443,6 +443,9 @@ fileprivate let appStatePhotoHint =
             for c in openControllers { closeAnswer(c) }
             appStateHideKeyboard()
         }
+        if m != .markieren {
+            for c in openControllers where c.lensWord != nil { c.lensWord = nil }
+        }
         if mode != m { mode = m }
     }
 

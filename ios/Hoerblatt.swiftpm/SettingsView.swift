@@ -175,7 +175,7 @@ struct SettingsView: View {
             SettingsStepRow(number: "3", symbol: "mic.fill", color: SettingsStyle.lila, title: "Sprechen",
                             text: "Eine Lücke oder eine beliebige Stelle antippen: Es öffnet sich ein Antwortfeld, das Hörblatt hört zu. Der lila Lautsprecher liest die Antwort vor, das Mikrofon nimmt sie neu auf, das Häkchen schließt das Feld.")
             SettingsStepRow(number: "4", symbol: "highlighter", color: SettingsStyle.amber, title: "Markieren",
-                            text: "Farbe wählen (gelb, grün, blau, orange). Wort antippen, waagerecht über Wörter wischen oder langsam über einen Wortteil wischen: Dann wird nur dieser Teil markiert. Die Seite verschiebt man dabei mit zwei Fingern.")
+                            text: "Farbe wählen (gelb, grün, blau, orange). Wort antippen oder waagerecht über Wörter wischen. Für einen Wortteil den Finger kurz auf dem Wort liegen lassen: Die Wort-Lupe zeigt das Wort groß in Buchstaben, Wischen über die Buchstaben markiert genau diese. Die Seite verschiebt man dabei mit zwei Fingern.")
             SettingsStepRow(number: nil, symbol: "pencil.tip", color: SettingsStyle.slate, title: "Stift",
                             text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Radiergummi: Antworten, Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nimmt den letzten Schritt zurück.")
             SettingsStepRow(number: "5", symbol: "checkmark.square.fill", color: SettingsStyle.blue, title: "Fertig",

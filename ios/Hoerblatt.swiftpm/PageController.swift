@@ -34,6 +34,8 @@ fileprivate struct PageControllerSnapshot: Equatable {
     }
     /// This field should open the keyboard (the app cannot listen itself).
     @Published var keyboardAnswer: UUID? = nil
+    /// Word shown big in the word lens (Markieren: finger held on a word), to mark single letters.
+    @Published var lensWord: Int? = nil
     /// The page's id (it never changes for one controller).
     let id: UUID
 
@@ -57,6 +59,8 @@ fileprivate struct PageControllerSnapshot: Equatable {
     /// Typing (or one listening run) into this answer already has its undo step.
     private var typingUndoFor: UUID? = nil
     private var saveTask: Task<Void, Never>? = nil
+    /// Letter edges per word (the words of a page never change).
+    private var edgeCache: [Int: [CGFloat]] = [:]
 
     init(page: Page, image: UIImage, app: AppState) {
         _page = Published(initialValue: page)
@@ -304,8 +308,8 @@ fileprivate struct PageControllerSnapshot: Equatable {
     }
 
     /// A swipe across several words marks them all (or takes the marks off when it starts on a marked word);
-    /// a slow swipe within one word marks just that part ("ab" in "abschreiben").
-    func markStroke(_ points: [CGPoint], slow: Bool) {
+    /// a swipe within one word marks the whole word. Parts of a word are marked in the word lens.
+    func markStroke(_ points: [CGPoint]) {
         guard let start = points.first else { return }
         leaveAnswer()
         let r = reading
@@ -359,15 +363,86 @@ fileprivate struct PageControllerSnapshot: Equatable {
         if hi - lo < w.height * 0.3 {
             // hardly moved: a tap
             toggleWholeMark(i)
-        } else if !slow || hi - lo > w.width * 0.85 {
+        } else {
             var marks = page.marks
-            marks.removeAll(where: { $0.word == i && $0.from == nil })
+            marks.removeAll(where: { $0.word == i })
             marks.append(Mark(id: UUID(), word: i, color: color, from: nil, to: nil))
             page.marks = marks
-        } else {
-            page.marks.append(Mark(id: UUID(), word: i, color: color, from: lo.rounded(), to: hi.rounded()))
         }
         save()
+    }
+
+    // MARK: - Word lens
+
+    /// Finger held still on a word: the word opens big, letter by letter, and is read.
+    func openLens(at p: CGPoint) {
+        leaveAnswer()
+        guard let wid = reading.wordAt(p, loose: true), let i = wordIndex(wid) else { return }
+        guard letterEdges(i).count >= 2 else { return }
+        lensWord = i
+        hearLensWord()
+    }
+
+    func hearLensWord() {
+        guard let i = lensWord, i >= 0, i < page.words.count else { return }
+        let w = page.words[i]
+        speak(Reading.cleanWord(w.text), rects: [w.rect])
+    }
+
+    func closeLens() {
+        lensWord = nil
+    }
+
+    /// x positions (page pixels) of the edges between the letters of `WordLetters.letters` (one more than letters).
+    func letterEdges(_ i: Int) -> [CGFloat] {
+        if let e = edgeCache[i] { return e }
+        guard i >= 0 && i < page.words.count else { return [] }
+        let e = WordLetters.edges(word: page.words[i], image: image, pixelSize: page.pixelSize)
+        edgeCache[i] = e
+        return e
+    }
+
+    /// The colour of each letter of a word, from its marks (a later mark covers an earlier one).
+    func letterColors(_ i: Int) -> [MarkColor?] {
+        let edges = letterEdges(i)
+        let n = max(0, edges.count - 1)
+        var out = [MarkColor?](repeating: nil, count: n)
+        for m in page.marks where m.word == i {
+            for k in 0..<n {
+                if let a = m.from, let b = m.to {
+                    let mid = (edges[k] + edges[k + 1]) / 2
+                    if mid >= min(a, b) && mid <= max(a, b) { out[k] = m.color }
+                } else {
+                    out[k] = m.color
+                }
+            }
+        }
+        return out
+    }
+
+    /// Word lens: letters a…b get the chosen colour, or lose it when all of them have it already.
+    func markLetters(word i: Int, from a: Int, to b: Int) {
+        var colors = letterColors(i)
+        let n = colors.count
+        guard n > 0 else { return }
+        let lo = max(0, min(a, b))
+        let hi = min(n - 1, max(a, b))
+        guard lo <= hi else { return }
+        let color = markColor
+        let all = (lo...hi).allSatisfy { colors[$0] == color }
+        for k in lo...hi { colors[k] = all ? nil : color }
+        pushUndo()
+        setLetterColors(i, colors)
+        save()
+    }
+
+    /// Word lens: all marks of the word go.
+    func clearLetters(word i: Int) {
+        guard page.marks.contains(where: { $0.word == i }) else { return }
+        pushUndo()
+        page.marks.removeAll(where: { $0.word == i })
+        save()
+        app?.announce("Gelöscht")
     }
 
     // MARK: - Eraser, pen, undo
@@ -514,6 +589,30 @@ fileprivate struct PageControllerSnapshot: Equatable {
         if typingUndoFor == id { typingUndoFor = nil }
         page.answers.removeAll(where: { $0.id == id })
         if activeAnswer == id { activeAnswer = nil }
+    }
+
+    /// One mark per run of letters with the same colour; all letters in one colour: a mark on the whole word.
+    private func setLetterColors(_ i: Int, _ colors: [MarkColor?]) {
+        let edges = letterEdges(i)
+        let n = colors.count
+        guard edges.count == n + 1 else { return }
+        var marks = page.marks.filter { $0.word != i }
+        var k = 0
+        while k < n {
+            guard let c = colors[k] else {
+                k += 1
+                continue
+            }
+            var e = k
+            while e + 1 < n && colors[e + 1] == c { e += 1 }
+            if k == 0 && e == n - 1 {
+                marks.append(Mark(id: UUID(), word: i, color: c, from: nil, to: nil))
+            } else {
+                marks.append(Mark(id: UUID(), word: i, color: c, from: edges[k].rounded(), to: edges[e + 1].rounded()))
+            }
+            k = e + 1
+        }
+        page.marks = marks
     }
 
     private func toggleWholeMark(_ i: Int) {

@@ -168,7 +168,11 @@ Kästchen mitten im Wort: Antwort und Wortrest werden zusammengelesen; leere Lü
     func tapSpeak(at p: CGPoint)               // Modus .sprechen: Lücke → Feld darauf, sonst freies Feld; dann zuhören
     func tapAnswer(_ id: UUID)                 // Tipp auf ein vorhandenes Antwortfeld (je nach Modus)
     func markTap(at p: CGPoint)
-    func markStroke(_ points: [CGPoint], slow: Bool)
+    func markStroke(_ points: [CGPoint])        // innerhalb eines Worts: ganzes Wort
+    @Published var lensWord: Int?               // Wort-Lupe (WordLens.swift): Finger 0,45 s still auf einem Wort
+    func openLens(at:), closeLens(), hearLensWord()
+    func letterEdges(_ i: Int) -> [CGFloat]     // Buchstabengrenzen in Seitenpixeln (Schriftbreiten, an helle Spalten im Foto gerückt)
+    func letterColors(_ i: Int) -> [MarkColor?], markLetters(word:from:to:), clearLetters(word:)
     func eraseTap(at p: CGPoint)               // Antwort → Markierung → Lücke (Stiftstriche löscht der Radierer im Canvas)
     func listen(_ id: UUID)
     func stopListening()
@@ -197,7 +201,7 @@ struct PageCanvas: UIViewRepresentable {
 - Inhalt: `UIImageView`, Overlay-`UIView` (zeichnet mit CoreGraphics: Wortumrandungen, Lücken lila, Markierungen,
   Aufleuchten), `PKCanvasView` (gleich groß, `drawingPolicy = .anyInput`, durchsichtig), Antwortfelder als
   `UITextView` an `answer.rect` (Schrift = `page.textHeight * 1.1`, blau, wachsen nach unten).
-- Gesten je Modus: Tipp → Controller; Markieren: ein Finger wischt (Pan) → `markStroke`, Scrollen dann mit zwei Fingern
+- Gesten je Modus: Tipp → Controller; Markieren: ein Finger wischt (Pan) → `markStroke`, Finger still (UILongPress, Pan wartet darauf) → `openLens`, Scrollen dann mit zwei Fingern
   (`panGestureRecognizer.minimumNumberOfTouches = 2` in Markieren und Stift); Stift: PKCanvas aktiv mit Tinte
   `PenColor.ink`, Breite `max(3, textHeight * 0.14)`; Radieren: PKCanvas mit `PKEraserTool(.vector)` + Tipp → `eraseTap`;
   sonst PKCanvas ohne Bedienung.
