@@ -22,7 +22,9 @@ struct LayoutResult {
 }
 
 enum LayoutAnalysis {
-    static func analyze(_ image: PixelImage, words: [Word]) -> LayoutResult {
+    /// `cleanPage`: a page drawn from a PDF (no book edges or page borders in the picture, so a table may be
+    /// as tall as the page).
+    static func analyze(_ image: PixelImage, words: [Word], cleanPage: Bool = false) -> LayoutResult {
         let W = image.width, H = image.height
         guard W >= 16, H >= 16, image.gray.count >= W * H, image.rgba.count >= W * H * 4 else {
             // nothing to analyse: keep the words as they are
@@ -41,6 +43,7 @@ enum LayoutAnalysis {
         let ink = laInkMap(gray: gray, S: sums, W: W, H: H, r: max(8, laRound(mh * 0.8)))
         let segs = laLineSegments(gray: gray, W: W, H: H, mh: mh)
         let engine = LAEngine(W: W, H: H, gray: gray, S: sums, ink: ink, mh: mh, words: prep.words)
+        engine.cleanPage = cleanPage
         engine.run(hSegs: segs.h, vSegs: segs.v)
         engine.finishDoc(punct: prep.punct)
         return engine.result(input: words, dropped: prep.dropped)
@@ -595,6 +598,8 @@ fileprivate final class LAEngine {
     var gridH = Set<Int>()
     var wordMask: [UInt8] = []
     var gaps: [LAGapItem] = []
+    /// A page drawn from a PDF: long lines are table lines, not the edge of a book.
+    var cleanPage = false
 
     init(W: Int, H: Int, gray: [UInt8], S: [UInt32], ink: [UInt8], mh: Double, words: [LAWord]) {
         self.W = W
@@ -917,7 +922,7 @@ fileprivate final class LAEngine {
         var LV: [Int] = []
         for i in vt.indices {
             let len = vt[i].y1 - vt[i].y0
-            if len > mh * 2.5 && len < Double(H) * 0.45 { LV.append(i) }
+            if len > mh * 2.5 && (cleanPage || len < Double(H) * 0.45) { LV.append(i) }
         }
         var LH: [Int] = []
         for i in hz.indices {
@@ -971,8 +976,13 @@ fileprivate final class LAEngine {
                 vy1 = max(vy1, vt[i].y1)
             }
             let cols = merged(gv.map { vt[$0].x } + [hx0, hx1])
-            let rows = merged(gh.map { hz[$0].y } + [vy0, vy1])
-            if cols.count < 3 || rows.count < 3 { continue }
+            var rows = merged(gh.map { hz[$0].y } + [vy0, vy1])
+            if cols.count < 3 || rows.count < 2 { continue }
+            // a dark header band (white writing on dark blue) has no line of its own along its lower edge: the band
+            // is the header row, the first row under it holds answers
+            let band = darkBandTop(above: rows[0], x0: cols[0], x1: cols[cols.count - 1])
+            if let top = band { rows.insert(top, at: 0) }
+            if rows.count < 3 { continue }
             // a table has rows of a few text lines at most (long page borders or a book's edge do not make one)
             var tallRow = false
             for k in 1..<rows.count where rows[k] - rows[k - 1] > mh * 12 { tallRow = true }
@@ -985,7 +995,7 @@ fileprivate final class LAEngine {
                 let sortedHead = inHead.sorted { p, q in words[p].x0 != words[q].x0 ? words[p].x0 < words[q].x0 : p < q }
                 head.append(sortedHead.map { words[$0].t }.joined(separator: " "))
             }
-            let hasHead = head.contains(where: { !$0.isEmpty })
+            let hasHead = band != nil || head.contains(where: { !$0.isEmpty })
             for ri in 0..<(rows.count - 1) {
                 for ci in 0..<(cols.count - 1) {
                     let cell = LARect(x0: cols[ci], y0: rows[ri], x1: cols[ci + 1], y1: rows[ri + 1])
@@ -1022,6 +1032,30 @@ fileprivate final class LAEngine {
             tables.append(LATable(x0: cols[0], x1: cols[cols.count - 1], y0: rows[0], y1: rows[rows.count - 1],
                                   cols: cols, rows: rows, head: head))
         }
+    }
+
+    /// Top of a dark band right above `y` across the table (nil: the paper above is light).
+    func darkBandTop(above y: Double, x0: Double, x1: Double) -> Double? {
+        let xa = max(0, laRound(x0) + 2), xb = min(W, laRound(x1) - 2)
+        guard xb - xa > 6 else { return nil }
+        func rowMean(_ yy: Int) -> Double {
+            var k = 0, n = 0
+            var x = xa
+            while x < xb {
+                k += Int(gray[yy * W + x])
+                n += 1
+                x += 3
+            }
+            return n > 0 ? Double(k) / Double(n) : 255
+        }
+        let y0 = laRound(y)
+        guard y0 - 3 > 0, y0 - 3 < H, rowMean(y0 - 3) < 120 else { return nil }
+        var yy = y0 - 3
+        let limit = max(0, y0 - laRound(mh * 5))
+        while yy > limit && rowMean(yy - 1) < 170 { yy -= 1 }
+        // (a band of at least about one line of writing, ending in light paper)
+        if Double(y0 - yy) > mh * 0.8 && yy > limit { return Double(yy) }
+        return nil
     }
 
     /// headOf: what belongs in an empty box – the header of its table column, or the heading above a column of

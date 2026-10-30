@@ -289,6 +289,8 @@ alles bleibt auf dem Gerät, gesprochene Antworten erkennt Apple ggf. auf Server
 `Heft {id, title, created, pages: [UUID], lastPage}` in `Documents/Mappe/hefte.json` (`PageStore.hefte`, `addHeft`,
 `heft(_:)`, `heft(containing:)`, `noteOpened`, `deleteHeft`). Seiten bleiben normale Seiten mit `Page.heft/heftPage`
 (`PageInfo.heft`). `AppState.choosePDF/pickedPDF/readHeft` (PDFKit: Seite → Bild → `Recognizer.analyze`),
+Hat die PDF eigenen Text, liefert `PDFText.words(page, scale:)` die Wörter (Bildpixel), `Recognizer.analyze(_:textWords:)`
+nimmt sie statt Vision, `LayoutAnalysis.analyze(…, cleanPage: true)` erlaubt seitenhohe Tabellen.
 `open(heftId)` öffnet `lastPage`, `turnPage(±1)`, `CVHeftBar` unter der Seite. `Exporter.heftPDF` → temporäre PDF
 für „Ganzes Heft“ in der Fertig-Ansicht (`AppState.finishHeft/finishHeftPDF`).
 

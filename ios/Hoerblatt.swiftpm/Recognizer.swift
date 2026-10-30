@@ -18,23 +18,32 @@ struct Analysis {
 
 enum Recognizer {
     /// Takes a few seconds. `progress` (0…1, message for the waiting screen) is called on any thread.
-    static func analyze(_ input: UIImage, progress: @escaping (Double, String) -> Void) async -> Analysis {
+    /// `textWords`: the words of a PDF page that has its own text, in pixels of `input` (upright, scale 1, long side
+    /// at most 2400): then nothing is turned or read, only the layout is analysed.
+    static func analyze(_ input: UIImage, textWords: [Word]? = nil,
+                        progress: @escaping (Double, String) -> Void) async -> Analysis {
         progress(0.02, "Das Foto wird vorbereitet …")
         guard let source = rcCGImage(input),
               let base = rcDraw(source, orientation: input.imageOrientation, maxSide: 2400) else {
             return rcEmptyAnalysis(input)
         }
 
-        // a page photographed sideways is turned upright first
-        progress(0.06, "Das Foto wird ausgerichtet …")
-        let turns = rcUprightTurns(base)
         var cg = base
-        if turns != 0, let turned = rcDraw(base, orientation: rcOrientation(turns), maxSide: 2400) {
-            cg = turned
+        let tokens: [Word]
+        var fromText = false
+        if let given = textWords, base.width == source.width, base.height == source.height {
+            tokens = given
+            fromText = true
+        } else {
+            // a page photographed sideways is turned upright first
+            progress(0.06, "Das Foto wird ausgerichtet …")
+            let turns = rcUprightTurns(base)
+            if turns != 0, let turned = rcDraw(base, orientation: rcOrientation(turns), maxSide: 2400) {
+                cg = turned
+            }
+            progress(0.15, "Das Blatt wird gelesen …")
+            tokens = rcRecognize(cg, progress: progress)
         }
-
-        progress(0.15, "Das Blatt wird gelesen …")
-        let tokens = rcRecognize(cg, progress: progress)
 
         progress(0.88, "Lücken und Kästen werden gesucht …")
         var words: [Word] = []
@@ -42,7 +51,7 @@ enum Recognizer {
         var boxes: [PrintedBox] = []
         var textHeight = rcMedianHeight(tokens)
         if let pixels = PixelImage(cgImage: cg) {
-            let layout = LayoutAnalysis.analyze(pixels, words: tokens)
+            let layout = LayoutAnalysis.analyze(pixels, words: tokens, cleanPage: fromText)
             // LayoutResult.words (optional extra): the same words cleaned up – corrected rects, a lone "." moved
             // onto the word before it. Same ids and order as the input, so it can stand in for it.
             let cleaned = layout.words.count == tokens.count ? layout.words : tokens

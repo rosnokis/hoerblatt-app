@@ -609,8 +609,8 @@ fileprivate let appStatePhotoHint =
         return .opened(words: words)
     }
 
-    /// Every page of the PDF is drawn as a picture and read like a photo (a scanned PDF has no text of its own,
-    /// and Vision reads a clean drawing reliably). No photo check: a PDF is never dark or blurred.
+    /// Every page of the PDF is drawn as a picture. Its words come from the PDF's own text when it has one, else the
+    /// picture is read like a photo (a scan). No photo check: a PDF is never dark or blurred.
     private func readHeft(_ data: Data, name: String) async {
         guard let doc = PDFDocument(data: data), doc.pageCount > 0 else {
             say("Diese Datei kann ich nicht öffnen.")
@@ -630,10 +630,13 @@ fileprivate let appStatePhotoHint =
             let prefix = "Seite \(n + 1) von \(total): "
             busyPrefix = prefix
             busy = BusyInfo(progress: 0, message: prefix + "Die Seite wird gelesen …")
-            guard let pdfPage = doc.page(at: n), let picture = appStatePDFPicture(pdfPage) else { continue }
+            guard let pdfPage = doc.page(at: n), let drawn = appStatePDFPicture(pdfPage) else { continue }
+            // a PDF made on a computer brings its own text (exact, also white on dark); a scan is read like a photo
+            let text = PDFText.words(pdfPage, scale: drawn.scale)
             progressRun += 1
             let run = progressRun
-            var analysis = await Recognizer.analyze(picture, progress: appStateProgressRelay(self, run: run))
+            var analysis = await Recognizer.analyze(drawn.picture, textWords: text,
+                                                    progress: appStateProgressRelay(self, run: run))
             progressRun += 1
             analysis.page.heft = heftId
             analysis.page.heftPage = ids.count
@@ -815,9 +818,9 @@ fileprivate func appStateHeftTitle(_ fileName: String) -> String {
     return t.isEmpty ? "Heft" : t
 }
 
-/// A PDF page drawn as a picture, long side about 2400 points (turned as the PDF shows it). Vision then reads it
-/// like a photo; Recognizer draws it again at scale 1.
-@MainActor fileprivate func appStatePDFPicture(_ page: PDFPage) -> UIImage? {
+/// A PDF page drawn as a picture (turned as the PDF shows it), long side 2400 pixels, scale 1, on white.
+/// `scale`: pixels per PDF point (for the PDF's own words).
+@MainActor fileprivate func appStatePDFPicture(_ page: PDFPage) -> (picture: UIImage, scale: CGFloat)? {
     let box = page.bounds(for: .mediaBox)
     var w = box.width
     var h = box.height
@@ -825,7 +828,16 @@ fileprivate func appStateHeftTitle(_ fileName: String) -> String {
     if turn == 90 || turn == 270 { swap(&w, &h) }
     guard w > 1, h > 1 else { return nil }
     let k = 2400 / max(w, h)
-    let picture = page.thumbnail(of: CGSize(width: (w * k).rounded(), height: (h * k).rounded()), for: .mediaBox)
-    if picture.size.width < 1 || picture.size.height < 1 { return nil }
-    return picture
+    let size = CGSize(width: (w * k).rounded(), height: (h * k).rounded())
+    let thumb = page.thumbnail(of: size, for: .mediaBox)
+    if thumb.size.width < 1 || thumb.size.height < 1 { return nil }
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    let picture = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+        UIColor.white.setFill()
+        ctx.fill(CGRect(origin: .zero, size: size))
+        thumb.draw(in: CGRect(origin: .zero, size: size))
+    }
+    return (picture: picture, scale: k)
 }
