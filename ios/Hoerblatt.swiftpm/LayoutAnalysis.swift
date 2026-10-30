@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
 import CoreGraphics
+#endif
 
 // Finds answer lines (gaps), printed boxes, writing fields, grey squares and tables in the page picture itself.
 // Port of analyzeLayout and of the word clean-up in buildDoc (index.html, the tested web version); the comments
@@ -996,6 +998,13 @@ fileprivate final class LAEngine {
                 head.append(sortedHead.map { words[$0].t }.joined(separator: " "))
             }
             let hasHead = band != nil || head.contains(where: { !$0.isEmpty })
+            // a field found earlier that spans several columns (the frame of a whole row) is no answer place:
+            // the cells are
+            let inner = cols.count > 2 ? Array(cols[1..<(cols.count - 1)]) : []
+            boxGaps.removeAll { b in
+                b.y0 > rows[0] - tol && b.y1 < rows[rows.count - 1] + tol
+                    && inner.contains(where: { $0 > b.x0 + mh && $0 < b.x1 - mh })
+            }
             for ri in 0..<(rows.count - 1) {
                 for ci in 0..<(cols.count - 1) {
                     let cell = LARect(x0: cols[ci], y0: rows[ri], x1: cols[ci + 1], y1: rows[ri + 1])
@@ -1006,7 +1015,7 @@ fileprivate final class LAEngine {
                         let byTop = inside.sorted { p, q in words[p].y0 != words[q].y0 ? words[p].y0 < words[q].y0 : p < q }
                         var lines: [[Int]] = []
                         for i in byTop {
-                            if let g = lines.last, words[i].y0 < maxY1(g) + mh * 0.5 {
+                            if let g = lines.last, words[i].y0 < maxY1(g) + mh * 0.9 {
                                 lines[lines.count - 1].append(i)
                             } else {
                                 lines.append([i])
@@ -1238,6 +1247,14 @@ fileprivate final class LAEngine {
     /// box gaps: inside a line of text (a word right next to it on the same height) they are part of the sentence
     func addBoxGaps() {
         for b in boxGaps {
+            // a field with a picture in it (a frame in a drawing, a table cell holding an icon) is no answer place;
+            // a small check box ☐ in a cell hardly counts
+            if !b.lin && !b.square {
+                let mx = max(mh * 0.3, (b.x1 - b.x0) * 0.15), my = max(mh * 0.3, (b.y1 - b.y0) * 0.15)
+                if b.x1 - b.x0 > mx * 2 && b.y1 - b.y0 > my * 2 && busy(b.x0 + mx, b.x1 - mx, b.y0 + my, b.y1 - my) > 0.05 {
+                    continue
+                }
+            }
             let h = b.y1 - b.y0, cy = (b.y0 + b.y1) / 2
             var li = -1, found = false, bd = Double.infinity
             for w in words {

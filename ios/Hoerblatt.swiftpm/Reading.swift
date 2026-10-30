@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
 import CoreGraphics
+#endif
 
 // Reading order, sentences and hit tests on one page. Port of hitWord, hitGap, answerOn, answerAt, boxWords,
 // seq and sentenceAt from index.html (the tested web version). Pure value logic, no UIKit, no actor state.
@@ -300,6 +302,12 @@ struct Reading {
         return page.words[w].box ?? -1
     }
 
+    /// The text of the first word of row `li` ("" if it starts with a gap).
+    private func firstText(ofRow li: Int) -> String {
+        guard let it = items.first(where: { $0.li == li }), let w = it.word else { return "" }
+        return page.words[w].text
+    }
+
     /// The sentence ends after item k: . ! ? : (also before closing quotes), not "1.", not "Name: ____".
     private func isEnd(_ k: Int) -> Bool {
         let x = items[k]
@@ -325,6 +333,10 @@ struct Reading {
         if max(h, h2) > min(h, h2) * 1.4 { return true }
         // next numbered task
         if b.first, let bw = b.word, readingIsNumbered(page.words[bw].text) { return true }
+        // a numbered list without full stops ("1 Rückblick" / "2 Das Werkzeug der Stunde"): each line is a sentence
+        if b.first, let bw = b.word, readingIsNumber(page.words[bw].text), readingIsNumber(firstText(ofRow: a.li)) {
+            return true
+        }
         if b.y0 < a.y0 - h { return true }
         // measured at the start of the line: on a slanted photo the end of a line sits higher or lower
         let dy = b.y0 - (b.first ? a.rowY1 : a.y1)
@@ -485,7 +497,9 @@ fileprivate func readingPlace(_ rows: inout [[ReadingItem]], _ items: [ReadingIt
         let behind = it.x0 < l.x0 + (l.x1 - l.x0) * 0.5
         let far = dx > max(l.h, it.h) * maxGap
         let otherHeight = dy > h * 0.6 && over < h * 0.5
-        if behind || far || otherHeight { continue }
+        // a tall field (an empty table cell) is no line of text: words next to it start their own row
+        let tall = (l.gap != nil && l.h > it.h * 1.8) || (it.gap != nil && it.h > l.h * 1.8)
+        if behind || far || otherHeight || tall { continue }
         let d = dy + max(dx, 0) * 0.05
         if d < bd {
             bd = d
@@ -547,6 +561,11 @@ fileprivate func readingIsNumberDot(_ t: String) -> Bool {
     let cs = Array(t)
     guard cs.count >= 2, cs[cs.count - 1] == "." else { return false }
     return cs.dropLast().allSatisfy { readingIsDigit($0) }
+}
+
+/// "3" alone: a list number without a full stop.
+fileprivate func readingIsNumber(_ t: String) -> Bool {
+    return !t.isEmpty && t.count <= 2 && t.allSatisfy { $0.isNumber }
 }
 
 /// "3." or "3)" at the start of a line: the next task (JS: /^\d+[.)]$/).

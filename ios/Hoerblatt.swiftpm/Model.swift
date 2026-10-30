@@ -1,6 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import CoreGraphics
 import UIKit
+#endif
+// (without UIKit – the Linux test build in tools/linuxtest – the colours and the CGImage reading are left out)
 
 // Shared data of the Hörblatt. Every position on a page is in pixels of the stored page image
 // (upright, scale 1), origin top-left, y downwards.
@@ -68,6 +71,7 @@ enum MarkColor: String, Codable, CaseIterable, Identifiable {
         case .orange: return "Orange"
         }
     }
+    #if canImport(UIKit)
     /// Swatch in the tool tray.
     var swatch: UIColor {
         switch self {
@@ -79,6 +83,7 @@ enum MarkColor: String, Codable, CaseIterable, Identifiable {
     }
     /// Highlighter fill on the page (see-through).
     var fill: UIColor { swatch.withAlphaComponent(0.5) }
+    #endif
 }
 
 /// A highlighter mark on a word, or with `from`/`to` only on part of it.
@@ -102,6 +107,7 @@ enum PenColor: String, Codable, CaseIterable, Identifiable {
         case .schwarz: return "Schwarz"
         }
     }
+    #if canImport(UIKit)
     var ink: UIColor {
         switch self {
         case .blau: return UIColor(red: 0.11, green: 0.31, blue: 0.85, alpha: 1)
@@ -109,6 +115,7 @@ enum PenColor: String, Codable, CaseIterable, Identifiable {
         case .schwarz: return UIColor(red: 0.12, green: 0.16, blue: 0.22, alpha: 1)
         }
     }
+    #endif
 }
 
 /// One saved page in the Mappe: the photo's analysis plus everything the child did on it.
@@ -332,6 +339,7 @@ struct PixelImage {
         self.gray = g
     }
 
+    #if canImport(UIKit)
     /// Draws the image into an RGBA buffer of its own pixel size.
     init?(cgImage: CGImage) {
         let w = cgImage.width, h = cgImage.height
@@ -347,6 +355,7 @@ struct PixelImage {
         guard ok else { return nil }
         self.init(width: w, height: h, rgba: buf)
     }
+    #endif
 
     @inline(__always) func lum(_ x: Int, _ y: Int) -> UInt8 { gray[y * width + x] }
 }
