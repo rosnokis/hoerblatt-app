@@ -47,8 +47,7 @@ struct ContentView: View {
             Color.clear
                 .frame(width: 1, height: 1)
                 .allowsHitTesting(false)
-                .fileImporter(isPresented: $app.showPDFPicker, allowedContentTypes: [UTType.pdf],
-                              allowsMultipleSelection: false) { result in
+                .fileImporter(isPresented: $app.showPDFPicker, allowedContentTypes: [UTType.pdf]) { result in
                     app.pickedPDF(result)
                 }
             if let c = app.active {

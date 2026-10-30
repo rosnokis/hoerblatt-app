@@ -600,7 +600,7 @@ fileprivate func listenerAskPermissions() async -> Bool {
     }
     if status != .authorized { return false }
     let mic = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+        AVAudioApplication.requestRecordPermission { granted in
             cont.resume(returning: granted)
         }
     }
