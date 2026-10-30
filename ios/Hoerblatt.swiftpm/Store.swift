@@ -9,6 +9,8 @@ import Combine
 @MainActor final class PageStore: ObservableObject {
     /// Newest first.
     @Published private(set) var pages: [PageInfo] = []
+    /// Newest first (Documents/Mappe/hefte.json).
+    @Published private(set) var hefte: [Heft] = []
 
     private let folder: URL
     /// Thumbnails in memory; NSCache lets the system drop them when memory gets short.
@@ -31,6 +33,53 @@ import Combine
         if scan.changed {
             storeWrite(scan.pages, to: dir.appendingPathComponent("index.json"))
         }
+        // a Heft keeps only pages that are still there
+        let present = Set(scan.pages.map { $0.id })
+        var books = storeRead([Heft].self, from: dir.appendingPathComponent("hefte.json")) ?? []
+        for i in books.indices {
+            books[i].pages = books[i].pages.filter { present.contains($0) }
+            books[i].lastPage = max(0, min(books[i].pages.count - 1, books[i].lastPage))
+        }
+        hefte = books.filter { !$0.pages.isEmpty }
+    }
+
+    // MARK: - Hefte
+
+    func addHeft(_ heft: Heft) {
+        hefte.removeAll { $0.id == heft.id }
+        hefte.insert(heft, at: 0)
+        writeHefte()
+    }
+
+    func heft(_ id: UUID) -> Heft? {
+        return hefte.first(where: { $0.id == id })
+    }
+
+    /// The Heft a page belongs to (nil: a single page).
+    func heft(containing pageId: UUID) -> Heft? {
+        return hefte.first(where: { $0.pages.contains(pageId) })
+    }
+
+    /// Remembers the page last opened in its Heft (the Heft opens there next time).
+    func noteOpened(_ pageId: UUID) {
+        guard let i = hefte.firstIndex(where: { $0.pages.contains(pageId) }),
+              let k = hefte[i].pages.firstIndex(of: pageId), hefte[i].lastPage != k else { return }
+        hefte[i].lastPage = k
+        writeHefte()
+    }
+
+    /// The Heft with all its pages.
+    func deleteHeft(_ id: UUID) {
+        guard let h = heft(id) else { return }
+        for p in h.pages {
+            try? FileManager.default.removeItem(at: pageFolder(p))
+            thumbs.removeObject(forKey: p as NSUUID)
+        }
+        let gone = Set(h.pages)
+        hefte.removeAll { $0.id == id }
+        pages.removeAll { gone.contains($0.id) }
+        writeHefte()
+        writeIndex()
     }
 
     /// Stores a newly recognised page and puts it first in the list.
@@ -50,7 +99,7 @@ import Combine
         // page.json last: a folder without it is an unfinished page and is not listed
         storeWrite(page, to: dir.appendingPathComponent("page.json"))
         pages.removeAll { $0.id == page.id }
-        pages.insert(PageInfo(id: page.id, title: page.title, created: page.created), at: 0)
+        pages.insert(PageInfo(id: page.id, title: page.title, created: page.created, heft: page.heft), at: 0)
         writeIndex()
     }
 
@@ -77,7 +126,9 @@ import Combine
     }
 
     /// About 300 px on the long side; made again from the page image when thumb.jpg is missing.
+    /// For a Heft: its first page.
     func thumbnail(_ id: UUID) -> UIImage? {
+        if let h = heft(id), let first = h.pages.first { return thumbnail(first) }
         if let cached = thumbs.object(forKey: id as NSUUID) { return cached }
         let url = pageFolder(id).appendingPathComponent("thumb.jpg")
         var thumb: UIImage? = nil
@@ -101,6 +152,12 @@ import Combine
         thumbs.removeObject(forKey: id as NSUUID)
         pages.removeAll { $0.id == id }
         writeIndex()
+        if let i = hefte.firstIndex(where: { $0.pages.contains(id) }) {
+            hefte[i].pages.removeAll { $0 == id }
+            hefte[i].lastPage = max(0, min(hefte[i].pages.count - 1, hefte[i].lastPage))
+            if hefte[i].pages.isEmpty { hefte.remove(at: i) }
+            writeHefte()
+        }
     }
 
     func deleteAll() {
@@ -112,7 +169,9 @@ import Combine
         }
         thumbs.removeAllObjects()
         pages = []
+        hefte = []
         writeIndex()
+        writeHefte()
     }
 
     // MARK: - Files
@@ -123,6 +182,10 @@ import Combine
 
     private func writeIndex() {
         storeWrite(pages, to: folder.appendingPathComponent("index.json"))
+    }
+
+    private func writeHefte() {
+        storeWrite(hefte, to: folder.appendingPathComponent("hefte.json"))
     }
 }
 
@@ -172,7 +235,7 @@ fileprivate func storeScan(_ folder: URL) -> (pages: [PageInfo], changed: Bool) 
         if seen.contains(id) { continue }
         let url = folder.appendingPathComponent(id.uuidString, isDirectory: true).appendingPathComponent("page.json")
         if let page = storeRead(Page.self, from: url) {
-            found.append(PageInfo(id: id, title: page.title, created: page.created))
+            found.append(PageInfo(id: id, title: page.title, created: page.created, heft: page.heft))
         }
     }
     if !found.isEmpty {

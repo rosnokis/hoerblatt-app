@@ -128,6 +128,9 @@ struct Page: Codable, Identifiable {
     var marks: [Mark]
     /// PencilKit drawing (`PKDrawing.dataRepresentation()`), in page pixel coordinates.
     var drawing: Data
+    /// The Heft (a PDF with several pages) this page belongs to, and its place in it (0 = first page).
+    var heft: UUID? = nil
+    var heftPage: Int? = nil
 }
 
 /// Entry of the Mappe list (the page itself is loaded only when opened).
@@ -135,6 +138,18 @@ struct PageInfo: Codable, Identifiable, Hashable {
     var id: UUID
     var title: String
     var created: Date
+    /// Pages of a Heft are shown in the Mappe as the Heft, not one by one.
+    var heft: UUID? = nil
+}
+
+/// A PDF read page by page (e.g. an Ermittlerheft filled in over several lessons). Its pages are ordinary pages
+/// of the Mappe; the Heft keeps their order and the page last worked on.
+struct Heft: Codable, Identifiable, Hashable {
+    var id: UUID
+    var title: String
+    var created: Date
+    var pages: [UUID]
+    var lastPage: Int
 }
 
 /// Piece of something read aloud: text, or the gap tone.

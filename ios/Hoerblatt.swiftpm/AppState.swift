@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 import Combine
 import VisionKit
+import PDFKit
 
 // State and flows of the app: the tool in use, photo → page, the Mappe with one or two open pages
 // (e.g. book left, worksheet right), speaking. The child cannot read: every question is also spoken.
@@ -16,7 +17,7 @@ struct BusyInfo: Equatable {
 /// Sheets and the camera. SwiftUI shows one at a time and drops one that comes while another is still
 /// going away, so they are opened one after another.
 fileprivate enum AppStateSheet {
-    case library, settings, photoHelp, picker, scanner, finish
+    case library, settings, photoHelp, picker, scanner, finish, pdfPicker
 }
 
 /// Where the last photo came from ("Nochmal" opens the same again).
@@ -80,10 +81,17 @@ fileprivate let appStatePhotoHint =
     @Published var showPicker: Bool = false {
         didSet { sheetChanged(.picker, from: oldValue, to: showPicker) }
     }
+    /// The Dateien app's picker for a PDF (a Heft).
+    @Published var showPDFPicker: Bool = false {
+        didSet { sheetChanged(.pdfPicker, from: oldValue, to: showPDFPicker) }
+    }
     /// Set → the Fertig view.
     @Published var finishImage: UIImage? = nil {
         didSet { sheetChanged(.finish, from: oldValue != nil, to: finishImage != nil) }
     }
+    /// Fertig on a page of a Heft: the Heft, and its PDF with all answers once it is made.
+    @Published var finishHeft: Heft? = nil
+    @Published var finishHeftPDF: URL? = nil
     @Published var photoProblem: PhotoProblem? = nil
     /// Question "Diese Seite löschen?".
     @Published var pendingDelete: PageInfo? = nil
@@ -200,9 +208,14 @@ fileprivate let appStatePhotoHint =
 
     // MARK: - Pages
 
-    /// Opens a page of the Mappe in the active half.
+    /// Opens a page of the Mappe in the active half; a Heft opens at the page last worked on.
     func open(_ id: UUID) {
+        if let h = store.heft(id), !h.pages.isEmpty {
+            open(h.pages[max(0, min(h.pages.count - 1, h.lastPage))])
+            return
+        }
         if showLibrary { showLibrary = false }
+        store.noteOpened(id)
         let side = currentSide
         if let c = controller(on: side), c.id == id {
             announce(c.page.title)
@@ -230,6 +243,23 @@ fileprivate let appStatePhotoHint =
         speaker.stop()
         put(c, on: side)
         announce(c.page.title)
+    }
+
+    /// The arrows under a page of a Heft: the page before (-1) or after (+1) in the active half.
+    func turnPage(_ delta: Int) {
+        guard let c = active, let h = store.heft(containing: c.id),
+              let i = h.pages.firstIndex(of: c.id) else { return }
+        let j = i + delta
+        guard j >= 0 && j < h.pages.count else {
+            announce(delta < 0 ? "Das ist die erste Seite." : "Das ist die letzte Seite.")
+            return
+        }
+        open(h.pages[j])
+    }
+
+    /// A page that is open in one of the halves.
+    func openController(_ id: UUID) -> PageController? {
+        return openControllers.first(where: { $0.id == id })
     }
 
     /// Called on every touch of a half (only matters with two pages).
@@ -315,6 +345,35 @@ fileprivate let appStatePhotoHint =
         enqueue([image])
     }
 
+    // MARK: - PDF → Heft
+
+    func choosePDF() {
+        if processing || photoProblem != nil { return }
+        stopAllListening()
+        for c in openControllers { closeAnswer(c) }
+        appStateHideKeyboard()
+        presentSoon(.pdfPicker)
+    }
+
+    /// From the Dateien picker: the file is copied (it may sit in a cloud folder) and read page by page.
+    func pickedPDF(_ result: Result<URL, Error>) {
+        showPDFPicker = false
+        guard case .success(let url) = result else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        let data = try? Data(contentsOf: url)
+        if scoped { url.stopAccessingSecurityScopedResource() }
+        guard let pdf = data, !processing else {
+            if data == nil { say("Diese Datei kann ich nicht öffnen.") }
+            return
+        }
+        processing = true
+        let name = url.deletingPathExtension().lastPathComponent
+        Task { @MainActor in
+            await self.readHeft(pdf, name: name)
+            self.processing = false
+        }
+    }
+
     /// "Nochmal" (retake) or "Weiter" on the photo question.
     func resolvePhotoProblem(retake: Bool) {
         photoProblem = nil
@@ -340,7 +399,15 @@ fileprivate let appStatePhotoHint =
         c.save()
         // (FinishView speaks its own hint when it appears)
         pendingFinish = Exporter.render(c)
+        finishHeftPDF = nil
+        finishHeft = store.heft(containing: c.id)
         presentSoon(.finish)
+        if let h = finishHeft {
+            Task { @MainActor in
+                let url = await Exporter.heftPDF(h, app: self)
+                if self.finishHeft?.id == h.id { self.finishHeftPDF = url }
+            }
+        }
     }
 
     func askDelete(_ info: PageInfo) {
@@ -350,15 +417,21 @@ fileprivate let appStatePhotoHint =
             showLibrary = false
         }
         pendingDelete = info
-        say("Diese Seite löschen? Tippe auf den roten Papierkorb. Oder tippe auf den grünen Pfeil, dann bleibt sie.")
+        let what = store.heft(info.id) != nil ? "Dieses Heft" : "Diese Seite"
+        say(what + " löschen? Tippe auf den roten Papierkorb. Oder tippe auf den grünen Pfeil, dann bleibt sie.")
     }
 
     func confirmDelete(_ yes: Bool) {
         guard let info = pendingDelete else { return }
         pendingDelete = nil
         if yes {
-            closePage(info.id)
-            store.delete(info.id)
+            if let h = store.heft(info.id) {
+                for p in h.pages { closePage(p) }
+                store.deleteHeft(h.id)
+            } else {
+                closePage(info.id)
+                store.delete(info.id)
+            }
             announce("Gelöscht")
         } else {
             speaker.stop()
@@ -536,6 +609,50 @@ fileprivate let appStatePhotoHint =
         return .opened(words: words)
     }
 
+    /// Every page of the PDF is drawn as a picture and read like a photo (a scanned PDF has no text of its own,
+    /// and Vision reads a clean drawing reliably). No photo check: a PDF is never dark or blurred.
+    private func readHeft(_ data: Data, name: String) async {
+        guard let doc = PDFDocument(data: data), doc.pageCount > 0 else {
+            say("Diese Datei kann ich nicht öffnen.")
+            return
+        }
+        if doc.isLocked {
+            say("Diese PDF ist mit einem Kennwort geschützt. Ich kann sie nicht lesen.")
+            return
+        }
+        stopAllListening()
+        let title = appStateHeftTitle(name)
+        let heftId = UUID()
+        let total = doc.pageCount
+        var ids: [UUID] = []
+        say("Einen Moment. Ich lese das Heft.")
+        for n in 0..<total {
+            let prefix = "Seite \(n + 1) von \(total): "
+            busyPrefix = prefix
+            busy = BusyInfo(progress: 0, message: prefix + "Die Seite wird gelesen …")
+            guard let pdfPage = doc.page(at: n), let picture = appStatePDFPicture(pdfPage) else { continue }
+            progressRun += 1
+            let run = progressRun
+            var analysis = await Recognizer.analyze(picture, progress: appStateProgressRelay(self, run: run))
+            progressRun += 1
+            analysis.page.heft = heftId
+            analysis.page.heftPage = ids.count
+            analysis.page.title = "Seite \(ids.count + 1)"
+            store.add(page: analysis.page, image: analysis.image)
+            ids.append(analysis.page.id)
+        }
+        busy = nil
+        guard !ids.isEmpty else {
+            say("In dieser Datei konnte ich keine Seite lesen.")
+            return
+        }
+        store.addHeft(Heft(id: heftId, title: title, created: Date(), pages: ids, lastPage: 0))
+        changeMode(.wort)
+        open(ids[0])
+        say(ids.count == 1 ? "Fertig. Tippe auf ein Wort."
+            : "Fertig. Das Heft hat \(ids.count) Seiten. Mit den Pfeilen blätterst du.")
+    }
+
     /// Shows the photo question, speaks it and waits for "Nochmal" (false) or "Weiter" (true).
     private func ask(_ problem: PhotoProblem) async -> Bool {
         busy = nil
@@ -632,6 +749,8 @@ fileprivate let appStatePhotoHint =
             showPicker = on
         case .scanner:
             showScanner = on
+        case .pdfPicker:
+            showPDFPicker = on
         case .finish:
             if on {
                 finishImage = pendingFinish
@@ -648,6 +767,7 @@ fileprivate let appStatePhotoHint =
         if kind != .photoHelp && showPhotoHelp { return true }
         if kind != .picker && showPicker { return true }
         if kind != .scanner && showScanner { return true }
+        if kind != .pdfPicker && showPDFPicker { return true }
         if kind != .finish && finishImage != nil { return true }
         return false
     }
@@ -658,6 +778,7 @@ fileprivate let appStatePhotoHint =
         if kind != .photoHelp && showPhotoHelp { showPhotoHelp = false }
         if kind != .picker && showPicker { showPicker = false }
         if kind != .scanner && showScanner { showScanner = false }
+        if kind != .pdfPicker && showPDFPicker { showPDFPicker = false }
         if kind != .finish && finishImage != nil { finishImage = nil }
     }
 }
@@ -685,4 +806,26 @@ fileprivate func appStateProgressRelay(_ app: AppState, run: Int) -> (Double, St
 
 @MainActor fileprivate func appStateHideKeyboard() {
     _ = UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+}
+
+/// "Ermittlerheft_Klasse4" → "Ermittlerheft Klasse4" (the file name, as the teacher chose it).
+fileprivate func appStateHeftTitle(_ fileName: String) -> String {
+    let spaced = fileName.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ")
+    let t = spaced.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    return t.isEmpty ? "Heft" : t
+}
+
+/// A PDF page drawn as a picture, long side about 2400 points (turned as the PDF shows it). Vision then reads it
+/// like a photo; Recognizer draws it again at scale 1.
+@MainActor fileprivate func appStatePDFPicture(_ page: PDFPage) -> UIImage? {
+    let box = page.bounds(for: .mediaBox)
+    var w = box.width
+    var h = box.height
+    let turn = ((page.rotation % 360) + 360) % 360
+    if turn == 90 || turn == 270 { swap(&w, &h) }
+    guard w > 1, h > 1 else { return nil }
+    let k = 2400 / max(w, h)
+    let picture = page.thumbnail(of: CGSize(width: (w * k).rounded(), height: (h * k).rounded()), for: .mediaBox)
+    if picture.size.width < 1 || picture.size.height < 1 { return nil }
+    return picture
 }

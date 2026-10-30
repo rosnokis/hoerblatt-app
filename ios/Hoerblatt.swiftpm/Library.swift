@@ -9,7 +9,10 @@ struct LibraryView: View {
     @ObservedObject var app: AppState
 
     var body: some View {
-        let pages = app.store.pages
+        // pages of a Heft are shown as their Heft (pages of an unfinished import would get lost otherwise)
+        let books = app.store.hefte
+        let bookIds = Set(books.map { $0.id })
+        let pages = app.store.pages.filter { info in info.heft.map { !bookIds.contains($0) } ?? true }
         VStack(spacing: 0) {
             header
             ScrollView {
@@ -24,12 +27,22 @@ struct LibraryView: View {
                         app.announce("Foto wählen")
                         app.showPicker = true
                     }
+                    LibraryActionTile(symbol: "doc.richtext", title: "PDF öffnen", filled: false) {
+                        // (the Dateien picker comes once the Mappe has gone away)
+                        app.announce("PDF öffnen")
+                        app.showLibrary = false
+                        app.choosePDF()
+                    }
+                    ForEach(books) { heft in
+                        LibraryPageTile(app: app, info: PageInfo(id: heft.id, title: libraryHeftTitle(heft),
+                                                                 created: heft.created))
+                    }
                     ForEach(pages) { info in
                         LibraryPageTile(app: app, info: info)
                     }
                 }
                 .padding(20)
-                if pages.isEmpty {
+                if pages.isEmpty && books.isEmpty {
                     Text("Die Mappe ist noch leer. Mach ein Foto von einem Blatt.")
                         .font(.title3.weight(.semibold))
                         .foregroundColor(LibraryStyle.slate)
@@ -119,9 +132,14 @@ struct PageStrip: View {
     @MainActor
     private var stripPages: [PageInfo] {
         var list: [PageInfo] = []
-        for (i, info) in app.store.pages.enumerated() {
-            if i < 12 || libraryOpenSide(app, info.id) != nil {
+        // (a Heft is reached through the Mappe and its arrows; only its open page shows here)
+        var count = 0
+        for info in app.store.pages {
+            let open = libraryOpenSide(app, info.id) != nil
+            if info.heft != nil && !open { continue }
+            if count < 12 || open {
                 list.append(info)
+                count += 1
             }
         }
         return list
@@ -286,10 +304,16 @@ fileprivate struct LibraryPressStyle: ButtonStyle {
 
 /// Where a page is shown now: left half (or the only page), right half; nil = not shown.
 /// (With one page the hidden second page waits in `right`; it does not count as shown.)
+/// A Heft counts as shown when one of its pages is.
 @MainActor fileprivate func libraryOpenSide(_ app: AppState, _ id: UUID) -> Side? {
-    if let l = app.left, l.id == id { return .left }
-    if app.twoPages, let r = app.right, r.id == id { return .right }
+    if let l = app.left, l.id == id || l.page.heft == id { return .left }
+    if app.twoPages, let r = app.right, r.id == id || r.page.heft == id { return .right }
     return nil
+}
+
+fileprivate func libraryHeftTitle(_ heft: Heft) -> String {
+    let n = heft.pages.count
+    return n == 1 ? heft.title : "\(heft.title) · \(n) Seiten"
 }
 
 /// Left (or the only page) teal, right blue.

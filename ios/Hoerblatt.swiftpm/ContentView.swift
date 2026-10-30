@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 // The main screen: header (Mappe, strip of recent pages, two pages, settings), one page or two side by side,
 // the answer bar and the tool tray with the numbers and colours of the printed picture card.
@@ -42,6 +43,14 @@ struct ContentView: View {
             .sheet(isPresented: $app.showSettings) {
                 SettingsView(app: app)
             }
+            // (the Dateien picker for a PDF hangs on a view of its own, like the sheets)
+            Color.clear
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .fileImporter(isPresented: $app.showPDFPicker, allowedContentTypes: [UTType.pdf],
+                              allowsMultipleSelection: false) { result in
+                    app.pickedPDF(result)
+                }
             if let c = app.active {
                 WordLensHost(app: app, controller: c)
                     .id(c.id)
@@ -115,11 +124,64 @@ fileprivate struct CVPane: View {
                 app.activate(side)
             })
             .id(c.id)
+            .overlay(alignment: .bottom) {
+                if let h = app.store.heft(containing: c.id), h.pages.count > 1,
+                   let i = h.pages.firstIndex(of: c.id) {
+                    CVHeftBar(app: app, side: side, index: i, count: h.pages.count)
+                }
+            }
         } else if app.twoPages {
             CVSidePlaceholder(app: app, side: side, lit: both && app.activeSide == side)
         } else {
             CVEmptyState(app: app)
         }
+    }
+}
+
+/// Under a page of a Heft: big arrows to turn the page, and where in the Heft the page is ("3 / 8").
+fileprivate struct CVHeftBar: View {
+    @ObservedObject var app: AppState
+    let side: Side
+    let index: Int
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 18) {
+            arrow("chevron.left", enabled: index > 0, caption: "Seite zurück", delta: -1)
+            HStack(spacing: 8) {
+                Image(systemName: "book.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                Text("\(index + 1) / \(count)")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            }
+            .foregroundColor(CVStyle.teal)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text("Seite \(index + 1) von \(count)"))
+            arrow("chevron.right", enabled: index < count - 1, caption: "Seite weiter", delta: 1)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Capsule().fill(Color.white.opacity(0.95)))
+        .overlay(Capsule().stroke(CVStyle.teal.opacity(0.5), lineWidth: 2))
+        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 3)
+        .padding(.bottom, 12)
+    }
+
+    private func arrow(_ symbol: String, enabled: Bool, caption: String, delta: Int) -> some View {
+        Button(action: {
+            app.activate(side)
+            app.turnPage(delta)
+        }) {
+            Image(systemName: symbol)
+                .font(.system(size: 30, weight: .heavy))
+                .foregroundColor(.white)
+                .frame(width: 68, height: 68)
+                .background(Circle().fill(enabled ? CVStyle.teal : CVStyle.grey.opacity(0.35)))
+        }
+        .buttonStyle(CVPressStyle())
+        .disabled(!enabled)
+        .accessibilityLabel(Text(caption))
     }
 }
 
@@ -502,7 +564,7 @@ fileprivate struct CVDeleteCard: View {
                 .ignoresSafeArea()
             VStack(spacing: 18) {
                 picture
-                Text("Diese Seite löschen?")
+                Text(app.store.heft(info.id) != nil ? "Dieses Heft löschen?" : "Diese Seite löschen?")
                     .font(.title2.weight(.bold))
                     .foregroundColor(CVStyle.ink)
                     .multilineTextAlignment(.center)

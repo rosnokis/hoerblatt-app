@@ -182,6 +182,8 @@ struct SettingsView: View {
                             text: "Ein Bild des Blatts mit allen Antworten, Markierungen und Stiftstrichen. Das Kind zeigt es zuerst der Lehrkraft und tippt auf den Daumen. Danach geht es über „Teilen“ per AirDrop an die Lehrkraft.")
             SettingsStepRow(number: nil, symbol: "folder.fill", color: SettingsStyle.teal, title: "Mappe und zwei Seiten",
                             text: "Jede Seite bleibt in der Mappe (Ordner oben links). Oben in der Leiste stehen die letzten Seiten: ein Tipp wechselt die Seite. Im Querformat zeigt der Knopf mit den zwei Rechtecken zwei Seiten nebeneinander, z. B. links das Buch und rechts das Arbeitsblatt. Die zuletzt berührte Seite hat einen türkisen Rahmen; eine Seite aus der Mappe oder der Leiste öffnet sich dort.")
+            SettingsStepRow(number: nil, symbol: "book.fill", color: SettingsStyle.teal, title: "Heft (PDF)",
+                            text: "Eine PDF (z. B. ein Ermittlerheft) per AirDrop aufs iPad schicken oder in der Dateien-App ablegen. In der Mappe „PDF öffnen“ tippen und die Datei wählen. Jede Seite wird gelesen, das dauert pro Seite ein paar Sekunden. Das Heft liegt danach als ein Eintrag in der Mappe und öffnet sich auf der zuletzt bearbeiteten Seite; unten blättern große Pfeile. Bei „Fertig“ kann das Kind diese Seite als Bild oder das ganze Heft als PDF teilen.")
         } header: {
             Text("So geht es")
         } footer: {

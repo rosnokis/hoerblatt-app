@@ -285,6 +285,13 @@ Wort-Umrandungen, Kästen zusammen vorlesen, Lücken markieren, Mikrofon-Knopf, 
 Foto-Hinweis; Mappe: alle Seiten löschen (mit Rückfrage); Hilfe-Text (Ablauf, AirDrop-Abgabe, Datenschutz:
 alles bleibt auf dem Gerät, gesprochene Antworten erkennt Apple ggf. auf Servern wie beim Diktat); Stimmen-Hinweis.
 
+### Hefte (PDF)
+`Heft {id, title, created, pages: [UUID], lastPage}` in `Documents/Mappe/hefte.json` (`PageStore.hefte`, `addHeft`,
+`heft(_:)`, `heft(containing:)`, `noteOpened`, `deleteHeft`). Seiten bleiben normale Seiten mit `Page.heft/heftPage`
+(`PageInfo.heft`). `AppState.choosePDF/pickedPDF/readHeft` (PDFKit: Seite → Bild → `Recognizer.analyze`),
+`open(heftId)` öffnet `lastPage`, `turnPage(±1)`, `CVHeftBar` unter der Seite. `Exporter.heftPDF` → temporäre PDF
+für „Ganzes Heft“ in der Fertig-Ansicht (`AppState.finishHeft/finishHeftPDF`).
+
 ### Export.swift — Fertig
 ```swift
 enum Exporter { @MainActor static func render(_ c: PageController) -> UIImage }   // Bild + Markierungen + Antworten + Stift

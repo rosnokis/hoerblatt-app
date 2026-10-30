@@ -55,6 +55,56 @@ enum Exporter {
     }
 }
 
+extension Exporter {
+    /// All pages of a Heft with their answers as one PDF (one page each, A4, upright or across like the page),
+    /// in a temporary folder. Pages not open are loaded for this only.
+    @MainActor static func heftPDF(_ heft: Heft, app: AppState) async -> URL? {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("Hoerblatt-Abgabe", isDirectory: true)
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        let url = dir.appendingPathComponent(exportFileName(heft.title) + ".pdf")
+
+        // JPEG keeps the file small enough for AirDrop
+        var pictures: [Data] = []
+        for id in heft.pages {
+            var c = app.openController(id)
+            if c == nil, let page = app.store.loadPage(id), let image = app.store.loadImage(id) {
+                c = PageController(page: page, image: image, app: app)
+            }
+            guard let pc = c else { continue }
+            if let jpg = render(pc).jpegData(compressionQuality: 0.8) {
+                pictures.append(jpg)
+            }
+            // (the Fertig view keeps moving meanwhile)
+            await Task.yield()
+        }
+        if pictures.isEmpty { return nil }
+
+        let upright = CGRect(x: 0, y: 0, width: 595, height: 842)
+        let across = CGRect(x: 0, y: 0, width: 842, height: 595)
+        let renderer = UIGraphicsPDFRenderer(bounds: upright)
+        do {
+            try renderer.writePDF(to: url) { ctx in
+                for data in pictures {
+                    guard let picture = UIImage(data: data) else { continue }
+                    let s = picture.size
+                    guard s.width > 0, s.height > 0 else { continue }
+                    let sheet = s.width > s.height ? across : upright
+                    ctx.beginPage(withBounds: sheet, pageInfo: [:])
+                    let k = min(sheet.width / s.width, sheet.height / s.height)
+                    let w = s.width * k
+                    let h = s.height * k
+                    picture.draw(in: CGRect(x: (sheet.width - w) / 2, y: (sheet.height - h) / 2, width: w, height: h))
+                }
+            }
+        } catch {
+            return nil
+        }
+        return url
+    }
+}
+
 // MARK: - Fertig view
 
 /// Big preview, first a yellow thumb "Gezeigt" (the teacher has seen it, can be switched off), then the big blue
@@ -125,7 +175,7 @@ struct FinishView: View {
                 // first step: show the picture to the teacher, then the thumb
                 Button(action: {
                     shown = true
-                    app.say("Tippe auf Teilen und dann auf AirDrop.")
+                    app.say(shareHint)
                 }) {
                     HStack(spacing: 16) {
                         SwiftUI.Image(systemName: "hand.thumbsup.fill")
@@ -143,20 +193,39 @@ struct FinishView: View {
                 }
                 .buttonStyle(ExportPressStyle())
                 .accessibilityLabel(Text("Der Lehrkraft gezeigt"))
+            } else if let heft = app.finishHeft {
+                // a page of a Heft: this page as a picture, or the whole Heft as a PDF
+                HStack(spacing: 24) {
+                    ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
+                        shareLabel("doc.fill", "Diese Seite", ExportStyle.blue)
+                    }
+                    .buttonStyle(ExportPressStyle())
+                    .accessibilityLabel(Text("Diese Seite teilen, dann AirDrop"))
+                    if let url = app.finishHeftPDF {
+                        ShareLink(item: url, preview: SharePreview(heft.title)) {
+                            shareLabel("book.fill", "Ganzes Heft", ExportStyle.teal)
+                        }
+                        .buttonStyle(ExportPressStyle())
+                        .accessibilityLabel(Text("Ganzes Heft teilen, dann AirDrop"))
+                    } else {
+                        HStack(spacing: 14) {
+                            ProgressView()
+                                .scaleEffect(1.4)
+                            Text("Heft …")
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                        }
+                        .foregroundColor(ExportStyle.slate)
+                        .padding(.horizontal, 36)
+                        .frame(minWidth: 260)
+                        .frame(height: 96)
+                        .background(Capsule().fill(Color.white))
+                        .overlay(Capsule().stroke(ExportStyle.slate.opacity(0.4), lineWidth: 3))
+                        .accessibilityLabel(Text("Das Heft wird vorbereitet"))
+                    }
+                }
             } else {
                 ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
-                    HStack(spacing: 16) {
-                        SwiftUI.Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 36, weight: .bold))
-                        Text("Teilen")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 48)
-                    .frame(minWidth: 300)
-                    .frame(height: 96)
-                    .background(Capsule().fill(ExportStyle.blue))
-                    .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
+                    shareLabel("square.and.arrow.up", "Teilen", ExportStyle.blue)
                 }
                 .buttonStyle(ExportPressStyle())
                 .accessibilityLabel(Text("Teilen, dann AirDrop"))
@@ -167,11 +236,34 @@ struct FinishView: View {
         .background(ExportStyle.background.ignoresSafeArea())
         .onAppear {
             if canShare {
-                app.say("Fertig. Tippe auf Teilen und dann auf AirDrop.")
+                app.say("Fertig. " + shareHint)
             } else {
                 app.say("Fertig. Zeig das Bild deiner Lehrkraft. Dann tippe auf den Daumen.")
             }
         }
+    }
+
+    private var shareHint: String {
+        if app.finishHeft != nil {
+            return "Tippe auf Diese Seite oder auf Ganzes Heft. Dann auf AirDrop."
+        }
+        return "Tippe auf Teilen und dann auf AirDrop."
+    }
+
+    /// The big share button's face.
+    private func shareLabel(_ symbol: String, _ title: String, _ color: Color) -> some View {
+        HStack(spacing: 16) {
+            SwiftUI.Image(systemName: symbol)
+                .font(.system(size: 36, weight: .bold))
+            Text(title)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 40)
+        .frame(minWidth: 260)
+        .frame(height: 96)
+        .background(Capsule().fill(color))
+        .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -180,6 +272,7 @@ struct FinishView: View {
 /// Colours of the picture card (fixed, the same in dark mode).
 fileprivate enum ExportStyle {
     static let blue = Color(red: 37.0 / 255, green: 99.0 / 255, blue: 235.0 / 255)
+    static let teal = Color(red: 15.0 / 255, green: 118.0 / 255, blue: 110.0 / 255)
     static let slate = Color(red: 71.0 / 255, green: 85.0 / 255, blue: 105.0 / 255)
     static let background = Color(red: 238.0 / 255, green: 241.0 / 255, blue: 236.0 / 255)
     static let ink = Color(red: 30.0 / 255, green: 41.0 / 255, blue: 59.0 / 255)
@@ -199,6 +292,13 @@ fileprivate struct ExportPressStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
     }
+}
+
+/// The Heft's title as a file name ("Ermittlerheft Klasse 4.pdf").
+fileprivate func exportFileName(_ title: String) -> String {
+    let bad = CharacterSet(charactersIn: "/\\:?*\"<>|")
+    let cleaned = title.components(separatedBy: bad).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+    return cleaned.isEmpty ? "Heft" : cleaned
 }
 
 /// The page's pixel size; the image's own size if the stored one is unusable.
