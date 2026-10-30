@@ -112,14 +112,7 @@ struct PageStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(list) { info in
-                        Button(action: {
-                            app.open(info.id)
-                        }) {
-                            LibraryStripThumb(thumb: app.store.thumbnail(info.id),
-                                              side: libraryOpenSide(app, info.id))
-                        }
-                        .buttonStyle(LibraryPressStyle())
-                        .accessibilityLabel(Text(libraryTitle(info)))
+                        LibraryStripItem(app: app, info: info)
                     }
                 }
                 .padding(.horizontal, 6)
@@ -251,6 +244,39 @@ fileprivate struct LibraryPageTile: View {
                 .font(.system(size: 60))
                 .foregroundColor(LibraryStyle.slate.opacity(0.6))
         }
+    }
+}
+
+/// One page in the header strip: a tap opens it, pressing long asks whether to delete it (as in the Mappe).
+fileprivate struct LibraryStripItem: View {
+    @ObservedObject var app: AppState
+    let info: PageInfo
+    @State private var pressing = false
+
+    var body: some View {
+        LibraryStripThumb(thumb: app.store.thumbnail(info.id), side: libraryOpenSide(app, info.id))
+            .scaleEffect(pressing ? 0.9 : 1)
+            .animation(.easeInOut(duration: 0.15), value: pressing)
+            .onTapGesture {
+                app.open(info.id)
+            }
+            .onLongPressGesture(minimumDuration: 0.8, maximumDistance: 20, perform: {
+                pressing = false
+                // a page of a Heft: the question is about the whole Heft (single Heft pages are not deleted)
+                if let h = app.store.heft(containing: info.id) {
+                    app.askDelete(PageInfo(id: h.id, title: h.title, created: h.created))
+                } else {
+                    app.askDelete(info)
+                }
+            }, onPressingChanged: { now in
+                pressing = now
+            })
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text(libraryTitle(info)))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: Text("Löschen")) {
+                app.askDelete(info)
+            }
     }
 }
 
