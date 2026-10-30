@@ -124,9 +124,9 @@ fileprivate struct CVPane: View {
             })
             .id(c.id)
             .overlay(alignment: .bottom) {
-                if let h = app.store.heft(containing: c.id), h.pages.count > 1,
-                   let i = h.pages.firstIndex(of: c.id) {
-                    CVHeftBar(app: app, side: side, index: i, count: h.pages.count)
+                if let h = app.store.heft(containing: c.id), h.pageTotal > 1, let n = h.number(of: c.id) {
+                    CVHeftBar(app: app, side: side, index: n, count: h.pageTotal,
+                              reading: app.heftProgress?.heft == h.id)
                 }
             }
         } else if app.twoPages {
@@ -143,13 +143,20 @@ fileprivate struct CVHeftBar: View {
     let side: Side
     let index: Int
     let count: Int
+    /// Pages of this Heft are still being read in the background.
+    let reading: Bool
 
     var body: some View {
         HStack(spacing: 18) {
             arrow("chevron.left", enabled: index > 0, caption: "Seite zurück", delta: -1)
             HStack(spacing: 8) {
-                Image(systemName: "book.fill")
-                    .font(.system(size: 22, weight: .semibold))
+                if reading {
+                    ProgressView()
+                        .tint(CVStyle.teal)
+                } else {
+                    Image(systemName: "book.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                }
                 Text("\(index + 1) / \(count)")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .monospacedDigit()

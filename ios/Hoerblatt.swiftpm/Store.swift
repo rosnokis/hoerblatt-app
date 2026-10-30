@@ -37,8 +37,7 @@ import Combine
         let present = Set(scan.pages.map { $0.id })
         var books = storeRead([Heft].self, from: dir.appendingPathComponent("hefte.json")) ?? []
         for i in books.indices {
-            books[i].pages = books[i].pages.filter { present.contains($0) }
-            books[i].lastPage = max(0, min(books[i].pages.count - 1, books[i].lastPage))
+            books[i].keepPages { present.contains($0) }
         }
         hefte = books.filter { !$0.pages.isEmpty }
     }
@@ -49,6 +48,29 @@ import Combine
         hefte.removeAll { $0.id == heft.id }
         hefte.insert(heft, at: 0)
         writeHefte()
+    }
+
+    /// A page read in the background goes into its place in the Heft.
+    func addHeftPage(_ heftId: UUID, page pageId: UUID, number: Int) {
+        guard let i = hefte.firstIndex(where: { $0.id == heftId }) else { return }
+        hefte[i].insert(pageId, number: number)
+        writeHefte()
+    }
+
+    /// The PDF of a Heft, kept until all its pages are read (also after the app was closed).
+    func heftPDFURL(_ id: UUID) -> URL {
+        return folder.appendingPathComponent("hefte-pdf", isDirectory: true).appendingPathComponent(id.uuidString + ".pdf")
+    }
+
+    func saveHeftPDF(_ data: Data, _ id: UUID) {
+        let url = heftPDFURL(id)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                                 attributes: nil)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    func deleteHeftPDF(_ id: UUID) {
+        try? FileManager.default.removeItem(at: heftPDFURL(id))
     }
 
     func heft(_ id: UUID) -> Heft? {
@@ -76,6 +98,7 @@ import Combine
             thumbs.removeObject(forKey: p as NSUUID)
         }
         let gone = Set(h.pages)
+        deleteHeftPDF(id)
         hefte.removeAll { $0.id == id }
         pages.removeAll { gone.contains($0.id) }
         writeHefte()
@@ -153,9 +176,11 @@ import Combine
         pages.removeAll { $0.id == id }
         writeIndex()
         if let i = hefte.firstIndex(where: { $0.pages.contains(id) }) {
-            hefte[i].pages.removeAll { $0 == id }
-            hefte[i].lastPage = max(0, min(hefte[i].pages.count - 1, hefte[i].lastPage))
-            if hefte[i].pages.isEmpty { hefte.remove(at: i) }
+            hefte[i].keepPages { $0 != id }
+            if hefte[i].pages.isEmpty {
+                deleteHeftPDF(hefte[i].id)
+                hefte.remove(at: i)
+            }
             writeHefte()
         }
     }

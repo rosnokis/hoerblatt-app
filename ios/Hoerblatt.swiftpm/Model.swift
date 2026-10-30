@@ -148,8 +148,67 @@ struct Heft: Codable, Identifiable, Hashable {
     var id: UUID
     var title: String
     var created: Date
+    /// The pages read so far, in the order of the PDF.
     var pages: [UUID]
+    /// Index into `pages`.
     var lastPage: Int
+    /// The PDF page (0 = first) of each entry of `pages`; nil in Hefte read in one go (then 0, 1, 2 …).
+    var numbers: [Int]? = nil
+    /// Pages of the PDF; the ones not read yet are read in the background.
+    var total: Int? = nil
+}
+
+extension Heft {
+    var pageNumbers: [Int] {
+        if let n = numbers, n.count == pages.count { return n }
+        return Array(0..<pages.count)
+    }
+
+    var pageTotal: Int { max(total ?? 0, pages.count) }
+
+    /// The page read from PDF page `number` (nil: not read yet).
+    func page(number: Int) -> UUID? {
+        guard let i = pageNumbers.firstIndex(of: number) else { return nil }
+        return pages[i]
+    }
+
+    func number(of pageId: UUID) -> Int? {
+        guard let i = pages.firstIndex(of: pageId) else { return nil }
+        return pageNumbers[i]
+    }
+
+    /// PDF pages not read yet, first to last.
+    var unread: [Int] {
+        let have = Set(pageNumbers)
+        return (0..<pageTotal).filter { !have.contains($0) }
+    }
+
+    /// Keeps the pages for which `keep` is true (with their numbers).
+    mutating func keepPages(_ keep: (UUID) -> Bool) {
+        let nums = pageNumbers
+        var p: [UUID] = []
+        var n: [Int] = []
+        for (i, id) in pages.enumerated() where keep(id) {
+            p.append(id)
+            n.append(nums[i])
+        }
+        pages = p
+        numbers = n
+        lastPage = max(0, min(p.count - 1, lastPage))
+    }
+
+    /// Puts a newly read page into its place.
+    mutating func insert(_ pageId: UUID, number: Int) {
+        var nums = pageNumbers
+        if nums.contains(number) { return }
+        let at = nums.firstIndex(where: { $0 > number }) ?? nums.count
+        let current = pages.indices.contains(lastPage) ? pages[lastPage] : nil
+        pages.insert(pageId, at: at)
+        nums.insert(number, at: at)
+        numbers = nums
+        // (the page last worked on stays the same)
+        if let c = current, let k = pages.firstIndex(of: c) { lastPage = k }
+    }
 }
 
 /// Piece of something read aloud: text, or the gap tone.

@@ -14,6 +14,13 @@ struct BusyInfo: Equatable {
     var message: String
 }
 
+/// A Heft whose pages are being read in the background.
+struct HeftProgress: Equatable {
+    var heft: UUID
+    var done: Int
+    var total: Int
+}
+
 /// Sheets and the camera. SwiftUI shows one at a time and drops one that comes while another is still
 /// going away, so they are opened one after another.
 fileprivate enum AppStateSheet {
@@ -92,6 +99,8 @@ fileprivate let appStatePhotoHint =
     /// Fertig on a page of a Heft: the Heft, and its PDF with all answers once it is made.
     @Published var finishHeft: Heft? = nil
     @Published var finishHeftPDF: URL? = nil
+    /// Pages of a Heft being read in the background (small spinner under the page).
+    @Published var heftProgress: HeftProgress? = nil
     @Published var photoProblem: PhotoProblem? = nil
     /// Question "Diese Seite löschen?".
     @Published var pendingDelete: PageInfo? = nil
@@ -116,6 +125,14 @@ fileprivate let appStatePhotoHint =
     private var problemAnswer: CheckedContinuation<Bool, Never>? = nil
     /// Grows when a reading ends, so late progress reports are dropped.
     private var progressRun = 0
+    /// Open PDFs of Hefte with pages still to read.
+    private var heftDocs: [UUID: PDFDocument] = [:]
+    private var heftReading = false
+    /// The child turned to a page not read yet: it is read next and opened.
+    private var wantedPage: (heft: UUID, number: Int)? = nil
+    /// Hefte and pages that cannot be read ("<heft>/<page>"): not tried again in this run.
+    private var failedHefte = Set<UUID>()
+    private var failedPages = Set<String>()
     private var busyPrefix = ""
 
     init() {
@@ -161,6 +178,11 @@ fileprivate let appStatePhotoHint =
                 self?.objectWillChange.send()
             }
             .store(in: &bag)
+
+        // pages of a Heft not read when the app was closed
+        Task { @MainActor in
+            self.startHeftReading()
+        }
     }
 
     /// The page of the active half (one page: left).
@@ -247,14 +269,25 @@ fileprivate let appStatePhotoHint =
 
     /// The arrows under a page of a Heft: the page before (-1) or after (+1) in the active half.
     func turnPage(_ delta: Int) {
-        guard let c = active, let h = store.heft(containing: c.id),
-              let i = h.pages.firstIndex(of: c.id) else { return }
-        let j = i + delta
-        guard j >= 0 && j < h.pages.count else {
+        guard let c = active, let h = store.heft(containing: c.id), let cur = h.number(of: c.id) else { return }
+        let target = cur + delta
+        guard target >= 0 && target < h.pageTotal else {
             announce(delta < 0 ? "Das ist die erste Seite." : "Das ist die letzte Seite.")
             return
         }
-        open(h.pages[j])
+        if let id = h.page(number: target) {
+            open(id)
+            return
+        }
+        if failedPages.contains(appStatePageKey(h.id, target)) {
+            say("Diese Seite kann ich nicht lesen.")
+            return
+        }
+        // not read yet: it comes next, then it opens
+        wantedPage = (heft: h.id, number: target)
+        busy = BusyInfo(progress: 0.5, message: "Seite \(target + 1) wird gelesen …")
+        say("Einen Moment.")
+        startHeftReading()
     }
 
     /// A page that is open in one of the halves.
@@ -427,6 +460,11 @@ fileprivate let appStatePhotoHint =
         if yes {
             if let h = store.heft(info.id) {
                 for p in h.pages { closePage(p) }
+                heftDocs[h.id] = nil
+                if wantedPage?.heft == h.id {
+                    wantedPage = nil
+                    busy = nil
+                }
                 store.deleteHeft(h.id)
             } else {
                 closePage(info.id)
@@ -609,8 +647,8 @@ fileprivate let appStatePhotoHint =
         return .opened(words: words)
     }
 
-    /// Every page of the PDF is drawn as a picture. Its words come from the PDF's own text when it has one, else the
-    /// picture is read like a photo (a scan). No photo check: a PDF is never dark or blurred.
+    /// The first page is read at once and opened; the others are read in the background while the child works.
+    /// The PDF is kept so the reading goes on after the app was closed.
     private func readHeft(_ data: Data, name: String) async {
         guard let doc = PDFDocument(data: data), doc.pageCount > 0 else {
             say("Diese Datei kann ich nicht öffnen.")
@@ -624,36 +662,122 @@ fileprivate let appStatePhotoHint =
         let title = appStateHeftTitle(name)
         let heftId = UUID()
         let total = doc.pageCount
-        var ids: [UUID] = []
-        say("Einen Moment. Ich lese das Heft.")
+        say("Einen Moment. Ich lese die erste Seite.")
+        var first: (id: UUID, number: Int)? = nil
         for n in 0..<total {
-            let prefix = "Seite \(n + 1) von \(total): "
-            busyPrefix = prefix
-            busy = BusyInfo(progress: 0, message: prefix + "Die Seite wird gelesen …")
-            guard let pdfPage = doc.page(at: n), let drawn = appStatePDFPicture(pdfPage) else { continue }
-            // a PDF made on a computer brings its own text (exact, also white on dark); a scan is read like a photo
-            let text = PDFText.words(pdfPage, scale: drawn.scale)
-            progressRun += 1
-            let run = progressRun
-            var analysis = await Recognizer.analyze(drawn.picture, textWords: text,
-                                                    progress: appStateProgressRelay(self, run: run))
-            progressRun += 1
-            analysis.page.heft = heftId
-            analysis.page.heftPage = ids.count
-            analysis.page.title = "Seite \(ids.count + 1)"
-            store.add(page: analysis.page, image: analysis.image)
-            ids.append(analysis.page.id)
+            busyPrefix = ""
+            busy = BusyInfo(progress: 0, message: "Seite \(n + 1) wird gelesen …")
+            if let id = await readHeftPage(doc, number: n, heft: heftId, showProgress: true) {
+                first = (id: id, number: n)
+                break
+            }
         }
         busy = nil
-        guard !ids.isEmpty else {
+        guard let f = first else {
             say("In dieser Datei konnte ich keine Seite lesen.")
             return
         }
-        store.addHeft(Heft(id: heftId, title: title, created: Date(), pages: ids, lastPage: 0))
+        store.saveHeftPDF(data, heftId)
+        heftDocs[heftId] = doc
+        store.addHeft(Heft(id: heftId, title: title, created: Date(), pages: [f.id], lastPage: 0,
+                           numbers: [f.number], total: total))
         changeMode(.wort)
-        open(ids[0])
-        say(ids.count == 1 ? "Fertig. Tippe auf ein Wort."
-            : "Fertig. Das Heft hat \(ids.count) Seiten. Mit den Pfeilen blätterst du.")
+        open(f.id)
+        say(total == 1 ? "Fertig. Tippe auf ein Wort."
+            : "Fertig. Das Heft hat \(total) Seiten. Mit den Pfeilen blätterst du. Die anderen Seiten lese ich nebenbei.")
+        startHeftReading()
+    }
+
+    /// One PDF page → a page of the Mappe (not yet in the Heft's list). nil: it cannot be drawn.
+    private func readHeftPage(_ doc: PDFDocument, number n: Int, heft heftId: UUID, showProgress: Bool) async -> UUID? {
+        guard let pdfPage = doc.page(at: n), let drawn = appStatePDFPicture(pdfPage) else { return nil }
+        // a PDF made on a computer brings its own text (exact, also white on dark); a scan is read like a photo
+        let text = PDFText.words(pdfPage, scale: drawn.scale)
+        var relay: (Double, String) -> Void = { _, _ in }
+        if showProgress {
+            progressRun += 1
+            relay = appStateProgressRelay(self, run: progressRun)
+        }
+        var analysis = await Recognizer.analyze(drawn.picture, textWords: text, progress: relay)
+        if showProgress { progressRun += 1 }
+        analysis.page.heft = heftId
+        analysis.page.heftPage = n
+        analysis.page.title = "Seite \(n + 1)"
+        store.add(page: analysis.page, image: analysis.image)
+        return analysis.page.id
+    }
+
+    /// Reads the pages still missing in all Hefte, one after another (a page the child turned to comes first).
+    private func startHeftReading() {
+        if heftReading { return }
+        heftReading = true
+        Task { @MainActor in
+            while let job = self.nextHeftJob() {
+                await self.readHeftJob(job)
+            }
+            self.heftReading = false
+            self.heftProgress = nil
+        }
+    }
+
+    private func nextHeftJob() -> (heft: UUID, number: Int)? {
+        if let w = wantedPage, let h = store.heft(w.heft), h.page(number: w.number) == nil,
+           !failedPages.contains(appStatePageKey(w.heft, w.number)) {
+            return w
+        }
+        for h in store.hefte where !failedHefte.contains(h.id) {
+            if let n = h.unread.first(where: { !failedPages.contains(appStatePageKey(h.id, $0)) }) {
+                return (heft: h.id, number: n)
+            }
+        }
+        return nil
+    }
+
+    private func readHeftJob(_ job: (heft: UUID, number: Int)) async {
+        guard let h = store.heft(job.heft) else { return }
+        var doc = heftDocs[job.heft]
+        if doc == nil {
+            doc = PDFDocument(url: store.heftPDFURL(job.heft))
+            heftDocs[job.heft] = doc
+        }
+        guard let pdf = doc else {
+            // the PDF is gone: the Heft keeps the pages it has
+            failedHefte.insert(job.heft)
+            finishWanted(job, page: nil)
+            return
+        }
+        heftProgress = HeftProgress(heft: job.heft, done: h.pages.count, total: h.pageTotal)
+        let id = await readHeftPage(pdf, number: job.number, heft: job.heft, showProgress: false)
+        if let pageId = id {
+            if store.heft(job.heft) != nil {
+                store.addHeftPage(job.heft, page: pageId, number: job.number)
+            } else {
+                // the Heft was deleted meanwhile
+                store.delete(pageId)
+            }
+        } else {
+            failedPages.insert(appStatePageKey(job.heft, job.number))
+        }
+        if let now = store.heft(job.heft) {
+            if now.unread.isEmpty {
+                store.deleteHeftPDF(job.heft)
+                heftDocs[job.heft] = nil
+            }
+            heftProgress = HeftProgress(heft: job.heft, done: now.pages.count, total: now.pageTotal)
+        }
+        finishWanted(job, page: id)
+    }
+
+    /// The page the child is waiting for is there (or cannot be read).
+    private func finishWanted(_ job: (heft: UUID, number: Int), page: UUID?) {
+        guard let w = wantedPage, w.heft == job.heft, w.number == job.number else { return }
+        wantedPage = nil
+        busy = nil
+        if let id = page, store.heft(job.heft) != nil {
+            open(id)
+        } else {
+            say("Diese Seite kann ich nicht lesen.")
+        }
     }
 
     /// Shows the photo question, speaks it and waits for "Nochmal" (false) or "Weiter" (true).
@@ -840,4 +964,8 @@ fileprivate func appStateHeftTitle(_ fileName: String) -> String {
         thumb.draw(in: CGRect(origin: .zero, size: size))
     }
     return (picture: picture, scale: k)
+}
+
+fileprivate func appStatePageKey(_ heft: UUID, _ number: Int) -> String {
+    return heft.uuidString + "/" + String(number)
 }

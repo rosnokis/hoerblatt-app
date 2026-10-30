@@ -291,7 +291,8 @@ alles bleibt auf dem Gerät, gesprochene Antworten erkennt Apple ggf. auf Server
 (`PageInfo.heft`). `AppState.choosePDF/pickedPDF/readHeft` (PDFKit: Seite → Bild → `Recognizer.analyze`),
 Hat die PDF eigenen Text, liefert `PDFText.words(page, scale:)` die Wörter (Bildpixel), `Recognizer.analyze(_:textWords:)`
 nimmt sie statt Vision, `LayoutAnalysis.analyze(…, cleanPage: true)` erlaubt seitenhohe Tabellen.
-`open(heftId)` öffnet `lastPage`, `turnPage(±1)`, `CVHeftBar` unter der Seite. `Exporter.heftPDF` → temporäre PDF
+Nur Seite 1 wird beim Öffnen gelesen, der Rest im Hintergrund (`startHeftReading`/`nextHeftJob`, `wantedPage` zuerst,
+`Heft.numbers/total/unread`, PDF in `Documents/Mappe/hefte-pdf/<id>.pdf`). `open(heftId)` öffnet `lastPage`, `turnPage(±1)`, `CVHeftBar` unter der Seite. `Exporter.heftPDF` → temporäre PDF
 für „Ganzes Heft“ in der Fertig-Ansicht (`AppState.finishHeft/finishHeftPDF`).
 
 ### Export.swift — Fertig

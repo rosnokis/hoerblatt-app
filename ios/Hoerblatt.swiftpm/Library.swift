@@ -338,7 +338,7 @@ fileprivate struct LibraryPressStyle: ButtonStyle {
 }
 
 fileprivate func libraryHeftTitle(_ heft: Heft) -> String {
-    let n = heft.pages.count
+    let n = heft.pageTotal
     return n == 1 ? heft.title : "\(heft.title) · \(n) Seiten"
 }
 
