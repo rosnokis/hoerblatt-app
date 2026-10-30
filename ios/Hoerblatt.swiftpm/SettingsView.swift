@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import AVFoundation
 
-// Help and settings for teachers (opens only after pressing the gear for 2 s).
+// Help and settings for teachers (opens only after pressing the gear for 1 s).
 // Everything is kept on this device (AppSettings in UserDefaults, the Mappe in the app's documents).
 
 struct SettingsView: View {
@@ -214,7 +214,7 @@ struct SettingsView: View {
         } header: {
             Text("So geht es")
         } footer: {
-            Text("Diese Seite öffnet sich nur, wenn man das Zahnrad 2 Sekunden lang drückt.")
+            Text("Diese Seite öffnet sich nur, wenn man das Zahnrad 1 Sekunde lang drückt.")
         }
     }
 

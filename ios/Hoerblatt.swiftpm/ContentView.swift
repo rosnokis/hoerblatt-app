@@ -306,7 +306,7 @@ fileprivate struct CVHeader: View {
     }
 }
 
-/// Help and settings for teachers: opens only after pressing 2 s (a ring fills meanwhile).
+/// Help and settings for teachers: opens only after pressing 1 s (a ring fills meanwhile).
 fileprivate struct CVSettingsKnob: View {
     @ObservedObject var app: AppState
     @GestureState private var holding = false
@@ -321,7 +321,7 @@ fileprivate struct CVSettingsKnob: View {
                 .trim(from: 0, to: holding ? 1 : 0)
                 .stroke(CVStyle.teal, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(holding ? Animation.linear(duration: 2) : Animation.easeOut(duration: 0.15), value: holding)
+                .animation(holding ? Animation.linear(duration: 1) : Animation.easeOut(duration: 0.15), value: holding)
             Image(systemName: "gearshape")
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundColor(CVStyle.slate)
@@ -329,7 +329,7 @@ fileprivate struct CVSettingsKnob: View {
         .frame(width: 56, height: 56)
         .contentShape(Circle())
         .gesture(
-            LongPressGesture(minimumDuration: 2, maximumDistance: 30)
+            LongPressGesture(minimumDuration: 1, maximumDistance: 30)
                 .updating($holding) { pressing, state, _ in
                     state = pressing
                 }
@@ -337,7 +337,7 @@ fileprivate struct CVSettingsKnob: View {
                     app.showSettings = true
                 }
         )
-        .accessibilityLabel(Text("Hilfe und Einstellungen für Lehrkräfte, 2 Sekunden lang drücken"))
+        .accessibilityLabel(Text("Hilfe und Einstellungen für Lehrkräfte, 1 Sekunde lang drücken"))
     }
 }
 

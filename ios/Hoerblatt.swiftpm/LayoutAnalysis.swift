@@ -659,7 +659,9 @@ fileprivate final class LAEngine {
             let mid = Double(s.u0 + s.u1) / 2
             let x = s.a + s.b * mid
             var inWord = false
-            for w in words where x > w.x0 - 2 && x < w.x1 + 2 && mid > w.y0 && mid < w.y1 {
+            // (a letter is not much taller than its word: a long line only touched by a word's box stays a line)
+            let len = Double(s.u1 - s.u0)
+            for w in words where x > w.x0 - 2 && x < w.x1 + 2 && mid > w.y0 && mid < w.y1 && len < (w.y1 - w.y0) * 2 {
                 inWord = true
                 break
             }
@@ -1004,6 +1006,28 @@ fileprivate final class LAEngine {
             boxGaps.removeAll { b in
                 b.y0 > rows[0] - tol && b.y1 < rows[rows.count - 1] + tol
                     && inner.contains(where: { $0 > b.x0 + mh && $0 < b.x1 - mh })
+            }
+            // the same for a printed box found earlier around a whole row: its words go to their cells
+            let spanning = Set(boxes.indices.filter { k in
+                let b = boxes[k]
+                return b.y0 > rows[0] - tol && b.y1 < rows[rows.count - 1] + tol
+                    && inner.contains(where: { $0 > b.x0 + mh && $0 < b.x1 - mh })
+            })
+            if !spanning.isEmpty {
+                var newIndex: [Int] = []
+                var kept: [LARect] = []
+                for k in boxes.indices {
+                    if spanning.contains(k) {
+                        newIndex.append(-1)
+                    } else {
+                        newIndex.append(kept.count)
+                        kept.append(boxes[k])
+                    }
+                }
+                boxes = kept
+                for i in words.indices where words[i].bx >= 0 && words[i].bx < newIndex.count {
+                    words[i].bx = newIndex[words[i].bx]
+                }
             }
             for ri in 0..<(rows.count - 1) {
                 for ci in 0..<(cols.count - 1) {
