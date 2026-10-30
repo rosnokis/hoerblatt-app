@@ -10,6 +10,8 @@ struct SettingsView: View {
     @State private var askDeleteAll = false
     /// Read once when the sheet appears (listing the voices takes a moment).
     @State private var voiceInfo = ""
+    /// The file of the "Fehlersuche" button, once made.
+    @State private var diagnosisURL: URL? = nil
 
     var body: some View {
         NavigationStack {
@@ -22,6 +24,7 @@ struct SettingsView: View {
                 sharingSection
                 privacySection
                 voiceSection
+                diagnosisSection
             }
             .navigationTitle("Hilfe und Einstellungen")
             .navigationBarTitleDisplayMode(.inline)
@@ -130,6 +133,30 @@ struct SettingsView: View {
             Text("Antworten")
         } footer: {
             Text("An: Das Hörblatt hört nach dem Antippen einer Lücke selbst zu. Aus: Die Antwort kommt über die Tastatur, mit ihrer Diktier-Taste (Mikrofon unten auf der Tastatur).")
+        }
+    }
+
+    /// Fehlersuche: a file about the open page for the developer.
+    @MainActor
+    private var diagnosisSection: some View {
+        Section {
+            Button(action: {
+                if let c = app.active {
+                    diagnosisURL = Diagnosis.file(for: c, app: app)
+                }
+            }) {
+                SwiftUI.Label("Datei zur offenen Seite erstellen", systemImage: "ladybug")
+            }
+            .disabled(app.active == nil)
+            if let url = diagnosisURL {
+                ShareLink(item: url) {
+                    SwiftUI.Label("Datei teilen", systemImage: "square.and.arrow.up")
+                }
+            }
+        } header: {
+            Text("Fehlersuche")
+        } footer: {
+            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden.")
         }
     }
 

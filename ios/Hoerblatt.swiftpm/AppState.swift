@@ -240,7 +240,7 @@ fileprivate let appStatePhotoHint =
         store.noteOpened(id)
         let side = currentSide
         if let c = controller(on: side), c.id == id {
-            announce(c.page.title)
+            announce(pageName(c))
             return
         }
         let other: Side = side == .left ? .right : .left
@@ -255,7 +255,7 @@ fileprivate let appStatePhotoHint =
                 left = right
                 right = previous
             }
-            announce(o.page.title)
+            announce(pageName(o))
             return
         }
         guard let c = makeController(id) else {
@@ -264,7 +264,15 @@ fileprivate let appStatePhotoHint =
         }
         speaker.stop()
         put(c, on: side)
-        announce(c.page.title)
+        announce(pageName(c))
+    }
+
+    /// Spoken when a page opens: a page of a Heft by its place ("Seite 2 von 40"), any other page by its title.
+    private func pageName(_ c: PageController) -> String {
+        if let h = store.heft(containing: c.id), let n = h.number(of: c.id) {
+            return "Seite \(n + 1) von \(h.pageTotal)"
+        }
+        return c.page.title
     }
 
     /// The arrows under a page of a Heft: the page before (-1) or after (+1) in the active half.
@@ -691,14 +699,15 @@ fileprivate let appStatePhotoHint =
     /// One PDF page → a page of the Mappe (not yet in the Heft's list). nil: it cannot be drawn.
     private func readHeftPage(_ doc: PDFDocument, number n: Int, heft heftId: UUID, showProgress: Bool) async -> UUID? {
         guard let pdfPage = doc.page(at: n), let drawn = appStatePDFPicture(pdfPage) else { return nil }
-        // a PDF made on a computer brings its own text (exact, also white on dark); a scan is read like a photo
-        let text = PDFText.words(pdfPage, scale: drawn.scale)
+        // read like a photo with Vision (Live Text): the PDF's own text places proved unreliable on the iPad
+        // (characterBounds/string of PDFKit, see CLAUDE.md); PDFText stays for the diagnosis file
+        let text: [Word]? = appStateUsePDFText ? PDFText.words(pdfPage, scale: drawn.scale) : nil
         var relay: (Double, String) -> Void = { _, _ in }
         if showProgress {
             progressRun += 1
             relay = appStateProgressRelay(self, run: progressRun)
         }
-        var analysis = await Recognizer.analyze(drawn.picture, textWords: text, progress: relay)
+        var analysis = await Recognizer.analyze(drawn.picture, textWords: text, cleanPage: true, progress: relay)
         if showProgress { progressRun += 1 }
         analysis.page.heft = heftId
         analysis.page.heftPage = n
@@ -759,10 +768,8 @@ fileprivate let appStatePhotoHint =
             failedPages.insert(appStatePageKey(job.heft, job.number))
         }
         if let now = store.heft(job.heft) {
-            if now.unread.isEmpty {
-                store.deleteHeftPDF(job.heft)
-                heftDocs[job.heft] = nil
-            }
+            // (the PDF stays: the diagnosis file shows what PDFKit makes of a page)
+            if now.unread.isEmpty { heftDocs[job.heft] = nil }
             heftProgress = HeftProgress(heft: job.heft, done: now.pages.count, total: now.pageTotal)
         }
         finishWanted(job, page: id)
@@ -969,3 +976,6 @@ fileprivate func appStateHeftTitle(_ fileName: String) -> String {
 fileprivate func appStatePageKey(_ heft: UUID, _ number: Int) -> String {
     return heft.uuidString + "/" + String(number)
 }
+
+/// Words of a PDF page from the PDF's own text (true) or read by Vision from the drawn page (false).
+fileprivate let appStateUsePDFText = false

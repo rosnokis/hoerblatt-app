@@ -20,7 +20,8 @@ enum Recognizer {
     /// Takes a few seconds. `progress` (0…1, message for the waiting screen) is called on any thread.
     /// `textWords`: the words of a PDF page that has its own text, in pixels of `input` (upright, scale 1, long side
     /// at most 2400): then nothing is turned or read, only the layout is analysed.
-    static func analyze(_ input: UIImage, textWords: [Word]? = nil,
+    /// `cleanPage`: a page drawn from a PDF (tables may be as tall as the page).
+    static func analyze(_ input: UIImage, textWords: [Word]? = nil, cleanPage: Bool = false,
                         progress: @escaping (Double, String) -> Void) async -> Analysis {
         progress(0.02, "Das Foto wird vorbereitet …")
         guard let source = rcCGImage(input),
@@ -51,7 +52,7 @@ enum Recognizer {
         var boxes: [PrintedBox] = []
         var textHeight = rcMedianHeight(tokens)
         if let pixels = PixelImage(cgImage: cg) {
-            let layout = LayoutAnalysis.analyze(pixels, words: tokens, cleanPage: fromText)
+            let layout = LayoutAnalysis.analyze(pixels, words: tokens, cleanPage: fromText || cleanPage)
             // LayoutResult.words (optional extra): the same words cleaned up – corrected rects, a lone "." moved
             // onto the word before it. Same ids and order as the input, so it can stand in for it.
             let cleaned = layout.words.count == tokens.count ? layout.words : tokens
