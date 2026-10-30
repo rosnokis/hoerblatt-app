@@ -15,13 +15,17 @@ enum PDFText {
         let ns = text as NSString
         let n = ns.length
         // every character's place; the text may run from one table cell into the next without a space
-        // ("Schrottplatz.Kommissar"), so words are also cut where the place jumps
+        // ("Schrottplatz.Kommissar"), so words are also cut where the place jumps.
+        // (characterBounds(at:) gives wrong places since iOS 18; a selection of the one character is reliable)
         var bounds: [CGRect] = []
         bounds.reserveCapacity(n)
         for j in 0..<n {
-            let r = page.characterBounds(at: j)
-            let ok = r.minX.isFinite && r.minY.isFinite && r.width.isFinite && r.height.isFinite && r.height > 0
-            bounds.append(ok ? r : CGRect.null)
+            var r = CGRect.null
+            if let sel = page.selection(for: NSRange(location: j, length: 1)) {
+                r = sel.bounds(for: page)
+            }
+            if !pdfTextUsable(r) { r = page.characterBounds(at: j) }
+            bounds.append(pdfTextUsable(r) ? r : CGRect.null)
         }
 
         var pieces: [(text: String, rect: CGRect)] = []
@@ -31,8 +35,17 @@ enum PDFText {
                 i += 1
                 continue
             }
+            // (a character without a place does not join two places: the last placed one is compared)
             var e = i + 1
-            while e < n && !pdfTextSeparates(ns.character(at: e)) && !pdfTextJumps(bounds, from: e - 1, to: e) { e += 1 }
+            var last = bounds[i]
+            while e < n && !pdfTextSeparates(ns.character(at: e)) {
+                let q = bounds[e]
+                if !q.isNull {
+                    if !last.isNull && pdfTextJumps(last, q) { break }
+                    last = q
+                }
+                e += 1
+            }
             if let piece = pdfTextPiece(ns, bounds, i, e, box: box, scale: k) {
                 pieces.append(piece)
             }
@@ -78,10 +91,7 @@ fileprivate func pdfTextSeparates(_ c: unichar) -> Bool {
 }
 
 /// The next character is not right after the previous one on the same line (another line or cell, a gap).
-fileprivate func pdfTextJumps(_ bounds: [CGRect], from a: Int, to b: Int) -> Bool {
-    let p = bounds[a], q = bounds[b]
-    // (a character without a place, e.g. a combining mark, stays with its word)
-    if p.isNull || q.isNull { return false }
+fileprivate func pdfTextJumps(_ p: CGRect, _ q: CGRect) -> Bool {
     let h = max(p.height, q.height)
     if abs(p.midY - q.midY) > h * 0.5 { return true }
     if q.minX < p.maxX - h * 0.3 { return true }
@@ -120,6 +130,11 @@ fileprivate func pdfTextPiece(_ ns: NSString, _ bounds: [CGRect], _ lo: Int, _ h
     let rect = CGRect(x: (union.minX - box.minX) * k, y: (box.maxY - union.maxY) * k,
                       width: union.width * k, height: union.height * k)
     return (text: text, rect: rect)
+}
+
+fileprivate func pdfTextUsable(_ r: CGRect) -> Bool {
+    return !r.isNull && r.minX.isFinite && r.minY.isFinite && r.width.isFinite && r.height.isFinite
+        && r.height > 0 && r.width >= 0
 }
 
 fileprivate func pdfTextIsDot(_ c: unichar) -> Bool {
