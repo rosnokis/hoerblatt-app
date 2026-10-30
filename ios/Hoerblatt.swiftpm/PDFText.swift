@@ -14,8 +14,16 @@ enum PDFText {
         let box = page.bounds(for: .mediaBox)
         let ns = text as NSString
         let n = ns.length
+        // every character's place; the text may run from one table cell into the next without a space
+        // ("Schrottplatz.Kommissar"), so words are also cut where the place jumps
+        var bounds: [CGRect] = []
+        bounds.reserveCapacity(n)
+        for j in 0..<n {
+            let r = page.characterBounds(at: j)
+            let ok = r.minX.isFinite && r.minY.isFinite && r.width.isFinite && r.height.isFinite && r.height > 0
+            bounds.append(ok ? r : CGRect.null)
+        }
 
-        // runs of characters between spaces (and between symbols like ☐ that are not read)
         var pieces: [(text: String, rect: CGRect)] = []
         var i = 0
         while i < n {
@@ -23,9 +31,9 @@ enum PDFText {
                 i += 1
                 continue
             }
-            var e = i
-            while e < n && !pdfTextSeparates(ns.character(at: e)) { e += 1 }
-            if let piece = pdfTextPiece(page, ns, i, e, box: box, scale: k) {
+            var e = i + 1
+            while e < n && !pdfTextSeparates(ns.character(at: e)) && !pdfTextJumps(bounds, from: e - 1, to: e) { e += 1 }
+            if let piece = pdfTextPiece(ns, bounds, i, e, box: box, scale: k) {
                 pieces.append(piece)
             }
             i = e
@@ -69,10 +77,21 @@ fileprivate func pdfTextSeparates(_ c: unichar) -> Bool {
     }
 }
 
+/// The next character is not right after the previous one on the same line (another line or cell, a gap).
+fileprivate func pdfTextJumps(_ bounds: [CGRect], from a: Int, to b: Int) -> Bool {
+    let p = bounds[a], q = bounds[b]
+    // (a character without a place, e.g. a combining mark, stays with its word)
+    if p.isNull || q.isNull { return false }
+    let h = max(p.height, q.height)
+    if abs(p.midY - q.midY) > h * 0.5 { return true }
+    if q.minX < p.maxX - h * 0.3 { return true }
+    return q.minX - p.maxX > h * 0.3
+}
+
 /// One word from the characters lo..<hi: dotted lines glued to it ("dass……") are cut off, ligatures written out.
 /// nil: nothing readable is left (a dotted writing line alone, dashes) – except a lone sentence mark.
-@MainActor fileprivate func pdfTextPiece(_ page: PDFPage, _ ns: NSString, _ lo: Int, _ hi: Int,
-                                         box: CGRect, scale k: CGFloat) -> (text: String, rect: CGRect)? {
+fileprivate func pdfTextPiece(_ ns: NSString, _ bounds: [CGRect], _ lo: Int, _ hi: Int,
+                              box: CGRect, scale k: CGFloat) -> (text: String, rect: CGRect)? {
     var a = lo
     var b = hi
     // dots and "…" at the ends belong to a writing line, not to the word (a single "." after it stays)
@@ -94,10 +113,8 @@ fileprivate func pdfTextSeparates(_ c: unichar) -> Bool {
     if !pdfTextHasLetter(text) && !lone { return nil }
 
     var union = CGRect.null
-    for j in a..<b {
-        let r = page.characterBounds(at: j)
-        guard r.minX.isFinite, r.minY.isFinite, r.width.isFinite, r.height.isFinite, r.height > 0 else { continue }
-        union = union.isNull ? r : union.union(r)
+    for j in a..<b where !bounds[j].isNull {
+        union = union.isNull ? bounds[j] : union.union(bounds[j])
     }
     guard !union.isNull, union.width > 0 else { return nil }
     let rect = CGRect(x: (union.minX - box.minX) * k, y: (box.maxY - union.maxY) * k,
