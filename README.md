@@ -22,4 +22,4 @@ So kommt es aufs iPad:
 Zeigt Swift Playgrounds rote Fehlermeldungen: Screenshot an die Entwicklung schicken (die App wurde ohne Compiler geschrieben).
 
 Bedienung kurz: 1 Foto · 2 Wort (daneben: Satz) · 3 Sprechen · 4 Markieren · Stift · Radierer · Zurück · 5 Fertig.
-Oben: Mappe (Ordner), die letzten Seiten, im Querformat „zwei Seiten“, Zahnrad (2 s drücken) für Lehrkräfte.
+Oben: Mappe (Ordner), die letzten Seiten, im Querformat „zwei Seiten“, Zahnrad (1 s drücken) für Lehrkräfte.
