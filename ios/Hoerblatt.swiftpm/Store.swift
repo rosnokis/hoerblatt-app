@@ -5,12 +5,34 @@ import Combine
 // The Mappe: every photographed page with everything the child did on it, kept only on this device.
 // Documents/Mappe/<uuid>/{page.json, image.jpg, thumb.jpg}, the list in Documents/Mappe/index.json.
 // Errors are ignored quietly: a missing file means a missing page, never a crash.
+// Deleted pages and Hefte go to the Papierkorb (Documents/Mappe/Papierkorb/<page uuid>/…, list in trash.json) and are
+// deleted for good after 30 days; only the teacher sees it (Einstellungen).
+
+/// An entry of the Papierkorb: one page, or a whole Heft with its pages.
+struct TrashItem: Codable, Identifiable, Hashable {
+    /// The page's id, or the Heft's id.
+    var id: UUID
+    var deleted: Date
+    var title: String
+    /// A whole Heft (its page folders are in the Papierkorb too, its PDF if it was still being read).
+    var heft: Heft? = nil
+    /// Page folders in the Papierkorb.
+    var pages: [UUID]
+    /// A single page that belonged to a Heft, and its PDF page there.
+    var fromHeft: UUID? = nil
+    var heftNumber: Int? = nil
+}
 
 @MainActor final class PageStore: ObservableObject {
     /// Newest first.
     @Published private(set) var pages: [PageInfo] = []
     /// Newest first (Documents/Mappe/hefte.json).
     @Published private(set) var hefte: [Heft] = []
+    /// The Papierkorb, newest first.
+    @Published private(set) var trash: [TrashItem] = []
+
+    /// Days a deleted page stays in the Papierkorb.
+    static let trashDays = 30
 
     private let folder: URL
     /// Thumbnails in memory; NSCache lets the system drop them when memory gets short.
@@ -40,6 +62,13 @@ import Combine
             books[i].keepPages { present.contains($0) }
         }
         hefte = books.filter { !$0.pages.isEmpty }
+        // the Papierkorb keeps only entries whose pages are still there; old ones go for good
+        let bin = folder.appendingPathComponent("Papierkorb", isDirectory: true)
+        let items = storeRead([TrashItem].self, from: bin.appendingPathComponent("trash.json")) ?? []
+        trash = items.filter { item in
+            item.pages.contains { fm.fileExists(atPath: bin.appendingPathComponent($0.uuidString, isDirectory: true).path) }
+        }
+        purgeOldTrash()
     }
 
     // MARK: - Hefte
@@ -90,12 +119,23 @@ import Combine
         writeHefte()
     }
 
-    /// The Heft with all its pages.
+    /// The Heft with all its pages (into the Papierkorb).
     func deleteHeft(_ id: UUID) {
         guard let h = heft(id) else { return }
+        let moved = moveToTrash(h.pages)
         for p in h.pages {
-            try? FileManager.default.removeItem(at: pageFolder(p))
+            // (a page that could not be moved is deleted, as before)
+            if !moved.contains(p) { try? FileManager.default.removeItem(at: pageFolder(p)) }
             thumbs.removeObject(forKey: p as NSUUID)
+        }
+        if !moved.isEmpty {
+            // a Heft still being read keeps its PDF, so the reading can go on after restoring it
+            let pdf = heftPDFURL(id)
+            if FileManager.default.fileExists(atPath: pdf.path) {
+                try? FileManager.default.moveItem(at: pdf, to: trashPDF(id))
+            }
+            trash.insert(TrashItem(id: id, deleted: Date(), title: h.title, heft: h, pages: moved), at: 0)
+            writeTrash()
         }
         let gone = Set(h.pages)
         deleteHeftPDF(id)
@@ -170,8 +210,19 @@ import Combine
         return thumb
     }
 
-    func delete(_ id: UUID) {
-        try? FileManager.default.removeItem(at: pageFolder(id))
+    /// A page into the Papierkorb (`toTrash` false: for good, e.g. a page read for a Heft deleted meanwhile).
+    func delete(_ id: UUID, toTrash: Bool = true) {
+        let info = pages.first(where: { $0.id == id })
+        let owner = hefte.first(where: { $0.pages.contains(id) })
+        var moved: [UUID] = []
+        if toTrash, info != nil { moved = moveToTrash([id]) }
+        if moved.isEmpty {
+            try? FileManager.default.removeItem(at: pageFolder(id))
+        } else {
+            trash.insert(TrashItem(id: id, deleted: Date(), title: info?.title ?? "Seite", pages: moved,
+                                   fromHeft: owner?.id, heftNumber: owner?.number(of: id)), at: 0)
+            writeTrash()
+        }
         thumbs.removeObject(forKey: id as NSUUID)
         pages.removeAll { $0.id == id }
         writeIndex()
@@ -185,18 +236,133 @@ import Combine
         }
     }
 
+    /// Every Heft and page into the Papierkorb (each its own entry, to be restored one by one).
     func deleteAll() {
-        let fm = FileManager.default
-        // empty the folder but keep it (it carries the no-backup flag)
-        let names = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
-        for name in names {
-            try? fm.removeItem(at: folder.appendingPathComponent(name))
-        }
+        for h in hefte { deleteHeft(h.id) }
+        for info in pages { delete(info.id) }
         thumbs.removeAllObjects()
         pages = []
         hefte = []
         writeIndex()
         writeHefte()
+    }
+
+    // MARK: - Papierkorb
+
+    /// Days until the entry is deleted for good (0: today).
+    func daysLeft(_ item: TrashItem) -> Int {
+        let end = item.deleted.addingTimeInterval(Double(PageStore.trashDays) * 86_400)
+        return max(0, Int((end.timeIntervalSinceNow / 86_400).rounded(.up)))
+    }
+
+    /// The picture of the entry (a Heft: its first page).
+    func trashThumbnail(_ item: TrashItem) -> UIImage? {
+        guard let first = item.pages.first else { return nil }
+        let dir = trashFolder.appendingPathComponent(first.uuidString, isDirectory: true)
+        if let data = try? Data(contentsOf: dir.appendingPathComponent("thumb.jpg")) { return UIImage(data: data, scale: 1) }
+        return nil
+    }
+
+    /// Back into the Mappe with all answers; a Heft as a whole, a page of a Heft into its Heft (if that is still there).
+    func restore(_ itemId: UUID) {
+        guard let k = trash.firstIndex(where: { $0.id == itemId }) else { return }
+        let item = trash[k]
+        let fm = FileManager.default
+        var back: [UUID] = []
+        for p in item.pages {
+            let from = trashFolder.appendingPathComponent(p.uuidString, isDirectory: true)
+            let to = pageFolder(p)
+            if fm.fileExists(atPath: to.path) { continue }
+            if (try? fm.moveItem(at: from, to: to)) != nil,
+               fm.fileExists(atPath: to.appendingPathComponent("page.json").path) {
+                back.append(p)
+            }
+        }
+        let have = Set(back)
+        if var h = item.heft {
+            if fm.fileExists(atPath: trashPDF(h.id).path) {
+                try? fm.createDirectory(at: heftPDFURL(h.id).deletingLastPathComponent(), withIntermediateDirectories: true,
+                                        attributes: nil)
+                try? fm.moveItem(at: trashPDF(h.id), to: heftPDFURL(h.id))
+            }
+            h.keepPages { have.contains($0) }
+            if !h.pages.isEmpty && heft(h.id) == nil { hefte.insert(h, at: 0) }
+        }
+        for p in back {
+            guard var page = loadPage(p) else { continue }
+            if item.heft == nil, page.heft != nil {
+                // a single page of a Heft: back into its Heft, or a page of its own when the Heft is gone
+                if let hid = item.fromHeft, let n = item.heftNumber, let i = hefte.firstIndex(where: { $0.id == hid }) {
+                    hefte[i].insert(p, number: n)
+                } else {
+                    page.heft = nil
+                    page.heftPage = nil
+                    storeWrite(page, to: pageFolder(p).appendingPathComponent("page.json"))
+                }
+            }
+            pages.removeAll { $0.id == p }
+            pages.append(PageInfo(id: p, title: page.title, created: page.created, heft: page.heft))
+        }
+        pages.sort { $0.created > $1.created }
+        trash.remove(at: k)
+        writeTrash()
+        writeIndex()
+        writeHefte()
+    }
+
+    /// Deletes the entry for good.
+    func purge(_ itemId: UUID) {
+        guard let k = trash.firstIndex(where: { $0.id == itemId }) else { return }
+        let item = trash[k]
+        for p in item.pages {
+            try? FileManager.default.removeItem(at: trashFolder.appendingPathComponent(p.uuidString, isDirectory: true))
+        }
+        try? FileManager.default.removeItem(at: trashPDF(item.id))
+        trash.remove(at: k)
+        writeTrash()
+    }
+
+    /// Deletes everything in the Papierkorb for good.
+    func emptyTrash() {
+        try? FileManager.default.removeItem(at: trashFolder)
+        trash = []
+    }
+
+    /// Entries older than 30 days go for good (when the app starts and when the settings open).
+    func purgeOldTrash() {
+        let limit = Date().addingTimeInterval(-Double(PageStore.trashDays) * 86_400)
+        for item in trash where item.deleted < limit {
+            purge(item.id)
+        }
+    }
+
+    private var trashFolder: URL {
+        return folder.appendingPathComponent("Papierkorb", isDirectory: true)
+    }
+
+    private func trashPDF(_ heftId: UUID) -> URL {
+        return trashFolder.appendingPathComponent(heftId.uuidString + ".pdf")
+    }
+
+    /// Moves page folders into the Papierkorb; the ones moved.
+    private func moveToTrash(_ ids: [UUID]) -> [UUID] {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: trashFolder, withIntermediateDirectories: true, attributes: nil)
+        var moved: [UUID] = []
+        for id in ids {
+            let from = pageFolder(id)
+            guard fm.fileExists(atPath: from.path) else { continue }
+            let to = trashFolder.appendingPathComponent(id.uuidString, isDirectory: true)
+            try? fm.removeItem(at: to)
+            if (try? fm.moveItem(at: from, to: to)) != nil { moved.append(id) }
+        }
+        return moved
+    }
+
+    private func writeTrash() {
+        if trash.isEmpty && !FileManager.default.fileExists(atPath: trashFolder.path) { return }
+        try? FileManager.default.createDirectory(at: trashFolder, withIntermediateDirectories: true, attributes: nil)
+        storeWrite(trash, to: trashFolder.appendingPathComponent("trash.json"))
     }
 
     // MARK: - Files

@@ -15,6 +15,9 @@ struct SettingsView: View {
     /// Selbsttest: its progress while it runs, and the package once made.
     @State private var selfTestStatus: SelfTestStatus? = nil
     @State private var selfTestURL: URL? = nil
+    /// Papierkorb: the entry to delete for good (asked first), and the question "leeren?".
+    @State private var purgeItem: TrashItem? = nil
+    @State private var askEmptyTrash = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +26,7 @@ struct SettingsView: View {
                 pageSection
                 answerSection
                 mappeSection
+                trashSection
                 helpSection
                 sharingSection
                 privacySection
@@ -42,6 +46,7 @@ struct SettingsView: View {
         }
         .onAppear {
             voiceInfo = settingsVoiceDescription()
+            app.store.purgeOldTrash()
         }
     }
 
@@ -214,6 +219,7 @@ struct SettingsView: View {
                 Text(settingsPageCount(app.store.pages.count))
             }
             Button(role: .destructive, action: {
+                app.saveOpenPages(stopping: false)
                 askDeleteAll = true
             }) {
                 SwiftUI.Label("Alle Seiten löschen", systemImage: "trash")
@@ -226,12 +232,94 @@ struct SettingsView: View {
                 Button("Abbrechen", role: .cancel) {
                 }
             } message: {
-                Text("Fotos, Antworten, Markierungen und Stiftstriche aller Seiten werden von diesem iPad gelöscht. Das lässt sich nicht rückgängig machen.")
+                Text("Alle Seiten und Hefte kommen mit ihren Antworten in den Papierkorb. Dort lassen sie sich \(PageStore.trashDays) Tage lang zurückholen, danach werden sie endgültig gelöscht.")
             }
         } header: {
             Text("Mappe")
         } footer: {
-            Text("Jede fotografierte Seite bleibt mit allen Antworten in der Mappe. Eine einzelne Seite löscht man in der Mappe: lange auf die Seite drücken, dann auf den roten Papierkorb.")
+            Text("Jede fotografierte Seite bleibt mit allen Antworten in der Mappe. Eine einzelne Seite löscht man in der Mappe: lange auf die Seite drücken, dann auf den roten Papierkorb. Gelöschtes kommt in den Papierkorb (unten).")
+        }
+    }
+
+    // MARK: - Papierkorb
+
+    @MainActor
+    private var trashSection: some View {
+        Section {
+            if app.store.trash.isEmpty {
+                Text("Der Papierkorb ist leer.")
+                    .foregroundColor(.secondary)
+            }
+            ForEach(app.store.trash) { item in
+                HStack(spacing: 12) {
+                    if let thumb = app.store.trashThumbnail(item) {
+                        Image(uiImage: thumb)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 44, height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        Image(systemName: item.heft != nil ? "book.closed" : "doc")
+                            .frame(width: 44, height: 56)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(settingsTrashTitle(item))
+                            .lineLimit(2)
+                        Text(settingsTrashDate(item, daysLeft: app.store.daysLeft(item)))
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Button(action: {
+                        app.store.restore(item.id)
+                        // a Heft still being read goes on reading
+                        app.readMissingHeftPages()
+                    }) {
+                        SwiftUI.Label("Zurückholen", systemImage: "arrow.uturn.backward")
+                    }
+                    .buttonStyle(.borderless)
+                    Button(role: .destructive, action: {
+                        purgeItem = item
+                    }) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Endgültig löschen")
+                }
+            }
+            if !app.store.trash.isEmpty {
+                Button(role: .destructive, action: {
+                    askEmptyTrash = true
+                }) {
+                    SwiftUI.Label("Papierkorb leeren", systemImage: "trash.slash")
+                }
+            }
+        } header: {
+            Text("Papierkorb")
+        } footer: {
+            Text("Gelöschte Seiten und Hefte bleiben \(PageStore.trashDays) Tage hier und werden danach automatisch endgültig gelöscht. Zurückholen bringt sie mit allen Antworten in die Mappe. Nur hier in den Einstellungen sichtbar.")
+        }
+        .confirmationDialog("Endgültig löschen?", isPresented: Binding(get: { purgeItem != nil },
+                                                                     set: { if !$0 { purgeItem = nil } }),
+                            titleVisibility: .visible) {
+            Button("Endgültig löschen", role: .destructive) {
+                if let item = purgeItem { app.store.purge(item.id) }
+                purgeItem = nil
+            }
+            Button("Abbrechen", role: .cancel) {
+                purgeItem = nil
+            }
+        } message: {
+            Text("„\(purgeItem.map { settingsTrashTitle($0) } ?? "")“ wird von diesem iPad gelöscht. Das lässt sich nicht rückgängig machen.")
+        }
+        .confirmationDialog("Papierkorb leeren?", isPresented: $askEmptyTrash, titleVisibility: .visible) {
+            Button("Papierkorb leeren", role: .destructive) {
+                app.store.emptyTrash()
+            }
+            Button("Abbrechen", role: .cancel) {
+            }
+        } message: {
+            Text("Alles im Papierkorb wird von diesem iPad gelöscht. Das lässt sich nicht rückgängig machen.")
         }
     }
 
@@ -389,4 +477,27 @@ fileprivate func settingsVoiceDescription() -> String {
     let count = german.count
     let installed = count == 1 ? "1 deutsche Stimme" : "\(count) deutsche Stimmen"
     return "Jetzt: \(v.name) (\(kind)) · \(installed) auf dem iPad"
+}
+
+// MARK: - Papierkorb texts
+
+fileprivate func settingsTrashTitle(_ item: TrashItem) -> String {
+    if let h = item.heft {
+        let n = h.pageTotal
+        return item.title + " (Heft, " + (n == 1 ? "1 Seite" : "\(n) Seiten") + ")"
+    }
+    return item.title
+}
+
+fileprivate func settingsTrashDate(_ item: TrashItem, daysLeft: Int) -> String {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "de_DE")
+    f.dateFormat = "d. MMMM"
+    let left: String
+    switch daysLeft {
+    case 0: left = "wird heute endgültig gelöscht"
+    case 1: left = "noch 1 Tag"
+    default: left = "noch \(daysLeft) Tage"
+    }
+    return "Gelöscht am " + f.string(from: item.deleted) + " · " + left
 }

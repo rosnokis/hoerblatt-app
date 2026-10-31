@@ -761,8 +761,8 @@ fileprivate let appStatePhotoHint =
             if store.heft(job.heft) != nil {
                 store.addHeftPage(job.heft, page: pageId, number: job.number)
             } else {
-                // the Heft was deleted meanwhile
-                store.delete(pageId)
+                // the Heft was deleted meanwhile (it is in the Papierkorb without this page; restored, it reads it again)
+                store.delete(pageId, toTrash: false)
             }
         } else {
             failedPages.insert(appStatePageKey(job.heft, job.number))
