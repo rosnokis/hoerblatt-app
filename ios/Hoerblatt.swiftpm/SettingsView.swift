@@ -156,10 +156,22 @@ struct SettingsView: View {
                     SwiftUI.Label("Datei teilen", systemImage: "square.and.arrow.up")
                 }
             }
-            Button(action: { startSelfTest() }) {
+            Button(action: {
+                if let hid = app.active?.page.heft { startSelfTest(.heft(hid)) }
+            }) {
                 SwiftUI.Label("Selbsttest: ganzes Heft prüfen", systemImage: "checklist")
             }
             .disabled(app.active?.page.heft == nil || selfTestStatus != nil)
+            Button(action: {
+                if let c = app.active, c.page.heft == nil { startSelfTest(.photo(c.page.id)) }
+            }) {
+                SwiftUI.Label("Selbsttest: offenes Foto prüfen", systemImage: "camera")
+            }
+            .disabled(app.active == nil || app.active?.page.heft != nil || selfTestStatus != nil)
+            Button(action: { startSelfTest(.allPhotos) }) {
+                SwiftUI.Label("Selbsttest: alle Fotos prüfen", systemImage: "photo.on.rectangle")
+            }
+            .disabled(!app.store.pages.contains(where: { $0.heft == nil }) || selfTestStatus != nil)
             if let st = selfTestStatus {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(st.message)
@@ -174,17 +186,17 @@ struct SettingsView: View {
         } header: {
             Text("Fehlersuche")
         } footer: {
-            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden. Der Selbsttest geht alle Seiten des offenen Hefts durch, tippt jedes Wort und jede Lücke an und packt alles mit den Bildern der PDF-Seiten in eine ZIP-Datei.")
+            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden. Der Selbsttest geht alle Seiten des offenen Hefts (oder das offene Foto, oder alle Fotos) durch, tippt jedes Wort und jede Lücke an und packt alles mit den Bildern der Seiten in eine ZIP-Datei. Achtung: Fotos zeigen das Blatt so, wie es fotografiert wurde – auch Handschrift, z. B. den Namen des Kindes. Für den Foto-Test am besten leere Blätter nehmen.")
         }
     }
 
     @MainActor
-    private func startSelfTest() {
-        guard let heftId = app.active?.page.heft, selfTestStatus == nil else { return }
+    private func startSelfTest(_ scope: SelfTestScope) {
+        guard selfTestStatus == nil else { return }
         selfTestURL = nil
         selfTestStatus = SelfTestStatus(message: "Selbsttest startet …", progress: 0)
         Task { @MainActor in
-            let url = await SelfTest.run(heftId: heftId, app: app) { st in
+            let url = await SelfTest.run(scope, app: app) { st in
                 selfTestStatus = st
             }
             selfTestStatus = nil
