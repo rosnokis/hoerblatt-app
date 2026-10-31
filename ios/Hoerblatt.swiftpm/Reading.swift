@@ -55,7 +55,8 @@ struct Reading {
     /// Typical text height in page pixels (JS: doc.fs); tolerances and new answer fields scale with it.
     let textSize: CGFloat
 
-    private let page: Page
+    /// The page as it was when this reading was made.
+    let page: Page
     private let items: [ReadingItem]
     /// Position in `items` of each word / gap (by index), -1 if missing.
     private let wordPos: [Int]

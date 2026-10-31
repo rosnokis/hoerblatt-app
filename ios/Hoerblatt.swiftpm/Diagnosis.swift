@@ -9,48 +9,14 @@ import PDFKit
 enum Diagnosis {
     @MainActor static func file(for c: PageController, app: AppState) -> URL? {
         let page = c.page
-        var out: [String: Any] = [
-            "format": "hoerblatt-diagnose-1",
-            "created": ISO8601DateFormatter().string(from: Date()),
-            "title": page.title,
-            "pixelSize": [diagRound(page.pixelSize.width), diagRound(page.pixelSize.height)],
-            "imagePixels": [c.image.cgImage?.width ?? 0, c.image.cgImage?.height ?? 0],
-            "textHeight": diagRound(page.textHeight)
-        ]
-        out["words"] = page.words.map { w -> [String: Any] in
-            var d: [String: Any] = ["i": w.id, "t": w.text, "r": diagRect(w.rect), "line": w.line,
-                                    "conf": diagRound(CGFloat(w.confidence))]
-            if let b = w.box { d["box"] = b }
-            return d
-        }
-        out["boxes"] = page.boxes.map { b -> [String: Any] in
-            var d: [String: Any] = ["i": b.id, "r": diagRect(b.rect)]
-            if b.cell == true { d["cell"] = true }
-            return d
-        }
-        out["gaps"] = page.gaps.map { g -> [String: Any] in
-            var d: [String: Any] = ["kind": g.kind.rawValue, "r": diagRect(g.rect), "inText": g.inText,
-                                    "ends": g.endsSentence]
-            if let h = g.head { d["head"] = h }
-            return d
-        }
-        // every sentence once, as the Satz button reads it ("*" = tone)
-        let reading = c.reading
-        var seen = Set<String>()
-        var sentences: [String] = []
-        for w in page.words {
-            let s = reading.sentence(atWord: w.id).parts.map { part -> String in
-                switch part {
-                case .text(let t): return t
-                case .tone: return "*"
-                }
-            }.joined(separator: " ")
-            if !s.isEmpty && !seen.contains(s) {
-                seen.insert(s)
-                sentences.append(s)
-            }
-        }
-        out["sentences"] = sentences
+        var out = PageReport.dict(page, reading: c.reading)
+        out["format"] = "hoerblatt-diagnose-1"
+        out["created"] = ISO8601DateFormatter().string(from: Date())
+        out["imagePixels"] = [c.image.cgImage?.width ?? 0, c.image.cgImage?.height ?? 0]
+        // every word and gap tapped (without the answers on the page)
+        var bare = page
+        bare.answers = []
+        out["taps"] = PageReport.taps(bare, reading: Reading(page: bare), boxesTogether: app.settings.boxesTogether)
 
         if let heftId = page.heft, let h = app.store.heft(heftId) {
             let titles: [String] = h.pages.map { pid in app.store.pages.first(where: { $0.id == pid })?.title ?? "?" }

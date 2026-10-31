@@ -79,8 +79,9 @@ enum Recognizer {
 
         let size = CGSize(width: cg.width, height: cg.height)
         let title = rcTitle(words, textHeight: textHeight, pageHeight: size.height)
-        let page = Page(id: UUID(), created: Date(), title: title, pixelSize: size, textHeight: textHeight,
+        var page = Page(id: UUID(), created: Date(), title: title, pixelSize: size, textHeight: textHeight,
                         words: words, gaps: gaps, boxes: boxes, answers: [], marks: [], drawing: Data())
+        page.visionWords = tokens
         progress(1, "Fertig")
         return Analysis(image: UIImage(cgImage: cg, scale: 1, orientation: .up), page: page)
     }

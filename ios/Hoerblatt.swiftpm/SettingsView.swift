@@ -12,6 +12,9 @@ struct SettingsView: View {
     @State private var voiceInfo = ""
     /// The file of the "Fehlersuche" button, once made.
     @State private var diagnosisURL: URL? = nil
+    /// Selbsttest: its progress while it runs, and the package once made.
+    @State private var selfTestStatus: SelfTestStatus? = nil
+    @State private var selfTestURL: URL? = nil
 
     var body: some View {
         NavigationStack {
@@ -153,10 +156,40 @@ struct SettingsView: View {
                     SwiftUI.Label("Datei teilen", systemImage: "square.and.arrow.up")
                 }
             }
+            Button(action: { startSelfTest() }) {
+                SwiftUI.Label("Selbsttest: ganzes Heft prüfen", systemImage: "checklist")
+            }
+            .disabled(app.active?.page.heft == nil || selfTestStatus != nil)
+            if let st = selfTestStatus {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(st.message)
+                    ProgressView(value: st.progress)
+                }
+            }
+            if let url = selfTestURL {
+                ShareLink(item: url) {
+                    SwiftUI.Label("Selbsttest teilen", systemImage: "square.and.arrow.up")
+                }
+            }
         } header: {
             Text("Fehlersuche")
         } footer: {
-            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden.")
+            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden. Der Selbsttest geht alle Seiten des offenen Hefts durch, tippt jedes Wort und jede Lücke an und packt alles mit den Bildern der PDF-Seiten in eine ZIP-Datei.")
+        }
+    }
+
+    @MainActor
+    private func startSelfTest() {
+        guard let heftId = app.active?.page.heft, selfTestStatus == nil else { return }
+        selfTestURL = nil
+        selfTestStatus = SelfTestStatus(message: "Selbsttest startet …", progress: 0)
+        Task { @MainActor in
+            let url = await SelfTest.run(heftId: heftId, app: app) { st in
+                selfTestStatus = st
+            }
+            selfTestStatus = nil
+            selfTestURL = url
+            app.announce(url == nil ? "Der Selbsttest hat nicht geklappt." : "Der Selbsttest ist fertig.")
         }
     }
 

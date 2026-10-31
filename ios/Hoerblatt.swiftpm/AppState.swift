@@ -775,6 +775,21 @@ fileprivate let appStatePhotoHint =
         finishWanted(job, page: id)
     }
 
+    /// Self test: pages of a Heft are still being read in the background.
+    var heftReadingBusy: Bool { return heftReading }
+
+    /// Self test: reads the pages still missing (no-op while that runs anyway).
+    func readMissingHeftPages() {
+        startHeftReading()
+    }
+
+    /// Self test: a page of a Heft drawn again from its PDF – the same pixels the reading used.
+    func heftPagePicture(_ heftId: UUID, number n: Int) -> UIImage? {
+        guard let doc = heftDocs[heftId] ?? PDFDocument(url: store.heftPDFURL(heftId)),
+              let pdfPage = doc.page(at: n) else { return nil }
+        return appStatePDFPicture(pdfPage)?.picture
+    }
+
     /// The page the child is waiting for is there (or cannot be read).
     private func finishWanted(_ job: (heft: UUID, number: Int), page: UUID?) {
         guard let w = wantedPage, w.heft == job.heft, w.number == job.number else { return }

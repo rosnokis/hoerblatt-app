@@ -307,6 +307,26 @@ fileprivate func speechGermanVoice() -> AVSpeechSynthesisVoice? {
     return AVSpeechSynthesisVoice.speechVoices().first(where: { $0.language.hasPrefix("de") })
 }
 
+/// For the self test: the voice that speaks, and which German voices the iPad has.
+func speechVoiceReport() -> [String: Any] {
+    func quality(_ v: AVSpeechSynthesisVoice) -> String {
+        switch v.quality {
+        case .premium: return "premium"
+        case .enhanced: return "enhanced"
+        default: return "default"
+        }
+    }
+    var out: [String: Any] = [:]
+    if let v = speechGermanVoice() {
+        out["used"] = ["name": v.name, "id": v.identifier, "language": v.language, "quality": quality(v)]
+    }
+    out["german"] = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("de") }.map {
+        ["name": $0.name, "language": $0.language, "quality": quality($0)]
+    }
+    out["defaultRate"] = Double(AVSpeechUtteranceDefaultSpeechRate)
+    return out
+}
+
 // MARK: - Gap tones (same sounds as TONES/toneURL in index.html)
 
 fileprivate func speechToneLength(_ kind: ToneKind) -> Double {

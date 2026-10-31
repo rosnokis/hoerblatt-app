@@ -140,6 +140,8 @@ struct Page: Codable, Identifiable {
     /// The Heft (a PDF with several pages) this page belongs to, and its place in it (0 = first page).
     var heft: UUID? = nil
     var heftPage: Int? = nil
+    /// The words as Vision read them, before the layout analysis (self test: replayed on the developer's computer).
+    var visionWords: [Word]? = nil
 }
 
 /// Entry of the Mappe list (the page itself is loaded only when opened).

@@ -72,6 +72,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
     // MARK: - Hearing
 
     /// Mode "Wort": a word, a whole printed box, an answer, or what belongs into a gap.
+    /// (What is read comes from Reading.hearWord / hearGap, as in the self test.)
     func tapWord(at p: CGPoint) {
         guard let app = app else { return }
         leaveAnswer()
@@ -80,33 +81,24 @@ fileprivate struct PageControllerSnapshot: Equatable {
             speakAnswer(page.answers[ai].id)
             return
         }
-        var wordId = r.wordAt(p, loose: false)
-        let gapIndex: Int? = wordId == nil ? r.gapAt(p) : nil
-        if wordId == nil && gapIndex == nil { wordId = r.wordAt(p, loose: true) }
-        if let k = gapIndex {
+        switch r.target(at: p) {
+        case .gap(let k):
             lastBoxTap = nil
-            hearGap(k, wholeSentence: false)
-            return
-        }
-        guard let wid = wordId, let i = wordIndex(wid) else { return }
-        let w = page.words[i]
-        // (in a table cell the word alone is read; Satz reads the whole cell)
-        if app.settings.boxesTogether, let bx = w.box, !isCell(bx), let boxFrame = boxRect(bx) {
-            let now = Date()
+            say(r.hearGap(k, wholeSentence: false))
+        case .word(let i):
+            // a second tap on the same word in a box within 8 s reads only that word
             var again = false
-            if let last = lastBoxTap, last.word == i, now.timeIntervalSince(last.time) < 8 { again = true }
-            if !again {
-                let text = boxText(bx)
-                if !text.isEmpty {
-                    lastBoxTap = (word: i, time: now)
-                    speak(text, rects: [boxFrame])
-                    return
-                }
+            if let last = lastBoxTap, last.word == i, Date().timeIntervalSince(last.time) < 8 { again = true }
+            let heard = r.hearWord(i, boxesTogether: app.settings.boxesTogether, again: again)
+            if heard.wholeBox {
+                lastBoxTap = (word: i, time: Date())
+            } else {
+                lastBoxTap = nil
             }
+            say(heard.utterance)
+        case .nothing:
+            break
         }
-        lastBoxTap = nil
-        let clean = Reading.cleanWord(w.text)
-        speak(clean.isEmpty ? w.text : clean, rects: [w.rect])
     }
 
     /// Mode "Satz": the sentence around the word or gap; a word in a printed box reads the box.
@@ -117,47 +109,19 @@ fileprivate struct PageControllerSnapshot: Equatable {
             speakAnswer(page.answers[ai].id)
             return
         }
-        var wordId = r.wordAt(p, loose: false)
-        let gapIndex: Int? = wordId == nil ? r.gapAt(p) : nil
-        if wordId == nil && gapIndex == nil { wordId = r.wordAt(p, loose: true) }
         lastBoxTap = nil
-        if let k = gapIndex {
-            hearGap(k, wholeSentence: true)
-            return
+        switch r.target(at: p) {
+        case .gap(let k):
+            say(r.hearGap(k, wholeSentence: true))
+        case .word(let i):
+            say(r.hearSentence(i))
+        case .nothing:
+            break
         }
-        guard let wid = wordId, let i = wordIndex(wid) else { return }
-        let w = page.words[i]
-        if let bx = w.box, let boxFrame = boxRect(bx) {
-            let text = boxText(bx)
-            if !text.isEmpty {
-                speak(text, rects: [boxFrame])
-                return
-            }
-        }
-        let s = r.sentence(atWord: w.id)
-        speak(parts: s.parts, rects: s.rects)
     }
 
-    /// A tapped gap: an empty table cell or writing field says its column heading ("Nomen");
-    /// otherwise the answer in it, the tone, or (Satz) the whole sentence.
-    private func hearGap(_ k: Int, wholeSentence: Bool) {
-        guard k >= 0 && k < page.gaps.count else { return }
-        let r = reading
-        let g = page.gaps[k]
-        let said = r.answerText(onGap: k)
-        let head = pageControllerTrim(g.head ?? "")
-        if said.isEmpty && !head.isEmpty {
-            speak(head, rects: [g.rect])
-            return
-        }
-        if wholeSentence {
-            let s = r.sentence(atGap: k)
-            speak(parts: s.parts, rects: s.rects)
-        } else if !said.isEmpty {
-            speak(said, rects: [g.rect])
-        } else {
-            speak(parts: [SpeechPart.tone], rects: [g.rect])
-        }
+    private func say(_ u: Utterance) {
+        speak(parts: u.parts, rects: u.rects)
     }
 
     // MARK: - Answers
@@ -710,21 +674,6 @@ fileprivate struct PageControllerSnapshot: Equatable {
     private func wordIndex(_ id: Int) -> Int? {
         if id >= 0 && id < page.words.count && page.words[id].id == id { return id }
         return page.words.firstIndex(where: { $0.id == id })
-    }
-
-    private func boxRect(_ bx: Int) -> CGRect? {
-        guard bx >= 0 && bx < page.boxes.count else { return nil }
-        return page.boxes[bx].rect
-    }
-
-    private func isCell(_ bx: Int) -> Bool {
-        guard bx >= 0 && bx < page.boxes.count else { return false }
-        return page.boxes[bx].cell == true
-    }
-
-    private func boxText(_ bx: Int) -> String {
-        let words = reading.boxWords(bx).map { $0.text }
-        return pageControllerTrim(words.joined(separator: " "))
     }
 }
 
