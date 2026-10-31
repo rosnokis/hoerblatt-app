@@ -422,12 +422,14 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             }
             fieldOrder = ids
         }
-        let listening = a.listener.isListening && mode == .sprechen
+        // (red and pulsing while the Hörblatt listens to the field, whatever the tool: a gap starts listening in
+        // Wort and Satz too; `a.listener.isListening` is read so the fields follow the listener)
+        let anyListening = a.listener.isListening
         for ans in answers {
             guard let f = fields[ans.id] else { continue }
             let active = c.activeAnswer == ans.id
             f.update(answer: ans, textHeight: th, editable: c.keyboardAnswer == ans.id, active: active,
-                     listening: listening && active, erasing: mode == .radieren)
+                     listening: anyListening && active && c.isListening(to: ans.id), erasing: mode == .radieren)
         }
         focusPendingField()
     }

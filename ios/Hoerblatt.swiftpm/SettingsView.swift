@@ -219,6 +219,12 @@ struct SettingsView: View {
                     .foregroundColor(SettingsStyle.teal)
                 Text(settingsPageCount(app.store.pages.count))
             }
+            Button(action: {
+                // (the settings close, then the Fotos app opens)
+                app.showPicker = true
+            }) {
+                SwiftUI.Label("Foto aus der Fotos-App wählen", systemImage: "photo.on.rectangle")
+            }
             Button(role: .destructive, action: {
                 app.saveOpenPages(stopping: false)
                 askDeleteAll = true
@@ -238,7 +244,7 @@ struct SettingsView: View {
         } header: {
             Text("Mappe")
         } footer: {
-            Text("Jede fotografierte Seite bleibt mit allen Antworten in der Mappe. Eine einzelne Seite löscht man in der Mappe: lange auf die Seite drücken, dann auf den roten Papierkorb. Gelöschtes kommt in den Papierkorb (unten).")
+            Text("Jede fotografierte Seite bleibt mit allen Antworten in der Mappe. Eine einzelne Seite löscht man in der Mappe: lange auf die Seite drücken, dann auf den roten Papierkorb. Gelöschtes kommt in den Papierkorb (unten). „Foto aus der Fotos-App wählen“ liest ein vorhandenes Foto (z. B. ein Tafelbild) wie ein neues; das Kind sieht diesen Knopf nicht.")
         }
     }
 

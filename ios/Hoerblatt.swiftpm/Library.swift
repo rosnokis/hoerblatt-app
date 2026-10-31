@@ -23,10 +23,7 @@ struct LibraryView: View {
                         app.showLibrary = false
                         app.newPhoto()
                     }
-                    LibraryActionTile(symbol: "photo.on.rectangle", title: "Foto wählen", filled: false) {
-                        app.announce("Foto wählen")
-                        app.showPicker = true
-                    }
+                    // ("Foto wählen" from the Fotos app is in the settings: for the teacher)
                     LibraryActionTile(symbol: "doc.richtext", title: "PDF öffnen", filled: false) {
                         // (the Dateien picker comes once the Mappe has gone away)
                         app.announce("PDF öffnen")
@@ -49,6 +46,10 @@ struct LibraryView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)
+                        .onAppear {
+                            // (the child cannot read it)
+                            app.say("Die Mappe ist noch leer. Tippe auf die Kamera und mach ein Foto von einem Blatt.")
+                        }
                 }
             }
         }

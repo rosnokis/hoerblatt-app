@@ -56,6 +56,7 @@ import Combine
     private var voice: AVSpeechSynthesisVoice?
     private var voicePicked = Date.distantPast
     private var tonePlayer: AVAudioPlayer?
+    private var cuePlayer: AVAudioPlayer?
     private var toneLength: Double = 0.7
 
     /// Grows with every new sequence and with stop(); callbacks of older sequences are ignored.
@@ -119,6 +120,27 @@ import Combine
             }
         } else {
             playNext(gen)
+        }
+    }
+
+    /// A short bright "pling" before the Hörblatt listens (the child hears that it may speak now); `then` right after it.
+    func playListenCue(then: @escaping () -> Void) {
+        halt()
+        if isSpeaking { isSpeaking = false }
+        if cuePlayer == nil {
+            cuePlayer = try? AVAudioPlayer(data: speechCueWAV())
+            _ = cuePlayer?.prepareToPlay()
+        }
+        SpeechAudio.usePlayback()
+        if let p = cuePlayer {
+            p.stop()
+            p.currentTime = 0
+            _ = p.play()
+        }
+        // (the microphone starts when the sound is over, so it does not hear it)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            then()
         }
     }
 
@@ -364,10 +386,24 @@ fileprivate func speechKnock(_ u: Double) -> Double {
     return exp(-u * 45) * sin(2 * Double.pi * 900 * u) * 0.8
 }
 
+/// The "listening now" sound: two quick rising notes (different from every gap tone).
+fileprivate func speechCueWAV() -> Data {
+    let length = 0.22
+    return speechWAV(length: length) { t in
+        let w: Double = 2 * Double.pi
+        let freq: Double = t < 0.09 ? 988 : 1319
+        let envelope: Double = min(1, min(t / 0.01, (length - t) / 0.05))
+        return envelope * sin(w * freq * t) * 0.45
+    }
+}
+
 /// 16-bit mono PCM WAV at 22050 Hz, with a 20 ms fade at the end.
 fileprivate func speechToneWAV(_ kind: ToneKind) -> Data {
+    return speechWAV(length: speechToneLength(kind)) { t in speechToneValue(kind, t) }
+}
+
+fileprivate func speechWAV(length: Double, _ value: (Double) -> Double) -> Data {
     let rate = 22050
-    let length = speechToneLength(kind)
     let n = Int((Double(rate) * length).rounded())
     var bytes: [UInt8] = []
     bytes.reserveCapacity(44 + n * 2)
@@ -392,7 +428,7 @@ fileprivate func speechToneWAV(_ kind: ToneKind) -> Data {
     for k in 0..<n {
         let t = Double(k) / Double(rate)
         let fade: Double = min(1, (length - t) / 0.02)
-        let v: Double = max(-1, min(1, speechToneValue(kind, t) * fade))
+        let v: Double = max(-1, min(1, value(t) * fade))
         put16(Int((v * 32767).rounded()))
     }
     return Data(bytes)

@@ -244,15 +244,19 @@ fileprivate struct PageControllerSnapshot: Equatable {
         listeningAnswer = id
         PageControllerMic.owner = ObjectIdentifier(self)
         var heard = false
-        app.listener.start(onText: { [weak self] text in
-            guard let me = self, me.listenGeneration == gen else { return }
-            let t = pageControllerTrim(text)
-            if t.isEmpty { return }
-            heard = true
-            me.setAnswerText(id, before.isEmpty ? t : before + " " + t)
-        }, onEnd: { [weak self] in
-            guard let me = self, me.listenGeneration == gen else { return }
-            me.listenFinished(id, heard: heard)
+        // a short "pling" first: the child hears that it may speak now (it cannot read a hint)
+        app.speaker.playListenCue(then: { [weak self] in
+            guard let me = self, let app = me.app, me.listenGeneration == gen, me.listeningAnswer == id else { return }
+            app.listener.start(onText: { [weak self] text in
+                guard let me = self, me.listenGeneration == gen else { return }
+                let t = pageControllerTrim(text)
+                if t.isEmpty { return }
+                heard = true
+                me.setAnswerText(id, before.isEmpty ? t : before + " " + t)
+            }, onEnd: { [weak self] in
+                guard let me = self, me.listenGeneration == gen else { return }
+                me.listenFinished(id, heard: heard)
+            })
         })
     }
 
@@ -528,6 +532,12 @@ fileprivate struct PageControllerSnapshot: Equatable {
     }
 
     /// This page's listening run is the one going on.
+    /// This field is being listened to now (red, pulsing) – in every tool, since a gap starts listening in Wort and
+    /// Satz too.
+    func isListening(to id: UUID) -> Bool {
+        return listeningAnswer == id && isMineListening
+    }
+
     private var isMineListening: Bool {
         guard let app = app, listeningAnswer != nil else { return false }
         return app.listener.isListening && PageControllerMic.owner == ObjectIdentifier(self)
