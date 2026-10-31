@@ -48,6 +48,8 @@ struct PrintedBox: Codable, Identifiable, Hashable {
     /// Index in `Page.boxes`.
     var id: Int
     var rect: CGRect
+    /// A cell of a table: Wort reads the single word, Satz the whole cell (nil = an ordinary printed box).
+    var cell: Bool? = nil
 }
 
 /// What the child said (or typed) for a gap or anywhere on the page.

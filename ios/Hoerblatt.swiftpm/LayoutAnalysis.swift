@@ -131,6 +131,8 @@ fileprivate struct LARect {
     var lin: Bool = false
     /// grey filled square
     var square: Bool = false
+    /// a table cell (or a box inside a table)
+    var cell: Bool = false
 }
 
 /// JS word {t, x0, y0, x1, y1, li, cf, bx, junk, col, end}
@@ -1051,7 +1053,8 @@ fileprivate final class LAEngine {
                             if k > 0 { top = (maxY1(lines[k - 1]) + minY0(g)) / 2 }
                             if k < lines.count - 1 { bot = (maxY1(g) + minY0(lines[k + 1])) / 2 }
                             for i in g { words[i].bx = boxes.count }
-                            boxes.append(LARect(x0: laRoundD(cell.x0), y0: laRoundD(top), x1: laRoundD(cell.x1), y1: laRoundD(bot)))
+                            boxes.append(LARect(x0: laRoundD(cell.x0), y0: laRoundD(top), x1: laRoundD(cell.x1), y1: laRoundD(bot),
+                                                cell: true))
                         }
                     } else if !(ri == 0 && hasHead) {
                         // an empty cell is a gap (its heading is read when it is tapped)
@@ -1060,6 +1063,14 @@ fileprivate final class LAEngine {
                         let m = mh * 0.15
                         boxGaps.append(LARect(x0: cell.x0 + m, y0: cell.y0 + m, x1: cell.x1 - m, y1: cell.y1 - m))
                     }
+                }
+            }
+            // a box found earlier inside the table (the frame of one cell) is a cell too
+            for k in boxes.indices where !boxes[k].cell {
+                let b = boxes[k]
+                if b.x0 > cols[0] - tol && b.x1 < cols[cols.count - 1] + tol
+                    && b.y0 > rows[0] - tol && b.y1 < rows[rows.count - 1] + tol {
+                    boxes[k].cell = true
                 }
             }
             tables.append(LATable(x0: cols[0], x1: cols[cols.count - 1], y0: rows[0], y1: rows[rows.count - 1],
@@ -1399,7 +1410,7 @@ fileprivate final class LAEngine {
         for i in boxes.indices where used.contains(i) {
             let b = boxes[i]
             newIndex[i] = outBoxes.count
-            outBoxes.append(PrintedBox(id: outBoxes.count, rect: laCGRect(b.x0, b.y0, b.x1, b.y1)))
+            outBoxes.append(PrintedBox(id: outBoxes.count, rect: laCGRect(b.x0, b.y0, b.x1, b.y1), cell: b.cell ? true : nil))
         }
         var wordBox: [Int: Int] = [:]
         var byId: [Int: LAWord] = [:]

@@ -381,11 +381,13 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             let pad = th * 0.08
             for w in c.page.words {
                 // a word in a printed box is read with its box: the box is outlined instead
-                if s.boxesTogether && w.box != nil { continue }
+                // (a word in a table cell is read alone: outlined like any word)
+                if s.boxesTogether, let bx = w.box, bx >= 0, bx < c.page.boxes.count,
+                   c.page.boxes[bx].cell != true { continue }
                 wordRects.append(w.rect.insetBy(dx: -pad, dy: -pad))
             }
             if s.boxesTogether {
-                for b in c.page.boxes {
+                for b in c.page.boxes where b.cell != true {
                     boxRects.append(b.rect.insetBy(dx: th * 0.1, dy: th * 0.1))
                 }
             }

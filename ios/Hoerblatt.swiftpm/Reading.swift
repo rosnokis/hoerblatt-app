@@ -340,6 +340,10 @@ struct Reading {
         if b.y0 < a.y0 - h { return true }
         // measured at the start of the line: on a slanted photo the end of a line sits higher or lower
         let dy = b.y0 - (b.first ? a.rowY1 : a.y1)
+        // a line ending far before the right edge of its block, then a line starting with a capital: not wrapped
+        // ("Klasse: [Klasse]" / "Mein Ermittlerteam:")
+        if b.first, let bw = b.word, readingStartsCapital(page.words[bw].text),
+           a.rowRight < a.blockRight - (a.blockRight - a.rowX) * 0.4 { return true }
         if dy <= h * 1.3 { return false }
         // worksheets space lines widely (room for gaps): a line starting under the start of the previous one goes on
         let closeBelow = dy < h * 3.2

@@ -57,7 +57,7 @@ enum Recognizer {
             // onto the word before it. Same ids and order as the input, so it can stand in for it.
             let cleaned = layout.words.count == tokens.count ? layout.words : tokens
             for b in layout.boxes {
-                boxes.append(PrintedBox(id: boxes.count, rect: b.rect))
+                boxes.append(PrintedBox(id: boxes.count, rect: b.rect, cell: b.cell))
             }
             // ids are counted anew (id == index), box references follow
             for w in cleaned where !layout.dropped.contains(w.id) && rcHasLetterOrDigit(w.text) {

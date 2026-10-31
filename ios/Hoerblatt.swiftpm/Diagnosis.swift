@@ -23,7 +23,11 @@ enum Diagnosis {
             if let b = w.box { d["box"] = b }
             return d
         }
-        out["boxes"] = page.boxes.map { ["i": $0.id, "r": diagRect($0.rect)] as [String: Any] }
+        out["boxes"] = page.boxes.map { b -> [String: Any] in
+            var d: [String: Any] = ["i": b.id, "r": diagRect(b.rect)]
+            if b.cell == true { d["cell"] = true }
+            return d
+        }
         out["gaps"] = page.gaps.map { g -> [String: Any] in
             var d: [String: Any] = ["kind": g.kind.rawValue, "r": diagRect(g.rect), "inText": g.inText,
                                     "ends": g.endsSentence]

@@ -90,7 +90,8 @@ fileprivate struct PageControllerSnapshot: Equatable {
         }
         guard let wid = wordId, let i = wordIndex(wid) else { return }
         let w = page.words[i]
-        if app.settings.boxesTogether, let bx = w.box, let boxFrame = boxRect(bx) {
+        // (in a table cell the word alone is read; Satz reads the whole cell)
+        if app.settings.boxesTogether, let bx = w.box, !isCell(bx), let boxFrame = boxRect(bx) {
             let now = Date()
             var again = false
             if let last = lastBoxTap, last.word == i, now.timeIntervalSince(last.time) < 8 { again = true }
@@ -714,6 +715,11 @@ fileprivate struct PageControllerSnapshot: Equatable {
     private func boxRect(_ bx: Int) -> CGRect? {
         guard bx >= 0 && bx < page.boxes.count else { return nil }
         return page.boxes[bx].rect
+    }
+
+    private func isCell(_ bx: Int) -> Bool {
+        guard bx >= 0 && bx < page.boxes.count else { return false }
+        return page.boxes[bx].cell == true
     }
 
     private func boxText(_ bx: Int) -> String {
