@@ -220,9 +220,9 @@ fileprivate let appStatePhotoHint =
         speaker.say(text, onEnd: onEnd)
     }
 
-    func say(parts: [SpeechPart], onEnd: (() -> Void)? = nil) {
+    func say(parts: [SpeechPart], onEnd: (() -> Void)? = nil, onWord: ((Int, NSRange) -> Void)? = nil) {
         if listener.isListening { stopAllListening() }
-        speaker.say(parts: parts, onEnd: onEnd)
+        speaker.say(parts: parts, onEnd: onEnd, onWord: onWord)
     }
 
     func undo() {

@@ -284,7 +284,7 @@ struct AppSettings: Codable, Equatable {
     var mic: Bool = true
     var tone: ToneKind = .glocke
     /// Short picture guide before the camera opens.
-    var photoHelp: Bool = true
+    var photoHelp: Bool = false
     var markColor: MarkColor = .gelb
     var penColor: PenColor = .blau
     /// Fertig: first show the picture to the teacher (thumb), only then "Teilen" appears.
@@ -309,8 +309,10 @@ struct AppSettings: Codable, Equatable {
 
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
-        case rate, announce, outlines, boxesTogether, markGaps, mic, tone, photoHelp, markColor, penColor, showTeacherFirst
+        case rate, announce, outlines, boxesTogether, markGaps, mic, tone, markColor, penColor, showTeacherFirst
         case appleCamera
+        // (a new key: the guide was on everywhere before; the teacher wants it off – the camera explains itself)
+        case photoHelp = "photoGuide"
     }
 
     /// Settings saved by an older version lack newer keys: those keep their defaults instead of losing all settings.

@@ -10,6 +10,8 @@ import CoreGraphics
 struct Utterance {
     var parts: [SpeechPart]
     var rects: [CGRect]
+    /// For each part: its words and where they stand (lit up one after another while the sentence is read).
+    var words: [[SpokenWord]] = []
 
     /// As one line of text, "*" for the tone.
     var text: String {
@@ -75,7 +77,7 @@ extension Reading {
             if !text.isEmpty { return Utterance(parts: [.text(text)], rects: [frame]) }
         }
         let s = sentence(atWord: w.id)
-        return Utterance(parts: s.parts, rects: s.rects)
+        return Utterance(parts: s.parts, rects: s.rects, words: s.words)
     }
 
     /// A tapped gap: an empty table cell or writing field says its column heading ("Nomen");
@@ -92,7 +94,7 @@ extension Reading {
         if said.isEmpty && !head.isEmpty { return Utterance(parts: [.text(head)], rects: [g.rect]) }
         if wholeSentence {
             let s = sentence(atGap: k)
-            return Utterance(parts: s.parts, rects: s.rects)
+            return Utterance(parts: s.parts, rects: s.rects, words: s.words)
         }
         if !said.isEmpty { return Utterance(parts: [.text(said)], rects: [g.rect]) }
         return Utterance(parts: [.tone], rects: [g.rect])
@@ -113,6 +115,7 @@ enum PageReport {
             var d: [String: Any] = ["i": w.id, "t": w.text, "r": hearingRect(w.rect), "line": w.line,
                                     "conf": hearingRound(CGFloat(w.confidence))]
             if let b = w.box { d["box"] = b }
+            if let c = w.ink { d["ink"] = c }
             return d
         }
         out["boxes"] = page.boxes.map { b -> [String: Any] in

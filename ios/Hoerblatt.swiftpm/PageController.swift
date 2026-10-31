@@ -26,6 +26,8 @@ fileprivate struct PageControllerSnapshot: Equatable {
     let image: UIImage
     /// Lights up in orange while something is read.
     @Published var flash: [CGRect] = []
+    /// The word being spoken in a sentence, lit up more strongly (teacher's wish: read along word by word).
+    @Published var flashWord: [CGRect] = []
     /// Answer field with its bar (microphone, speaker, done). An empty field is dropped when left.
     @Published var activeAnswer: UUID? = nil {
         didSet {
@@ -135,7 +137,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
     }
 
     private func say(_ u: Utterance) {
-        speak(parts: u.parts, rects: u.rects)
+        speak(parts: u.parts, rects: u.rects, words: u.words)
     }
 
     // MARK: - Answers
@@ -655,21 +657,36 @@ fileprivate struct PageControllerSnapshot: Equatable {
         speak(parts: [SpeechPart.text(text)], rects: rects)
     }
 
-    /// Reads and lights up the rectangles until the speech ends.
-    private func speak(parts: [SpeechPart], rects: [CGRect]) {
+    /// Reads and lights up the rectangles until the speech ends; with `words`, the word being spoken too.
+    private func speak(parts: [SpeechPart], rects: [CGRect], words: [[SpokenWord]] = []) {
         guard let app = app else { return }
         flashToken += 1
         let token = flashToken
         let pad = max(4, reading.textSize * 0.18)
         flash = rects.map { $0.insetBy(dx: -pad, dy: -pad) }
+        if !flashWord.isEmpty { flashWord = [] }
+        var onWord: ((Int, NSRange) -> Void)? = nil
+        if !words.isEmpty {
+            let wordPad = max(2, reading.textSize * 0.08)
+            onWord = { [weak self] part, range in
+                guard let me = self, me.flashToken == token, part >= 0, part < words.count else { return }
+                // the word that holds the start of the spoken range
+                if let w = words[part].first(where: { range.location >= $0.start && range.location < $0.start + $0.length })
+                    ?? words[part].first(where: { $0.start >= range.location }) {
+                    let lit = w.rects.map { $0.insetBy(dx: -wordPad, dy: -wordPad) }
+                    if me.flashWord != lit { me.flashWord = lit }
+                }
+            }
+        }
         app.say(parts: parts, onEnd: { [weak self] in
             self?.endFlash(token)
-        })
+        }, onWord: onWord)
         watchFlash(token)
     }
 
     private func endFlash(_ token: Int) {
         if token == flashToken && !flash.isEmpty { flash = [] }
+        if token == flashToken && !flashWord.isEmpty { flashWord = [] }
     }
 
     /// Speech stopped from elsewhere never calls onEnd: the light goes out when the speaker is quiet.
@@ -681,6 +698,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
                 let speaking = me.app?.speaker.isSpeaking ?? false
                 if !speaking {
                     me.flash = []
+                    me.flashWord = []
                     return
                 }
             }

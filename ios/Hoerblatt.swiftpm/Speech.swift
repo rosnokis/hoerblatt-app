@@ -68,6 +68,10 @@ import Combine
     private var endHandler: (() -> Void)?
     private var current: AVSpeechUtterance?
     private var currentStarted = false
+    /// Index (in the parts given to `say`) of each part kept, the part being spoken, and who wants to know each word.
+    private var partIndex: [Int] = []
+    private var currentPart = -1
+    private var wordHandler: ((Int, NSRange) -> Void)?
 
     override init() {
         super.init()
@@ -82,18 +86,26 @@ import Combine
     }
 
     /// Text parts and gap tones one after another; onEnd after the last one (not after stop()).
-    func say(parts newParts: [SpeechPart], onEnd: (() -> Void)? = nil) {
+    /// `onWord`: each word as it is spoken (index of the part in `newParts`, place in its text).
+    func say(parts newParts: [SpeechPart], onEnd: (() -> Void)? = nil, onWord: ((Int, NSRange) -> Void)? = nil) {
         let wasBusy = synth.isSpeaking
         halt()
         var list: [SpeechPart] = []
-        for part in newParts {
+        var index: [Int] = []
+        for (k, part) in newParts.enumerated() {
             switch part {
             case .text(let s):
-                if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { list.append(part) }
+                if !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    list.append(part)
+                    index.append(k)
+                }
             case .tone:
                 list.append(part)
+                index.append(k)
             }
         }
+        partIndex = index
+        wordHandler = onWord
         if list.isEmpty {
             isSpeaking = false
             onEnd?()
@@ -178,6 +190,7 @@ import Combine
             return
         }
         let part = parts[nextIndex]
+        currentPart = nextIndex < partIndex.count ? partIndex[nextIndex] : -1
         nextIndex += 1
         partToken += 1
         let token = partToken
@@ -203,6 +216,7 @@ import Combine
         parts = []
         nextIndex = 0
         endHandler = nil
+        wordHandler = nil
         current = nil
         currentStarted = false
         isSpeaking = false
@@ -267,6 +281,11 @@ import Combine
         if u === current { currentStarted = true }
     }
 
+    private func wordStarts(_ u: AVSpeechUtterance, _ range: NSRange) {
+        guard u === current, currentPart >= 0 else { return }
+        wordHandler?(currentPart, range)
+    }
+
     private func utteranceFinished(_ u: AVSpeechUtterance) {
         guard u === current else { return }
         partDone(gen: generation, token: partToken)
@@ -277,6 +296,14 @@ import Combine
         let ref = SpeechUtteranceRef(utterance)
         Task { @MainActor in
             self.utteranceStarted(ref.utterance)
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange,
+                                       utterance: AVSpeechUtterance) {
+        let ref = SpeechUtteranceRef(utterance)
+        Task { @MainActor in
+            self.wordStarts(ref.utterance, characterRange)
         }
     }
 

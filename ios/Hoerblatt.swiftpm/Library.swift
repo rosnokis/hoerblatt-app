@@ -122,17 +122,26 @@ struct PageStrip: View {
         }
     }
 
-    /// The newest ~12 pages; an open page is always there, even if it is older.
+    /// The newest ~12 pages; an open page is always there, even if it is older. A Heft stands here once, as its
+    /// open page or the page last worked on (teacher: switching between a Heft and a photo must not need the Mappe).
     @MainActor
     private var stripPages: [PageInfo] {
         var list: [PageInfo] = []
-        // (a Heft is reached through the Mappe and its arrows; only its open page shows here)
+        var hefteSeen = Set<UUID>()
         var count = 0
         for info in app.store.pages {
-            let open = libraryOpenSide(app, info.id) != nil
-            if info.heft != nil && !open { continue }
+            var item = info
+            if let hid = info.heft, let h = app.store.heft(hid) {
+                if hefteSeen.contains(hid) { continue }
+                hefteSeen.insert(hid)
+                let openPage = h.pages.first(where: { libraryOpenSide(app, $0) != nil })
+                let last = h.pages.indices.contains(h.lastPage) ? h.pages[h.lastPage] : info.id
+                let pid = openPage ?? last
+                if let p = app.store.pages.first(where: { $0.id == pid }) { item = p }
+            }
+            let open = libraryOpenSide(app, item.id) != nil
             if count < 12 || open {
-                list.append(info)
+                list.append(item)
                 count += 1
             }
         }
@@ -255,7 +264,7 @@ fileprivate struct LibraryStripItem: View {
     @State private var pressing = false
 
     var body: some View {
-        LibraryStripThumb(thumb: app.store.thumbnail(info.id), side: libraryOpenSide(app, info.id))
+        LibraryStripThumb(thumb: app.store.thumbnail(info.id), side: libraryOpenSide(app, info.id), heft: info.heft != nil)
             .scaleEffect(pressing ? 0.9 : 1)
             .animation(.easeInOut(duration: 0.15), value: pressing)
             .onTapGesture {
@@ -285,6 +294,8 @@ fileprivate struct LibraryStripItem: View {
 fileprivate struct LibraryStripThumb: View {
     let thumb: UIImage?
     let side: Side?
+    /// a page of a Heft: a small book in the corner
+    var heft: Bool = false
 
     var body: some View {
         let edge: Color = side.map { libraryColor($0) } ?? Color.black.opacity(0.15)
@@ -303,6 +314,15 @@ fileprivate struct LibraryStripThumb: View {
             }
             RoundedRectangle(cornerRadius: 8)
                 .stroke(edge, lineWidth: side == nil ? 1 : 4)
+            if heft {
+                Image(systemName: "book.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(4)
+                    .background(Circle().fill(LibraryStyle.teal))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(3)
+            }
         }
         .frame(width: 56, height: 70)
         .clipShape(RoundedRectangle(cornerRadius: 8))

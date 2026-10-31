@@ -325,7 +325,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         // outlines help finding words to listen to (as in the web version: only in Wort and Satz)
         let hints = s.outlines && (mode == .wort || mode == .satz)
         let key = PageCanvasOverlayKey(words: c.page.words, boxes: c.page.boxes, gaps: c.page.gaps,
-                                       marks: c.page.marks, flash: c.flash, hints: hints,
+                                       marks: c.page.marks, flash: c.flash, flashWord: c.flashWord, hints: hints,
                                        boxesTogether: s.boxesTogether, markGaps: s.markGaps, textHeight: th)
         var onlyFlash = false
         var dirty = CGRect.null
@@ -333,15 +333,17 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             if old == key { return }
             var probe = old
             probe.flash = key.flash
+            probe.flashWord = key.flashWord
             if probe == key {
                 onlyFlash = true
-                for r in old.flash { dirty = dirty.union(r) }
-                for r in key.flash { dirty = dirty.union(r) }
+                for r in old.flash + old.flashWord { dirty = dirty.union(r) }
+                for r in key.flash + key.flashWord { dirty = dirty.union(r) }
             }
         }
         overlayKey = key
         overlay.textHeight = th
         overlay.flash = c.flash
+        overlay.flashWord = c.flashWord
         if onlyFlash {
             // (redrawing the whole page for the light while reading would be wasted work)
             if !dirty.isNull {
@@ -431,7 +433,8 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         for ans in answers {
             guard let f = fields[ans.id] else { continue }
             let active = c.activeAnswer == ans.id
-            f.update(answer: ans, textHeight: th, editable: c.keyboardAnswer == ans.id, active: active,
+            f.update(answer: ans, room: answerRoom(ans, in: c.page), textHeight: th,
+                     editable: c.keyboardAnswer == ans.id, active: active,
                      listening: anyListening && active && c.isListening(to: ans.id), erasing: mode == .radieren)
         }
         focusPendingField()
@@ -911,6 +914,7 @@ fileprivate struct PageCanvasOverlayKey: Equatable {
     var gaps: [Gap]
     var marks: [Mark]
     var flash: [CGRect]
+    var flashWord: [CGRect]
     var hints: Bool
     var boxesTogether: Bool
     var markGaps: Bool
@@ -946,6 +950,8 @@ fileprivate final class PageCanvasOverlayView: UIView {
     var wordRects: [CGRect] = []
     var boxRects: [CGRect] = []
     var flash: [CGRect] = []
+    /// the word being spoken: strong orange
+    var flashWord: [CGRect] = []
     /// A page is thousands of points wide: at screen scale its backing store would take several times
     /// the memory, and on screen it is shown smaller anyway.
     private var drawScale: CGFloat = 1
@@ -1033,6 +1039,11 @@ fileprivate final class PageCanvasOverlayView: UIView {
                 stroke(ctx, p, orange, width: flashLine, dash: [])
             }
         }
+        // the word being spoken: strong, so the child can read along
+        for f in flashWord where f.intersects(rect) {
+            guard let p = PageCanvasOverlayView.roundedPath(f, radius) else { continue }
+            fill(ctx, p, orange.withAlphaComponent(0.45))
+        }
     }
 
     private func fill(_ ctx: CGContext, _ path: UIBezierPath, _ color: UIColor) {
@@ -1111,11 +1122,13 @@ fileprivate final class PageCanvasAnswerField: UIView {
         return base
     }
 
-    func update(answer: Answer, textHeight: CGFloat, editable newEditable: Bool, active: Bool,
+    func update(answer: Answer, room: CGFloat?, textHeight: CGFloat, editable newEditable: Bool, active: Bool,
                 listening: Bool, erasing: Bool) {
         th = max(4, textHeight)
         answerRect = answer.rect
-        let size = th * 1.1
+        // smaller in a table cell, so a long spoken answer still fits (down to half the size)
+        let size = answerFontSize(answer.text, width: answer.rect.width, limit: room, textHeight: th,
+                                  font: PageCanvasAnswerField.answerFont)
         if size != fontSize {
             fontSize = size
             textView.font = PageCanvasAnswerField.answerFont(size)

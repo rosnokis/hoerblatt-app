@@ -1334,6 +1334,15 @@ fileprivate final class LAEngine {
     /// box gaps: inside a line of text (a word right next to it on the same height) they are part of the sentence
     func addBoxGaps() {
         for b in boxGaps {
+            // an empty field never lies over printed words: strokes of letters ("l", "h") and the lines of a curved
+            // book page can look like a frame across the text
+            if words.contains(where: { w in
+                if w.junk { return false }
+                let ix = min(w.x1, b.x1) - max(w.x0, b.x0), iy = min(w.y1, b.y1) - max(w.y0, b.y0)
+                return ix > 0 && iy > 0 && ix * iy > (w.x1 - w.x0) * (w.y1 - w.y0) * 0.3
+            }) {
+                continue
+            }
             // a field with a picture in it (a frame in a drawing, a table cell holding an icon) is no answer place;
             // a small check box ☐ in a cell hardly counts
             if !b.lin && !b.square {

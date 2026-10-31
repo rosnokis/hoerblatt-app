@@ -10,6 +10,15 @@ import CoreGraphics
 struct Sentence {
     var parts: [SpeechPart]
     var rects: [CGRect]
+    /// For each part: where its words stand in the spoken text (to light up the word being spoken).
+    var words: [[SpokenWord]] = []
+}
+
+/// A word inside a spoken text part: its place in the text (UTF-16, as the speech synthesizer counts) and on the page.
+struct SpokenWord {
+    var start: Int
+    var length: Int
+    var rects: [CGRect]
 }
 
 /// A word or a gap in reading order (JS: an item of seq()).
@@ -344,6 +353,14 @@ struct Reading {
         if a.gapRow || b.gapRow { return true }
         let h = a.rowH > 0 ? a.rowH : a.h
         let h2 = b.rowH > 0 ? b.rowH : b.h
+        // a line starting with a small letter right below the start of the line before goes on with it, however tall
+        // Live Text draws the words (curved book page: "… Onkel Titus zahlte / gut.", "vergammel- / ter Blechklumpen.")
+        // (only after a full line: the text was wrapped there; labels of an icon are short rows)
+        if b.first, let bw = b.word, readingStartsLower(page.words[bw].text),
+           abs(b.rowX - a.rowX) < min(h, h2) * 3, b.y0 - a.rowY1 < max(h, h2),
+           a.rowRight >= a.blockRight - (a.blockRight - a.rowX) * 0.2 {
+            return false
+        }
         // heading and text (typical height of each line)
         if max(h, h2) > min(h, h2) * 1.4 { return true }
         // heading and text in different colours (a dark blue heading over black text, same size)
@@ -387,9 +404,29 @@ struct Reading {
 
         var lineRects: [Int: CGRect] = [:]
         var parts: [SpeechPart] = []
+        var words: [[SpokenWord]] = []
         var buf: [String] = []
+        var bufRects: [[CGRect]] = []
         var prev: ReadingItem? = nil
         var prevText = false
+        /// buf → one text part, with the place of each word in it
+        func flush() {
+            var text = ""
+            var spoken: [SpokenWord] = []
+            for (k, piece) in buf.enumerated() {
+                let t = readingTrim(piece)
+                if t.isEmpty { continue }
+                if !text.isEmpty { text += " " }
+                spoken.append(SpokenWord(start: text.utf16.count, length: t.utf16.count, rects: bufRects[k]))
+                text += t
+            }
+            if !text.isEmpty {
+                parts.append(SpeechPart.text(text))
+                words.append(spoken)
+            }
+            buf = []
+            bufRects = []
+        }
         for n in s...e {
             let x = it[n]
             if let old = lineRects[x.li] {
@@ -402,6 +439,12 @@ struct Reading {
             if let pv = prev, pv.li == x.li, isBoxGap(x) || isBoxGap(pv) {
                 glue = x.x0 - pv.x1 < x.h * 0.25
             }
+            // a word broken at the end of a line ("kön-" / "nen") is read as one word
+            var hyphen = false
+            if let pv = prev, pv.li != x.li, pv.word != nil, let wi = x.word, prevText, let last = buf.last,
+               last.hasSuffix("-"), last.count > 2, readingStartsLower(page.words[wi].text) {
+                hyphen = true
+            }
             prev = x
             var piece: String? = nil
             if let wi = x.word {
@@ -411,25 +454,28 @@ struct Reading {
                 if !t.isEmpty { piece = t }
             }
             if let t = piece {
-                if glue && prevText && !buf.isEmpty {
+                if hyphen && !buf.isEmpty {
+                    buf[buf.count - 1] = String(buf[buf.count - 1].dropLast()) + t
+                    bufRects[bufRects.count - 1].append(x.rect)
+                } else if glue && prevText && !buf.isEmpty {
                     buf[buf.count - 1] += t
+                    bufRects[bufRects.count - 1].append(x.rect)
                 } else {
                     buf.append(t)
+                    bufRects.append([x.rect])
                 }
                 prevText = true
             } else {
                 // an empty gap: the tone
-                let joined = readingTrim(buf.joined(separator: " "))
-                if !joined.isEmpty { parts.append(SpeechPart.text(joined)) }
-                buf = []
+                flush()
                 parts.append(SpeechPart.tone)
+                words.append([])
                 prevText = false
             }
         }
-        let joined = readingTrim(buf.joined(separator: " "))
-        if !joined.isEmpty { parts.append(SpeechPart.text(joined)) }
+        flush()
         let rects = lineRects.keys.sorted().compactMap { lineRects[$0] }
-        return Sentence(parts: parts, rects: rects)
+        return Sentence(parts: parts, rects: rects, words: words)
     }
 }
 
@@ -650,6 +696,12 @@ fileprivate func readingEndsSentence(_ t: String) -> Bool {
 }
 
 /// Starts with a capital, maybe after an opening quote (JS: /^[„"]?[A-ZÄÖÜ]/).
+/// The first letter is a small one ("gut.", "ter", "»und").
+fileprivate func readingStartsLower(_ t: String) -> Bool {
+    guard let c = t.first(where: { $0.isLetter }) else { return false }
+    return c.isLowercase
+}
+
 fileprivate func readingStartsCapital(_ t: String) -> Bool {
     var rest = Substring(t)
     if let f = rest.first, f == "„" || f == "\"" {

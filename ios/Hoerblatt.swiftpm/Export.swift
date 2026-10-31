@@ -45,7 +45,7 @@ enum Exporter {
             cg.restoreGState()
 
             for a in page.answers {
-                exportDrawAnswer(a, textHeight: th, in: cg)
+                exportDrawAnswer(a, textHeight: th, limit: answerRoom(a, in: page), in: cg)
             }
 
             if let p = pen {
@@ -329,13 +329,14 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 }
 
 /// One answer field: width as stored (at least two letters), grows downwards with the text (as on the screen).
-@MainActor fileprivate func exportDrawAnswer(_ a: Answer, textHeight th: CGFloat, in cg: CGContext) {
+@MainActor fileprivate func exportDrawAnswer(_ a: Answer, textHeight th: CGFloat, limit: CGFloat?, in cg: CGContext) {
     let text = a.text.trimmingCharacters(in: .whitespacesAndNewlines)
     if text.isEmpty { return }
     let r = a.rect
     guard r.minX.isFinite, r.minY.isFinite, r.width.isFinite, r.height.isFinite else { return }
 
-    let fontSize = th * 1.1
+    // (smaller in a table cell or field, so a long answer still fits – as on the screen)
+    let fontSize = answerFontSize(text, width: r.width, limit: limit, textHeight: th, font: exportAnswerFont)
     let padX = th * 0.15
     let padY = th * 0.06
     let width = max(r.width, th * 2)
@@ -383,4 +384,36 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
         result = drawing.image(from: CGRect(origin: .zero, size: size), scale: 1)
     }
     return result
+}
+
+// MARK: - Answer size (screen and picture)
+
+/// Room for an answer in a table cell or field: from the field's top to the bottom of its box (nil: no box, the
+/// field grows freely).
+func answerRoom(_ a: Answer, in page: Page) -> CGFloat? {
+    guard let gid = a.gap, let g = page.gaps.first(where: { $0.id == gid }), g.kind == .box else { return nil }
+    let room = g.rect.maxY - a.rect.minY
+    return room > 0 ? room : nil
+}
+
+/// Font size of an answer: normally 1.1 text heights; in a box (`limit`) smaller, down to half, until the wrapped
+/// text fits (teacher: long spoken answers did not fit into the table cells). Beyond that the field grows.
+@MainActor func answerFontSize(_ text: String, width: CGFloat, limit: CGFloat?, textHeight th: CGFloat,
+                               font: @MainActor (CGFloat) -> UIFont) -> CGFloat {
+    let base = th * 1.1
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let room = limit, room > 0, !trimmed.isEmpty else { return base }
+    let padX = th * 0.15
+    let padY = th * 0.06
+    let inner = max(1, max(width, th * 2) - 2 * padX)
+    let smallest = base * 0.5
+    var size = base
+    while true {
+        let measured = (trimmed as NSString).boundingRect(
+            with: CGSize(width: inner, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font(size)], context: nil)
+        let needed = max(ceil(measured.height), size * 1.25) + 2 * padY
+        if needed <= room || size <= smallest { return size }
+        size = max(smallest, size * 0.9)
+    }
 }
