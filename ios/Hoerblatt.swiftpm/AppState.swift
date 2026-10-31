@@ -362,7 +362,9 @@ fileprivate let appStatePhotoHint =
     func startScanner() {
         stopAllListening()
         speaker.stop()
-        if VNDocumentCameraViewController.isSupported {
+        // the Hörblatt's own camera (takes the photo by itself, no Keep/Save); Apple's document camera as a setting
+        let camera = settings.appleCamera ? VNDocumentCameraViewController.isSupported : SimpleCamera.isAvailable
+        if camera {
             photoSource = .camera
             presentSoon(.scanner)
         } else {

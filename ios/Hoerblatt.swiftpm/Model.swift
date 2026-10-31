@@ -286,6 +286,8 @@ struct AppSettings: Codable, Equatable {
     var penColor: PenColor = .blau
     /// Fertig: first show the picture to the teacher (thumb), only then "Teilen" appears.
     var showTeacherFirst: Bool = true
+    /// Apple's document camera (Keep/Save) instead of the Hörblatt's own simple camera.
+    var appleCamera: Bool = false
 
     private static let key = "hoerblatt.settings"
 
@@ -305,6 +307,7 @@ struct AppSettings: Codable, Equatable {
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case rate, announce, outlines, boxesTogether, markGaps, mic, tone, photoHelp, markColor, penColor, showTeacherFirst
+        case appleCamera
     }
 
     /// Settings saved by an older version lack newer keys: those keep their defaults instead of losing all settings.
@@ -322,6 +325,7 @@ extension AppSettings {
         markColor = (try? c.decodeIfPresent(MarkColor.self, forKey: .markColor)) ?? markColor
         penColor = (try? c.decodeIfPresent(PenColor.self, forKey: .penColor)) ?? penColor
         showTeacherFirst = try c.decodeIfPresent(Bool.self, forKey: .showTeacherFirst) ?? showTeacherFirst
+        appleCamera = try c.decodeIfPresent(Bool.self, forKey: .appleCamera) ?? appleCamera
     }
 }
 

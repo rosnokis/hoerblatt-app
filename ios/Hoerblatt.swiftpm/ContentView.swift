@@ -75,10 +75,19 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(isPresented: $app.showScanner) {
-            DocumentScanner(onFinish: { images in
-                app.scanned(images)
-            })
-            .ignoresSafeArea()
+            if app.settings.appleCamera {
+                DocumentScanner(onFinish: { images in
+                    app.scanned(images)
+                })
+                .ignoresSafeArea()
+            } else {
+                SimpleCamera(say: { text in
+                    app.say(text)
+                }, onFinish: { images in
+                    app.scanned(images)
+                })
+                .ignoresSafeArea()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {

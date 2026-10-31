@@ -116,11 +116,12 @@ struct SettingsView: View {
             Toggle("Kästen zusammen vorlesen", isOn: $app.settings.boxesTogether)
             Toggle("Lücken markieren", isOn: $app.settings.markGaps)
             Toggle("Foto-Hinweis vor der Kamera", isOn: $app.settings.photoHelp)
+            Toggle("Apples Dokument-Kamera verwenden", isOn: $app.settings.appleCamera)
             Toggle("Vor dem Abschicken der Lehrkraft zeigen", isOn: $app.settings.showTeacherFirst)
         } header: {
             Text("Blatt und Foto")
         } footer: {
-            Text("Wort-Umrandungen: dünne Rahmen um erkannte Wörter. Kästen zusammen: Ein Wort in einem gedruckten Kasten liest den ganzen Kasten, dasselbe Wort noch einmal angetippt nur dieses Wort. Lücken markieren: Schreiblinien und Kästchen lila zeigen. Foto-Hinweis: kurze Bildanleitung (Heft flach, iPad gerade darüber, ganzes Blatt) vor jedem Foto. Der Lehrkraft zeigen: Bei „Fertig“ erscheint zuerst ein Daumen-Knopf; erst danach kann das Kind teilen.")
+            Text("Wort-Umrandungen: dünne Rahmen um erkannte Wörter. Kästen zusammen: Ein Wort in einem gedruckten Kasten liest den ganzen Kasten, dasselbe Wort noch einmal angetippt nur dieses Wort. Lücken markieren: Schreiblinien und Kästchen lila zeigen. Foto-Hinweis: kurze Bildanleitung (Heft flach, iPad gerade darüber, ganzes Blatt) vor jedem Foto. Der Lehrkraft zeigen: Bei „Fertig“ erscheint zuerst ein Daumen-Knopf; erst danach kann das Kind teilen. Kamera: Normal nimmt das Hörblatt seine eigene, einfache Kamera (löst von selbst aus, sobald das Blatt ruhig im Bild ist, großer Knopf, kein „Sichern“). Apples Dokument-Kamera braucht „Behalten“ und „Sichern“.")
         }
     }
 
