@@ -370,6 +370,9 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
                                            height: g.rect.height + th * 0.08))
                 case .box:
                     gapRects.append(g.rect)
+                case .check:
+                    // crossed with the pen: purple means "speak here", so a check box stays as printed
+                    break
                 }
             }
         }

@@ -133,6 +133,8 @@ fileprivate struct LARect {
     var square: Bool = false
     /// a table cell (or a box inside a table)
     var cell: Bool = false
+    /// holds a small check box ☐ (a gap of kind .check)
+    var check: Bool = false
 }
 
 /// JS word {t, x0, y0, x1, y1, li, cf, bx, junk, col, end}
@@ -206,6 +208,8 @@ fileprivate struct LAGapItem {
     var head: String?
     var square: Bool
     var end: Bool
+    /// a check box ☐: crossed with the pen, not spoken into
+    var check: Bool = false
 }
 
 fileprivate struct LAInk {
@@ -268,6 +272,23 @@ fileprivate func laInkOf(_ t: LAWord, _ img: PixelImage) -> LAInk? {
     return LAInk(br: Double(b - r) / Double(n), gr: Double(g - r) / Double(n))
 }
 
+/// Live Text reads the "g" of the Grundschrift (white on a dark table head) as "ą", "a" or "q" at the end of a word
+/// ("richtią", "richtia"). German has no "ą", and words ending in "-tia" / "-tiq" hardly exist, while "-tig" is
+/// common (richtig, wichtig, fertig): the child should not hear a mangled word.
+fileprivate func laFixReading(_ text: String) -> String {
+    var core = text.replacingOccurrences(of: "ą", with: "g")
+    var tail = ""
+    while let last = core.last, ".,;:!?\"“”'’)".contains(last) {
+        tail = String(last) + tail
+        core.removeLast()
+    }
+    let lower = core.lowercased()
+    if core.count >= 5, lower.hasSuffix("tia") || lower.hasSuffix("tiq"), core.allSatisfy({ $0.isLetter }) {
+        core = String(core.dropLast()) + "g"
+    }
+    return core + tail
+}
+
 fileprivate func laPrepare(_ input: [Word], _ img: PixelImage) -> LAPrepared {
     var dropped = Set<Int>()
     var punct: [LAWord] = []
@@ -279,7 +300,7 @@ fileprivate func laPrepare(_ input: [Word], _ img: PixelImage) -> LAPrepared {
             dropped.insert(w.id)
             continue
         }
-        let t = w.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let t = laFixReading(w.text.trimmingCharacters(in: .whitespacesAndNewlines))
         let lw = LAWord(id: w.id, t: t, x0: x0, y0: y0, x1: x1, y1: y1, li: w.line, cf: Double(w.confidence) * 100)
         if !LAText.speakable(t) {
             // tokensOf: lone punctuation is kept aside, a "." after a word or gap ends the sentence
@@ -1064,7 +1085,10 @@ fileprivate final class LAEngine {
                         if words.contains(where: { laInBox($0.r, cell) }) { continue }
                         if boxGaps.contains(where: { laInBox($0, cell) }) { continue }
                         let m = mh * 0.15
-                        boxGaps.append(LARect(x0: cell.x0 + m, y0: cell.y0 + m, x1: cell.x1 - m, y1: cell.y1 - m))
+                        var field = LARect(x0: cell.x0 + m, y0: cell.y0 + m, x1: cell.x1 - m, y1: cell.y1 - m)
+                        // a cell holding only a small ☐ is for crossing ("richtig" / "falsch"), not for an answer
+                        field.check = holdsCheckBox(cell)
+                        boxGaps.append(field)
                     }
                 }
             }
@@ -1284,6 +1308,29 @@ fileprivate final class LAEngine {
         }
     }
 
+    /// A small check box ☐ drawn in an otherwise empty field: its ink is a small, square, mostly hollow shape.
+    func holdsCheckBox(_ r: LARect) -> Bool {
+        let m = mh * 0.25
+        let xa = max(0, laRound(r.x0 + m)), xb = min(W, laRound(r.x1 - m))
+        let ya = max(0, laRound(r.y0 + m)), yb = min(H, laRound(r.y1 - m))
+        guard xb - xa > 4, yb - ya > 4 else { return false }
+        var x0 = W, x1 = -1, y0 = H, y1 = -1, n = 0
+        for y in ya..<yb {
+            for x in xa..<xb where ink[y * W + x] != 0 {
+                n += 1
+                if x < x0 { x0 = x }
+                if x > x1 { x1 = x }
+                if y < y0 { y0 = y }
+                if y > y1 { y1 = y }
+            }
+        }
+        guard n > 8 else { return false }
+        let w = Double(x1 - x0 + 1), h = Double(y1 - y0 + 1)
+        guard w > mh * 0.3, h > mh * 0.3, w < mh * 1.6, h < mh * 1.6, max(w, h) < min(w, h) * 1.35 else { return false }
+        // an outline, not a filled shape or a picture
+        return Double(n) / (w * h) < 0.55
+    }
+
     /// box gaps: inside a line of text (a word right next to it on the same height) they are part of the sentence
     func addBoxGaps() {
         for b in boxGaps {
@@ -1309,7 +1356,31 @@ fileprivate final class LAEngine {
             }
             // a box with a heading (table cell, writing field in a column) stands alone, whatever is written next to it
             let touching = words.contains(where: { abs($0.cy - cy) < h * 0.6 && max(b.x0 - $0.x1, $0.x0 - b.x1) < mh * 0.3 })
-            let head = touching ? "" : headOf(b)
+            var head = touching ? "" : headOf(b)
+            // a small empty square frame on its own (not inside a word like "☐ielen") is a check box ☐
+            let bw = b.x1 - b.x0, bh = b.y1 - b.y0
+            let smallSquare = !b.lin && !b.square && !touching && bw < mh * 1.6 && bh < mh * 1.6
+                && max(bw, bh) < min(bw, bh) * 1.35
+            let check = b.check || smallSquare
+            // a check box in a table says its column heading, even when the text of the next cell comes close
+            if b.check && head.isEmpty { head = headOf(b) }
+            if smallSquare && !b.check && head.isEmpty {
+                // its label: the closest word beside it on the same line ("ja ☐")
+                var best = Double.infinity
+                for w in words where !w.junk && abs(w.cy - cy) < max(h, mh) * 0.7 {
+                    let d = max(b.x0 - w.x1, w.x0 - b.x1, 0)
+                    if d < mh * 2.5 && d < best {
+                        best = d
+                        head = w.t
+                    }
+                }
+            }
+            if check {
+                gaps.append(LAGapItem(x0: laRoundD(b.x0), x1: laRoundD(b.x1), y: laRoundD(b.y1), h: laRoundD(h),
+                                      li: -1, hasLi: false, y0: laRoundD(b.y0), head: head.isEmpty ? nil : head,
+                                      square: false, end: false, check: true))
+                continue
+            }
             gaps.append(LAGapItem(x0: laRoundD(b.x0), x1: laRoundD(b.x1), y: laRoundD(b.y1), h: laRoundD(h),
                                   li: head.isEmpty ? li : -1, hasLi: head.isEmpty ? found : false,
                                   y0: laRoundD(b.y0), head: head.isEmpty ? nil : head, square: b.square, end: false))
@@ -1428,7 +1499,10 @@ fileprivate final class LAEngine {
         for g in gaps {
             let kind: GapKind
             let rect: CGRect
-            if let y0 = g.y0 {
+            if g.check, let y0 = g.y0 {
+                kind = .check
+                rect = laCGRect(g.x0, y0, g.x1, g.y)
+            } else if let y0 = g.y0 {
                 kind = .box
                 rect = laCGRect(g.x0, y0, g.x1, g.y)
             } else {

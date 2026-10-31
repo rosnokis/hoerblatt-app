@@ -31,6 +31,9 @@ enum GapKind: String, Codable {
     case line
     /// An empty frame, a writing field, a grey square or dot: `rect` is the field itself.
     case box
+    /// A small check box ☐ (crossed with the pen): not purple, no tone, no answer field; a tap says its label
+    /// ("richtig") and picks the pen.
+    case check
 }
 
 /// A place where the child answers (shown in purple, a short tone in a sentence).

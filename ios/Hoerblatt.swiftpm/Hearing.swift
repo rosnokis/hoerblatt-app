@@ -82,6 +82,11 @@ extension Reading {
     /// otherwise the answer in it, the tone, or (Satz) the whole sentence.
     func hearGap(_ k: Int, wholeSentence: Bool) -> Utterance {
         let g = page.gaps[k]
+        if g.kind == .check {
+            // a check box: its label ("richtig"), nothing else
+            let label = hearingTrim(g.head ?? "")
+            return Utterance(parts: label.isEmpty ? [] : [.text(label)], rects: [g.rect])
+        }
         let said = answerText(onGap: k)
         let head = hearingTrim(g.head ?? "")
         if said.isEmpty && !head.isEmpty { return Utterance(parts: [.text(head)], rects: [g.rect]) }

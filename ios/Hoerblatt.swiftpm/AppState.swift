@@ -206,6 +206,11 @@ fileprivate let appStatePhotoHint =
         announce(m.announcement)
     }
 
+    /// Picks a tool without saying its name (the caller says what to do).
+    func setModeQuietly(_ m: Mode) {
+        changeMode(m)
+    }
+
     func announce(_ text: String) {
         if settings.announce { say(text) }
     }

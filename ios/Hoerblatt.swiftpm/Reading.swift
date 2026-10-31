@@ -140,7 +140,7 @@ struct Reading {
         for (k, g) in page.gaps.enumerated() {
             let b = g.rect
             // a tall field must not catch taps far above or below it
-            let h: CGFloat = g.kind == .box ? min(b.height, textSize) : b.height
+            let h: CGFloat = g.kind != .line ? min(b.height, textSize) : b.height
             let side = h * 0.2
             let above = h * 0.3
             let below = h * 0.5
@@ -442,7 +442,8 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
     for (i, w) in page.words.enumerated() {
         all.append(ReadingItem(word: i, gap: nil, rect: w.rect))
     }
-    for (k, g) in page.gaps.enumerated() {
+    // (check boxes ☐ are crossed with the pen: no tone in a sentence, not part of the reading order)
+    for (k, g) in page.gaps.enumerated() where g.kind != .check {
         all.append(ReadingItem(word: nil, gap: k, rect: g.rect))
     }
     if all.isEmpty { return [] }

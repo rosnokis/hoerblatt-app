@@ -85,7 +85,9 @@ fileprivate struct PageControllerSnapshot: Equatable {
         case .gap(let k):
             lastBoxTap = nil
             // an empty gap: speak into it at once (teacher's wish); a filled one is read
-            if r.answerText(onGap: k).isEmpty {
+            if page.gaps[k].kind == .check {
+                checkBoxTapped(k)
+            } else if r.answerText(onGap: k).isEmpty {
                 speakIntoGap(k)
             } else {
                 say(r.hearGap(k, wholeSentence: false))
@@ -118,7 +120,9 @@ fileprivate struct PageControllerSnapshot: Equatable {
         switch r.target(at: p) {
         case .gap(let k):
             // an empty gap: speak into it at once; a filled one reads its sentence with the answer
-            if r.answerText(onGap: k).isEmpty {
+            if page.gaps[k].kind == .check {
+                checkBoxTapped(k)
+            } else if r.answerText(onGap: k).isEmpty {
                 speakIntoGap(k)
             } else {
                 say(r.hearGap(k, wholeSentence: true))
@@ -147,7 +151,11 @@ fileprivate struct PageControllerSnapshot: Equatable {
         stopListening()
         lastBoxTap = nil
         if let k = r.gapAt(p), k < page.gaps.count {
-            speakIntoGap(k)
+            if page.gaps[k].kind == .check {
+                checkBoxTapped(k)
+            } else {
+                speakIntoGap(k)
+            }
             return
         }
         let a = Answer(id: UUID(), rect: r.newAnswerRect(at: p), gap: nil, text: "")
@@ -161,6 +169,15 @@ fileprivate struct PageControllerSnapshot: Equatable {
             listen(a.id)
         }
         save()
+    }
+
+    /// A check box ☐: its label ("richtig"), then the pen is picked to cross it (teacher's wish).
+    private func checkBoxTapped(_ k: Int) {
+        guard let app = app, k >= 0, k < page.gaps.count else { return }
+        stopListening()
+        let label = pageControllerTrim(page.gaps[k].head ?? "")
+        app.setModeQuietly(.stift)
+        app.say(label.isEmpty ? "Kreuze mit dem Stift an." : label + ". Kreuze mit dem Stift an.")
     }
 
     /// A gap gets its answer field (or keeps the one it has) and the Hörblatt listens at once – in every tool that
