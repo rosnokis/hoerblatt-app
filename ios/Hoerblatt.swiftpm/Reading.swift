@@ -61,6 +61,8 @@ struct Reading {
     /// Position in `items` of each word / gap (by index), -1 if missing.
     private let wordPos: [Int]
     private let gapPos: [Int]
+    /// Mean ink colour of each row (by `li`), where its words have one.
+    private let rowInk: [Int: (br: Double, gr: Double)]
 
     init(page: Page) {
         self.page = page
@@ -80,6 +82,18 @@ struct Reading {
         }
         wordPos = wp
         gapPos = gp
+        var sums: [Int: (br: Double, gr: Double, n: Double)] = [:]
+        for it in order {
+            guard let w = it.word, w >= 0, w < page.words.count, let c = page.words[w].ink, c.count == 2 else { continue }
+            // (weighted by size: small coloured labels of an icon in the same row hardly count)
+            let r = page.words[w].rect
+            let k = Double(max(1, r.width * r.height))
+            let s = sums[it.li] ?? (br: 0, gr: 0, n: 0)
+            sums[it.li] = (br: s.br + c[0] * k, gr: s.gr + c[1] * k, n: s.n + k)
+        }
+        var ri: [Int: (br: Double, gr: Double)] = [:]
+        for (li, s) in sums where s.n > 0 { ri[li] = (br: s.br / s.n, gr: s.gr / s.n) }
+        rowInk = ri
     }
 
     private var pageW: CGFloat { return max(page.pixelSize.width, 1) }
@@ -332,8 +346,15 @@ struct Reading {
         let h2 = b.rowH > 0 ? b.rowH : b.h
         // heading and text (typical height of each line)
         if max(h, h2) > min(h, h2) * 1.4 { return true }
+        // heading and text in different colours (a dark blue heading over black text, same size)
+        if let ia = rowInk[a.li], let ib = rowInk[b.li] {
+            let dx = ia.br - ib.br, dy = ia.gr - ib.gr
+            if (dx * dx + dy * dy).squareRoot() > 40 { return true }
+        }
         // next numbered task
         if b.first, let bw = b.word, readingIsNumbered(page.words[bw].text) { return true }
+        // a task marked with a letter ("A Legt die Bildkarten …" / "B Spielt …", "a)", "b.")
+        if b.first, let bw = b.word, readingIsLetterMark(page.words[bw].text) { return true }
         // a numbered list without full stops ("1 Rückblick" / "2 Das Werkzeug der Stunde"): each line is a sentence
         if b.first, let bw = b.word, readingIsNumber(page.words[bw].text), readingIsNumber(firstText(ofRow: a.li)) {
             return true
@@ -427,9 +448,13 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
     if all.isEmpty { return [] }
     all = readingStableSorted(all) { $0.x0 < $1.x0 }
 
+    // words clearly smaller than the print of the page: labels of an icon or picture ("richtig ✓ falsch ✗",
+    // "ja nein", "Hollywood" under a star)
+    let th = page.textHeight.isFinite && page.textHeight > 1 ? page.textHeight : 0
+    let small: CGFloat = th * 0.68
     var segs: [[ReadingItem]] = []
     for it in all {
-        readingPlace(&segs, [it], head: it, maxGap: 6)
+        readingPlace(&segs, [it], head: it, maxGap: 6, small: small)
     }
     // pieces of one row with more room between them (e.g. around an arrow or a picture);
     // answer lines or writing fields on their own stay a row of their own
@@ -439,10 +464,23 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
         if s.allSatisfy({ $0.gap != nil }) {
             rows.append(s)
         } else {
-            readingPlace(&rows, s, head: s[0], maxGap: 25)
+            readingPlace(&rows, s, head: s[0], maxGap: 25, small: small)
         }
     }
     rows = readingStableSorted(rows.filter { !$0.isEmpty }) { $0[0].cy < $1[0].cy }
+    // a row of small labels beside a line of text goes to the end: it must not split the sentence it stands next to
+    func isSmall(_ r: [ReadingItem]) -> Bool {
+        let ws = r.filter { $0.word != nil }
+        return small > 0 && !ws.isEmpty && ws.allSatisfy { $0.h < small }
+    }
+    let beside: [Bool] = rows.map { r in
+        guard isSmall(r) else { return false }
+        let y0 = r.map { $0.y0 }.min() ?? 0, y1 = r.map { $0.y1 }.max() ?? 0
+        return rows.contains { o in
+            !isSmall(o) && o.contains(where: { $0.word != nil }) && o.contains { $0.y0 < y1 && $0.y1 > y0 }
+        }
+    }
+    rows = rows.indices.filter { !beside[$0] }.map { rows[$0] } + rows.indices.filter { beside[$0] }.map { rows[$0] }
 
     var built: [[ReadingItem]] = []
     for (k, row) in rows.enumerated() {
@@ -489,7 +527,8 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
 }
 
 /// Joins `items` to the row whose last item ends left of `head` at about the same height; close neighbours first.
-fileprivate func readingPlace(_ rows: inout [[ReadingItem]], _ items: [ReadingItem], head it: ReadingItem, maxGap: CGFloat) {
+fileprivate func readingPlace(_ rows: inout [[ReadingItem]], _ items: [ReadingItem], head it: ReadingItem, maxGap: CGFloat,
+                              small: CGFloat) {
     var best = -1
     var bd = CGFloat.infinity
     for (ri, r) in rows.enumerated() {
@@ -504,7 +543,12 @@ fileprivate func readingPlace(_ rows: inout [[ReadingItem]], _ items: [ReadingIt
         let otherHeight = dy > h * 0.6 && over < h * 0.5
         // a tall field (an empty table cell) is no line of text: words next to it start their own row
         let tall = (l.gap != nil && l.h > it.h * 1.8) || (it.gap != nil && it.h > l.h * 1.8)
-        if behind || far || otherHeight || tall { continue }
+        // words of clearly different size are no line together: the small labels of an icon next to a heading
+        // ("richtig ✓ falsch ✗" beside "Fakten-Check", "ja nein" beside "Justus bluffen?")
+        // (with a clear space between: a short word like "es" in tight boxes is small too, but sits in the line)
+        let otherSize = l.word != nil && it.word != nil && min(l.h, it.h) < small && max(l.h, it.h) > min(l.h, it.h) * 1.6
+            && dx > max(l.h, it.h) * 0.6
+        if behind || far || otherHeight || tall || otherSize { continue }
         let d = dy + max(dx, 0) * 0.05
         if d < bd {
             bd = d
@@ -571,6 +615,14 @@ fileprivate func readingIsNumberDot(_ t: String) -> Bool {
 /// "3" alone: a list number without a full stop.
 fileprivate func readingIsNumber(_ t: String) -> Bool {
     return !t.isEmpty && t.count <= 2 && t.allSatisfy { $0.isNumber }
+}
+
+/// "A" alone, or "a)" / "B." at the start of a line: a task marked with a letter.
+fileprivate func readingIsLetterMark(_ t: String) -> Bool {
+    let cs = Array(t)
+    guard let c = cs.first, "ABCDEFGHabcdefgh".contains(c) else { return false }
+    if cs.count == 1 { return c.isUppercase }
+    return cs.count == 2 && (cs[1] == ")" || cs[1] == ".")
 }
 
 /// "3." or "3)" at the start of a line: the next task (JS: /^\d+[.)]$/).

@@ -151,6 +151,8 @@ fileprivate struct LAWord {
     /// ink colour differs from the usual print (example answer in coloured handwriting)
     var col: Bool = false
     var end: Bool = false
+    /// mean ink colour (for the sentence logic: heading in another colour)
+    var ink: LAInk? = nil
 
     var cy: Double { return (y0 + y1) / 2 }
     var r: LARect { return LARect(x0: x0, y0: y0, x1: x1, y1: y1) }
@@ -354,6 +356,7 @@ fileprivate func laPrepare(_ input: [Word], _ img: PixelImage) -> LAPrepared {
         if let c = inks[k] {
             let dx = c.br - mbr, dy = c.gr - mgr
             w.col = (dx * dx + dy * dy).squareRoot() > 40
+            w.ink = c
         }
         if w.cf < 80 && w.col {
             dropped.insert(w.id)
@@ -1239,13 +1242,15 @@ fileprivate final class LAEngine {
             if tables.contains(where: { s.y > $0.y0 - tol && s.y < $0.y1 + tol && s.x1 > $0.x0 && s.x0 < $0.x1 }) { continue }
             if frames.contains(where: { s.y > $0.y0 - tol && s.y < $0.y1 + tol && s.x1 > $0.x0 && s.x0 < $0.x1 }) { continue }
             if vNear(s.x0, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) || vNear(s.x1, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) { continue }
-            // an underline: words sitting on the line cover most of it
+            // an underline: words sitting on the line cover most of it. (Also the baseline of the letters themselves:
+            // Vision's word boxes reach far below the baseline of the Grundschrift, so it lies in the middle of the box
+            // – "Spielzeugauto", "Lagebesprechung" got a gap inside the word.)
             var anyOver = false
             var oMin = Double.infinity, oMax = -Double.infinity
             for w in words {
                 if w.x1 <= s.x0 || w.x0 >= s.x1 { continue }
                 let wh = w.y1 - w.y0
-                if s.y > w.y1 - wh * 0.35 && s.y < w.y1 + wh * 0.6 {
+                if s.y > w.y0 + wh * 0.45 && s.y < w.y1 + wh * 0.6 {
                     anyOver = true
                     oMin = min(oMin, w.x0)
                     oMax = max(oMax, w.x1)
@@ -1444,6 +1449,7 @@ fileprivate final class LAEngine {
                 outWords[i].text = w.t
             }
             outWords[i].box = wordBox[w.id]
+            if let c = w.ink { outWords[i].ink = [(c.br * 10).rounded() / 10, (c.gr * 10).rounded() / 10] }
         }
         return LayoutResult(gaps: outGaps, boxes: outBoxes, wordBox: wordBox, dropped: dropped,
                             textHeight: CGFloat(mh), words: outWords)

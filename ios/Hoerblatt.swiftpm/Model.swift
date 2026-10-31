@@ -20,6 +20,9 @@ struct Word: Codable, Identifiable, Hashable {
     var box: Int?
     /// 0…1 from the text recognition.
     var confidence: Float
+    /// Colour of the ink (blue minus red, green minus red; black print ≈ 0, 0): a blue heading over black text
+    /// ends the sentence. nil on pages read before.
+    var ink: [Double]? = nil
 }
 
 enum GapKind: String, Codable {
