@@ -84,7 +84,12 @@ fileprivate struct PageControllerSnapshot: Equatable {
         switch r.target(at: p) {
         case .gap(let k):
             lastBoxTap = nil
-            say(r.hearGap(k, wholeSentence: false))
+            // an empty gap: speak into it at once (teacher's wish); a filled one is read
+            if r.answerText(onGap: k).isEmpty {
+                speakIntoGap(k)
+            } else {
+                say(r.hearGap(k, wholeSentence: false))
+            }
         case .word(let i):
             // a second tap on the same word in a box within 8 s reads only that word
             var again = false
@@ -112,7 +117,12 @@ fileprivate struct PageControllerSnapshot: Equatable {
         lastBoxTap = nil
         switch r.target(at: p) {
         case .gap(let k):
-            say(r.hearGap(k, wholeSentence: true))
+            // an empty gap: speak into it at once; a filled one reads its sentence with the answer
+            if r.answerText(onGap: k).isEmpty {
+                speakIntoGap(k)
+            } else {
+                say(r.hearGap(k, wholeSentence: true))
+            }
         case .word(let i):
             say(r.hearSentence(i))
         case .nothing:
@@ -136,29 +146,52 @@ fileprivate struct PageControllerSnapshot: Equatable {
         }
         stopListening()
         lastBoxTap = nil
-        let target: UUID
         if let k = r.gapAt(p), k < page.gaps.count {
-            let g = page.gaps[k]
-            if let existing = page.answers.first(where: { $0.gap == g.id }) {
-                target = existing.id
-            } else {
-                let a = Answer(id: UUID(), rect: r.newAnswerRect(forGap: k), gap: g.id, text: "")
-                pushUndo()
-                page.answers.append(a)
-                target = a.id
-            }
+            speakIntoGap(k)
+            return
+        }
+        let a = Answer(id: UUID(), rect: r.newAnswerRect(at: p), gap: nil, text: "")
+        pushUndo()
+        page.answers.append(a)
+        activeAnswer = a.id
+        // (after a failed attempt the microphone is tried again; only a new failure opens the keyboard)
+        if !app.settings.mic {
+            keyboardAnswer = a.id
         } else {
-            let a = Answer(id: UUID(), rect: r.newAnswerRect(at: p), gap: nil, text: "")
+            listen(a.id)
+        }
+        save()
+    }
+
+    /// A gap gets its answer field (or keeps the one it has) and the Hörblatt listens at once – in every tool that
+    /// reads (Wort, Satz, Sprechen). An empty table cell or writing field first says its heading ("Nomen").
+    private func speakIntoGap(_ k: Int) {
+        guard let app = app, k >= 0, k < page.gaps.count else { return }
+        stopListening()
+        let g = page.gaps[k]
+        let target: UUID
+        if let existing = page.answers.first(where: { $0.gap == g.id }) {
+            target = existing.id
+        } else {
+            let a = Answer(id: UUID(), rect: reading.newAnswerRect(forGap: k), gap: g.id, text: "")
             pushUndo()
             page.answers.append(a)
             target = a.id
         }
         activeAnswer = target
-        // (after a failed attempt the microphone is tried again; only a new failure opens the keyboard)
+        let head = pageControllerTrim(g.head ?? "")
         if !app.settings.mic {
+            // no own listening: the keyboard with its dictation key
+            if !head.isEmpty { app.say(head) }
             keyboardAnswer = target
-        } else {
+        } else if head.isEmpty {
             listen(target)
+        } else {
+            // the heading first, then listen (if the child has not gone on meanwhile)
+            app.say(head, onEnd: { [weak self] in
+                guard let me = self, me.activeAnswer == target else { return }
+                me.listen(target)
+            })
         }
         save()
     }
