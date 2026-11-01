@@ -45,6 +45,10 @@ fileprivate struct ReadingItem {
     var rowH: CGFloat = 0
     /// Right edge of the text block around the row.
     var blockRight: CGFloat = 0
+    /// Page of a photographed double page (0 = left), or column; sentences never run from one into the next.
+    var part: Int = 0
+    /// Cut-off text of the neighbouring page at the photo's edge: not read when the whole page is read.
+    var edge: Bool = false
 
     init(word: Int?, gap: Int?, rect: CGRect) {
         self.word = word
@@ -347,6 +351,7 @@ struct Reading {
 
     /// Two neighbours in reading order belong to different sentences (JS: apart).
     private func apart(_ a: ReadingItem, _ b: ReadingItem) -> Bool {
+        if a.part != b.part { return true }
         if boxOf(a) != boxOf(b) { return true }
         if isSoloGap(a) || isSoloGap(b) { return true }
         if a.li == b.li { return false }
@@ -394,13 +399,60 @@ struct Reading {
         return short && readingStartsCapital(page.words[bw].text)
     }
 
-    private func sentence(atPosition pos: Int) -> Sentence {
+    /// Pages found on the photo (a double page: 2) and which of them are cut-off text of a neighbouring page.
+    var pageParts: (count: Int, edge: [Int]) {
+        let n = (items.map { $0.part }.max() ?? 0) + 1
+        let edge = Set(items.filter { $0.edge }.map { $0.part }).sorted()
+        return (n, edge)
+    }
+
+    /// Which page of a double page (0 = left) a word belongs to.
+    func part(ofWord id: Int) -> Int {
+        guard let i = wordIndex(id), i < wordPos.count, wordPos[i] >= 0 else { return 0 }
+        return items[wordPos[i]].part
+    }
+
+    /// The whole page read aloud (a book): sentence after sentence, from the sentence of word `fromWord` (nil: from
+    /// the top), without the cut-off text of the neighbouring page at the photo's edge.
+    func pageSentences(fromWord: Int?) -> [Sentence] {
         let it = items
-        guard pos >= 0 && pos < it.count else { return Sentence(parts: [], rects: []) }
+        var pos = 0
+        if let id = fromWord, let i = wordIndex(id), i < wordPos.count, wordPos[i] >= 0, !it[wordPos[i]].edge {
+            pos = bounds(wordPos[i]).start
+        }
+        var out: [Sentence] = []
+        while pos < it.count {
+            if it[pos].edge {
+                pos += 1
+                continue
+            }
+            let b = bounds(pos)
+            let s = sentence(from: b.start, to: b.end)
+            // (a gap on its own – often a line at the book's edge – is no sentence to read)
+            if s.parts.contains(where: { if case .text = $0 { return true } else { return false } }) { out.append(s) }
+            pos = b.end + 1
+        }
+        return out
+    }
+
+    /// First and last position of the sentence around `pos`.
+    private func bounds(_ pos: Int) -> (start: Int, end: Int) {
+        let it = items
         var s = pos
         var e = pos
         while s > 0 && !isEnd(s - 1) && !apart(it[s - 1], it[s]) { s -= 1 }
         while e < it.count - 1 && !isEnd(e) && !apart(it[e], it[e + 1]) { e += 1 }
+        return (s, e)
+    }
+
+    private func sentence(atPosition pos: Int) -> Sentence {
+        guard pos >= 0 && pos < items.count else { return Sentence(parts: [], rects: []) }
+        let b = bounds(pos)
+        return sentence(from: b.start, to: b.end)
+    }
+
+    private func sentence(from s: Int, to e: Int) -> Sentence {
+        let it = items
 
         var lineRects: [Int: CGRect] = [:]
         var parts: [SpeechPart] = []
@@ -493,7 +545,29 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
         all.append(ReadingItem(word: nil, gap: k, rect: g.rect))
     }
     if all.isEmpty { return [] }
-    all = readingStableSorted(all) { $0.x0 < $1.x0 }
+    // a photographed double page: the left page first, then the right one (cut-off neighbour text marked)
+    let columns = readingColumns(page)
+    if columns.cuts.isEmpty { return readingRows(all, page: page, firstRow: 0) }
+    var parts = [[ReadingItem]](repeating: [], count: columns.cuts.count + 1)
+    for it in all {
+        let cx = (it.x0 + it.x1) / 2
+        parts[columns.cuts.filter { cx > $0 }.count].append(it)
+    }
+    var out: [ReadingItem] = []
+    for (k, part) in parts.enumerated() where !part.isEmpty {
+        var rows = readingRows(part, page: page, firstRow: (out.last?.li ?? -1) + 1)
+        for n in rows.indices {
+            rows[n].part = k
+            rows[n].edge = columns.edge.contains(k)
+        }
+        out.append(contentsOf: rows)
+    }
+    return out
+}
+
+/// Rows of one page (or one page of a double page), numbered from `firstRow`.
+fileprivate func readingRows(_ items: [ReadingItem], page: Page, firstRow: Int) -> [ReadingItem] {
+    let all = readingStableSorted(items) { $0.x0 < $1.x0 }
 
     // words clearly smaller than the print of the page: labels of an icon or picture ("richtig ✓ falsch ✗",
     // "ja nein", "Hollywood" under a star)
@@ -539,7 +613,7 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
         let rowY1 = r[0].y1
         let rowRight = r[r.count - 1].x1
         for n in r.indices {
-            r[n].li = k
+            r[n].li = firstRow + k
             r[n].first = (n == 0)
             r[n].rowX = rowX
             r[n].rowY1 = rowY1
@@ -571,6 +645,80 @@ fileprivate func readingOrder(_ page: Page) -> [ReadingItem] {
         out.append(contentsOf: r)
     }
     return out
+}
+
+/// A photo of an open book: vertical bands without any text split it into its pages (left before right). A column at
+/// the photo's edge with cut-off lines is the neighbouring page (`edge`). PDF pages (Hefte) are never split; a
+/// worksheet has text across such bands (headings, instructions) and stays one page.
+fileprivate func readingColumns(_ page: Page) -> (cuts: [CGFloat], edge: Set<Int>) {
+    if page.heft != nil { return ([], []) }
+    let ws = page.words.filter { $0.text.contains(where: { $0.isLetter }) && $0.rect.width > 0 && $0.rect.minX.isFinite }
+    guard ws.count >= 30 else { return ([], []) }
+    let th = max(4, page.textHeight.isFinite && page.textHeight > 1 ? page.textHeight : 20)
+    let width = max(1, page.pixelSize.width)
+    let binW = max(2, th * 0.25)
+    let n = Int((width / binW).rounded(.up)) + 2
+    var count = [Int](repeating: 0, count: n)
+    // (writing lines and fields count like words: "Möchtest du ____ ein Eis essen?" is one line of one page)
+    // (and so do printed boxes and table cells: a table is one page, however wide its columns stand apart)
+    let spans = ws.map { $0.rect } + page.gaps.filter { $0.kind != .check }.map { $0.rect } + page.boxes.map { $0.rect }
+    for r in spans where r.minX.isFinite && r.maxX.isFinite {
+        let a = max(0, Int(r.minX / binW)), b = min(n - 1, Int(r.maxX / binW))
+        if a <= b { for k in a...b { count[k] += 1 } }
+    }
+    let minX = ws.map { $0.rect.minX }.min() ?? 0
+    let maxX = ws.map { $0.rect.maxX }.max() ?? width
+    // (nothing at all may cross the band: on a book nothing runs over the fold, on a worksheet a single line of text
+    // across the page shows it is one page)
+    let noise = 0
+    var cuts: [CGFloat] = []
+    var k = Int(minX / binW) + 1
+    let end = min(n - 1, Int(maxX / binW))
+    while k < end {
+        if count[k] > noise {
+            k += 1
+            continue
+        }
+        var e = k
+        while e + 1 < end && count[e + 1] <= noise { e += 1 }
+        let x0 = CGFloat(k) * binW, x1 = CGFloat(e + 1) * binW
+        if x1 - x0 >= th * 2.5 {
+            let left = ws.filter { $0.rect.midX < x0 }, right = ws.filter { $0.rect.midX > x1 }
+            // a page needs a few lines; a strip of the neighbouring page cut off at the photo's edge only a little
+            func enough(_ side: [Word], atEdge: Bool) -> Bool {
+                return atEdge ? side.count >= 3 && readingRowCount(side, th) >= 2
+                              : side.count >= 8 && readingRowCount(side, th) >= 4
+            }
+            let leftEdge = (left.map { $0.rect.minX }.min() ?? width) < width * 0.03
+            let rightEdge = (right.map { $0.rect.maxX }.max() ?? 0) > width * 0.97
+            if enough(left, atEdge: leftEdge), enough(right, atEdge: rightEdge) {
+                cuts.append((x0 + x1) / 2)
+            }
+        }
+        k = e + 1
+    }
+    if cuts.isEmpty { return ([], []) }
+    // the neighbouring page: the first or last column, its text running into the photo's edge, not the main page
+    var cols = [[Word]](repeating: [], count: cuts.count + 1)
+    for w in ws { cols[cuts.filter { w.rect.midX > $0 }.count].append(w) }
+    let biggest = cols.indices.max(by: { cols[$0].count < cols[$1].count }) ?? 0
+    var edge = Set<Int>()
+    if biggest != 0, let x = cols[0].map({ $0.rect.minX }).min(), x < width * 0.03 { edge.insert(0) }
+    let last = cols.count - 1
+    if biggest != last, let x = cols[last].map({ $0.rect.maxX }).max(), x > width * 0.97 { edge.insert(last) }
+    return (cuts, edge)
+}
+
+/// How many lines of text the words stand in.
+fileprivate func readingRowCount(_ ws: [Word], _ th: CGFloat) -> Int {
+    let ys = ws.map { $0.rect.midY }.sorted()
+    var rows = 0
+    var last = -CGFloat.infinity
+    for y in ys where y - last > th * 0.6 {
+        rows += 1
+        last = y
+    }
+    return rows
 }
 
 /// Joins `items` to the row whose last item ends left of `head` at about the same height; close neighbours first.

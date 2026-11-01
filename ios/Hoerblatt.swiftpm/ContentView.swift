@@ -132,6 +132,11 @@ fileprivate struct CVPane: View {
                 app.activate(side)
             })
             .id(c.id)
+            .overlay(alignment: .topLeading) {
+                // read the whole page aloud (a book): play / pause
+                CVPagePlay(controller: c)
+                    .padding(14)
+            }
             .overlay(alignment: .bottom) {
                 if let h = app.store.heft(containing: c.id), h.pageTotal > 1, let n = h.number(of: c.id) {
                     CVHeftBar(app: app, side: side, index: n, count: h.pageTotal,
@@ -142,6 +147,19 @@ fileprivate struct CVPane: View {
             CVSidePlaceholder(app: app, side: side, lit: both && app.activeSide == side)
         } else {
             CVEmptyState(app: app)
+        }
+    }
+}
+
+/// Top left on the page: ▶ reads the whole page from the sentence last tapped (else from the top), ⏸ pauses.
+fileprivate struct CVPagePlay: View {
+    @ObservedObject var controller: PageController
+
+    var body: some View {
+        let playing = controller.pageReadState == .playing
+        CVRoundButton(symbol: playing ? "pause.fill" : "play.fill", color: CVStyle.orange,
+                      caption: playing ? "Vorlesen anhalten" : "Seite vorlesen", size: 64) {
+            controller.togglePageReading()
         }
     }
 }

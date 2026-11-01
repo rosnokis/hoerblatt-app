@@ -237,6 +237,7 @@ fileprivate let appStatePhotoHint =
 
     /// Opens a page of the Mappe in the active half; a Heft opens at the page last worked on.
     func open(_ id: UUID) {
+        for c in openControllers { c.endPageReading() }
         if let h = store.heft(id), !h.pages.isEmpty {
             open(h.pages[max(0, min(h.pages.count - 1, h.lastPage))])
             return
@@ -565,6 +566,7 @@ fileprivate let appStatePhotoHint =
 
     private func changeMode(_ m: Mode) {
         stopAllListening()
+        for c in openControllers { c.endPageReading() }
         if m != .sprechen {
             for c in openControllers { closeAnswer(c) }
             appStateHideKeyboard()

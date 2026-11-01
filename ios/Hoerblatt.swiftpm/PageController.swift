@@ -19,6 +19,11 @@ fileprivate struct PageControllerSnapshot: Equatable {
     static var owner: ObjectIdentifier? = nil
 }
 
+/// Reading the whole page aloud: not at all, sentence after sentence, or paused.
+enum PageReadState: Equatable {
+    case off, playing, paused
+}
+
 @MainActor final class PageController: ObservableObject, Identifiable {
     @Published var page: Page {
         didSet { pageDidChange(from: oldValue) }
@@ -28,6 +33,8 @@ fileprivate struct PageControllerSnapshot: Equatable {
     @Published var flash: [CGRect] = []
     /// The word being spoken in a sentence, lit up more strongly (teacher's wish: read along word by word).
     @Published var flashWord: [CGRect] = []
+    /// The whole page read aloud (a book; play button at the top left of the page).
+    @Published var pageReadState: PageReadState = .off
     /// Answer field with its bar (microphone, speaker, done). An empty field is dropped when left.
     @Published var activeAnswer: UUID? = nil {
         didSet {
@@ -55,6 +62,11 @@ fileprivate struct PageControllerSnapshot: Equatable {
     /// A second tap on the same word in a box within 8 s reads only that word.
     private var lastBoxTap: (word: Int, time: Date)? = nil
     private var flashToken = 0
+    /// The word last tapped (Wort/Satz): reading the whole page starts at its sentence.
+    private var lastTappedWord: Int? = nil
+    private var pageQueue: [Sentence] = []
+    private var pageIndex = 0
+    private var pageRun = 0
     /// Grows with every listening run; callbacks of older runs are ignored.
     private var listenGeneration = 0
     private var listeningAnswer: UUID? = nil
@@ -77,6 +89,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
     /// (What is read comes from Reading.hearWord / hearGap, as in the self test.)
     func tapWord(at p: CGPoint) {
         guard let app = app else { return }
+        endPageReading()
         leaveAnswer()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
@@ -95,6 +108,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
                 say(r.hearGap(k, wholeSentence: false))
             }
         case .word(let i):
+            lastTappedWord = page.words[i].id
             // a second tap on the same word in a box within 8 s reads only that word
             var again = false
             if let last = lastBoxTap, last.word == i, Date().timeIntervalSince(last.time) < 8 { again = true }
@@ -112,6 +126,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
 
     /// Mode "Satz": the sentence around the word or gap; a word in a printed box reads the box.
     func tapSentence(at p: CGPoint) {
+        endPageReading()
         leaveAnswer()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
@@ -130,6 +145,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
                 say(r.hearGap(k, wholeSentence: true))
             }
         case .word(let i):
+            lastTappedWord = page.words[i].id
             say(r.hearSentence(i))
         case .nothing:
             break
@@ -145,6 +161,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
     /// Mode "Sprechen": a gap gets its field (or keeps the one it has), elsewhere a free field; then listen.
     func tapSpeak(at p: CGPoint) {
         guard let app = app else { return }
+        endPageReading()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
             tapAnswer(page.answers[ai].id)
@@ -657,8 +674,82 @@ fileprivate struct PageControllerSnapshot: Equatable {
         speak(parts: [SpeechPart.text(text)], rects: rects)
     }
 
-    /// Reads and lights up the rectangles until the speech ends; with `words`, the word being spoken too.
-    private func speak(parts: [SpeechPart], rects: [CGRect], words: [[SpokenWord]] = []) {
+    // MARK: - Reading the whole page (a book)
+
+    /// Play: from the sentence of the word last tapped (else from the top) to the end of the page; pause; go on.
+    func togglePageReading() {
+        guard let app = app else { return }
+        switch pageReadState {
+        case .off:
+            leaveAnswer()
+            stopListening()
+            pageQueue = reading.pageSentences(fromWord: lastTappedWord)
+            pageIndex = 0
+            if pageQueue.isEmpty {
+                app.say("Hier finde ich nichts zum Vorlesen.")
+                return
+            }
+            pageReadState = .playing
+            readPageSentence()
+        case .playing:
+            // pause: the sentence starts again when going on
+            pageRun += 1
+            pageReadState = .paused
+            app.speaker.stop()
+            flash = []
+            flashWord = []
+        case .paused:
+            pageReadState = .playing
+            readPageSentence()
+        }
+    }
+
+    /// A tap on the page, another tool or page: reading the whole page stops.
+    func endPageReading() {
+        guard pageReadState != .off else { return }
+        pageRun += 1
+        pageReadState = .off
+        app?.speaker.stop()
+        flash = []
+        flashWord = []
+    }
+
+    private func readPageSentence() {
+        pageRun += 1
+        let run = pageRun
+        guard pageIndex < pageQueue.count else {
+            pageReadState = .off
+            app?.announce("Ende der Seite")
+            return
+        }
+        let s = pageQueue[pageIndex]
+        speak(parts: s.parts, rects: s.rects, words: s.words, then: { [weak self] in
+            guard let me = self, me.pageRun == run, me.pageReadState == .playing else { return }
+            me.pageIndex += 1
+            me.readPageSentence()
+        })
+        watchPageReading(run)
+    }
+
+    /// Speech stopped from elsewhere never ends the sentence: the button goes back to play.
+    private func watchPageReading(_ run: Int) {
+        Task { @MainActor [weak self] in
+            var quiet = 0
+            while true {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard let me = self, me.pageRun == run, me.pageReadState == .playing else { return }
+                quiet = (me.app?.speaker.isSpeaking ?? false) ? 0 : quiet + 1
+                if quiet >= 3 {
+                    me.pageReadState = .off
+                    return
+                }
+            }
+        }
+    }
+
+    /// Reads and lights up the rectangles until the speech ends; with `words`, the word being spoken too;
+    /// `then` after the natural end (not after a stop).
+    private func speak(parts: [SpeechPart], rects: [CGRect], words: [[SpokenWord]] = [], then: (() -> Void)? = nil) {
         guard let app = app else { return }
         flashToken += 1
         let token = flashToken
@@ -680,6 +771,7 @@ fileprivate struct PageControllerSnapshot: Equatable {
         }
         app.say(parts: parts, onEnd: { [weak self] in
             self?.endFlash(token)
+            then?()
         }, onWord: onWord)
         watchFlash(token)
     }
