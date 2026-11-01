@@ -272,7 +272,11 @@ struct TrashItem: Codable, Identifiable, Hashable {
         for p in item.pages {
             let from = trashFolder.appendingPathComponent(p.uuidString, isDirectory: true)
             let to = pageFolder(p)
-            if fm.fileExists(atPath: to.path) { continue }
+            if fm.fileExists(atPath: to.path) {
+                // the page is in the Mappe already: the copy in the Papierkorb would never be cleaned up
+                try? fm.removeItem(at: from)
+                continue
+            }
             if (try? fm.moveItem(at: from, to: to)) != nil,
                fm.fileExists(atPath: to.appendingPathComponent("page.json").path) {
                 back.append(p)

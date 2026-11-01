@@ -135,7 +135,7 @@ fileprivate struct CVPane: View {
             .overlay(alignment: .topLeading) {
                 // read the whole page aloud (a book): play / pause
                 CVPagePlay(controller: c)
-                    .padding(14)
+                    .padding(8)
             }
             .overlay(alignment: .bottom) {
                 if let h = app.store.heft(containing: c.id), h.pageTotal > 1, let n = h.number(of: c.id) {
@@ -158,7 +158,7 @@ fileprivate struct CVPagePlay: View {
     var body: some View {
         let playing = controller.pageReadState == .playing
         CVRoundButton(symbol: playing ? "pause.fill" : "play.fill", color: CVStyle.orange,
-                      caption: playing ? "Vorlesen anhalten" : "Seite vorlesen", size: 64) {
+                      caption: playing ? "Vorlesen anhalten" : "Seite vorlesen", size: 52) {
             controller.togglePageReading()
         }
     }

@@ -702,10 +702,18 @@ fileprivate func readingColumns(_ page: Page) -> (cuts: [CGFloat], edge: Set<Int
     var cols = [[Word]](repeating: [], count: cuts.count + 1)
     for w in ws { cols[cuts.filter { w.rect.midX > $0 }.count].append(w) }
     let biggest = cols.indices.max(by: { cols[$0].count < cols[$1].count }) ?? 0
+    // (a real page of a double page with a short text is wide and has its lines whole: only a narrow strip or a
+    // column with far fewer words counts as the neighbour's rest)
+    func strip(_ c: [Word]) -> Bool {
+        let span = (c.map { $0.rect.maxX }.max() ?? 0) - (c.map { $0.rect.minX }.min() ?? 0)
+        return span < width * 0.3 || c.count * 10 < cols[biggest].count * 3
+    }
     var edge = Set<Int>()
-    if biggest != 0, let x = cols[0].map({ $0.rect.minX }).min(), x < width * 0.03 { edge.insert(0) }
+    if biggest != 0, let x = cols[0].map({ $0.rect.minX }).min(), x < width * 0.03, strip(cols[0]) { edge.insert(0) }
     let last = cols.count - 1
-    if biggest != last, let x = cols[last].map({ $0.rect.maxX }).max(), x > width * 0.97 { edge.insert(last) }
+    if biggest != last, let x = cols[last].map({ $0.rect.maxX }).max(), x > width * 0.97, strip(cols[last]) {
+        edge.insert(last)
+    }
     return (cuts, edge)
 }
 

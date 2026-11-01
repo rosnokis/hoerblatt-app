@@ -36,7 +36,10 @@ enum Diagnosis {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Hoerblatt-Diagnose", isDirectory: true)
         try? FileManager.default.removeItem(at: dir)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        let name = "Hoerblatt-Diagnose-" + page.title.replacingOccurrences(of: " ", with: "-") + ".json"
+        // (a heading like "Präsens/Präteritum" must not become a folder)
+        let bad = CharacterSet(charactersIn: "/\\:?*\"<>|").union(.whitespacesAndNewlines).union(.controlCharacters)
+        let title = page.title.components(separatedBy: bad).filter { !$0.isEmpty }.joined(separator: "-")
+        let name = "Hoerblatt-Diagnose-" + (title.isEmpty ? "Seite" : String(title.prefix(60))) + ".json"
         let url = dir.appendingPathComponent(name)
         do {
             try data.write(to: url, options: .atomic)

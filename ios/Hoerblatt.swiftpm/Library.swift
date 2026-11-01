@@ -285,7 +285,12 @@ fileprivate struct LibraryStripItem: View {
             .accessibilityLabel(Text(libraryTitle(info)))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(named: Text("Löschen")) {
-                app.askDelete(info)
+                // (as the long press: a page of a Heft deletes the whole Heft)
+                if let h = app.store.heft(containing: info.id) {
+                    app.askDelete(PageInfo(id: h.id, title: h.title, created: h.created))
+                } else {
+                    app.askDelete(info)
+                }
             }
     }
 }

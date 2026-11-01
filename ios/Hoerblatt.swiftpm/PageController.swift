@@ -681,6 +681,8 @@ enum PageReadState: Equatable {
         guard let app = app else { return }
         switch pageReadState {
         case .off:
+            // (two pages side by side: only one is read at a time)
+            app.endPageReading(except: self)
             leaveAnswer()
             stopListening()
             pageQueue = reading.pageSentences(fromWord: lastTappedWord)
@@ -699,6 +701,7 @@ enum PageReadState: Equatable {
             flash = []
             flashWord = []
         case .paused:
+            app.endPageReading(except: self)
             pageReadState = .playing
             readPageSentence()
         }

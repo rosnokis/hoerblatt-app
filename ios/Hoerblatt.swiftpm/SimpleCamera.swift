@@ -349,6 +349,10 @@ fileprivate func simpleCameraRectangleRequest() -> VNDetectRectanglesRequest {
     return r
 }
 
+fileprivate func simpleCameraCorners(_ r: VNRectangleObservation) -> [CGPoint] {
+    return [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]
+}
+
 /// Area of the quadrilateral (0…1 coordinates): how much of the picture the sheet fills.
 fileprivate func simpleCameraArea(_ q: [CGPoint]) -> CGFloat {
     guard q.count == 4 else { return 0 }
@@ -376,10 +380,14 @@ fileprivate func simpleCameraStraighten(_ data: Data) -> UIImage? {
         return UIImage(data: data)
     }
     let request = simpleCameraRectangleRequest()
+    // several candidates: a printed table frame or a picture must not become the page – the largest one counts,
+    // and only if it is clearly the sheet (at least 40 % of the photo)
+    request.maximumObservations = 6
     let handler = VNImageRequestHandler(ciImage: photo, options: [:])
     try? handler.perform([request])
     var result = photo
-    if let r = request.results?.first, let filter = CIFilter(name: "CIPerspectiveCorrection") {
+    let sheet = (request.results ?? []).max(by: { simpleCameraArea(simpleCameraCorners($0)) < simpleCameraArea(simpleCameraCorners($1)) })
+    if let r = sheet, simpleCameraArea(simpleCameraCorners(r)) >= 0.4, let filter = CIFilter(name: "CIPerspectiveCorrection") {
         let e = photo.extent
         func point(_ p: CGPoint) -> CIVector {
             return CIVector(x: e.minX + p.x * e.width, y: e.minY + p.y * e.height)

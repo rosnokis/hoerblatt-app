@@ -206,6 +206,11 @@ fileprivate let appStatePhotoHint =
         announce(m.announcement)
     }
 
+    /// Ends reading the whole page on every open page but `keep` (two pages side by side share one voice).
+    func endPageReading(except keep: PageController) {
+        for c in openControllers where c !== keep { c.endPageReading() }
+    }
+
     /// Picks a tool without saying its name (the caller says what to do).
     func setModeQuietly(_ m: Mode) {
         changeMode(m)
