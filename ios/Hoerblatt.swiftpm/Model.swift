@@ -47,6 +47,9 @@ struct Gap: Codable, Identifiable, Hashable {
     var endsSentence: Bool
     /// The gap stands within a line of text (false: a line on its own, e.g. for writing a whole sentence).
     var inText: Bool
+    /// Further writing lines right below that belong to the same answer (one field, one tone):
+    /// "Ich vermute, dass ____" and the free lines under it.
+    var more: [CGRect]? = nil
 }
 
 /// A printed box (frame) around one or more words; its words are read together.

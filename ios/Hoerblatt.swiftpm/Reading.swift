@@ -151,6 +151,14 @@ struct Reading {
     /// Index in `page.gaps` of the gap under the finger (first one, as in the JS).
     func gapAt(_ p: CGPoint) -> Int? {
         for (k, g) in page.gaps.enumerated() {
+            // (the further lines of an answer over several lines catch the finger too)
+            for extra in g.more ?? [] {
+                let h = extra.height
+                if p.x >= extra.minX - h * 0.2 && p.x <= extra.maxX + h * 0.2 && p.y >= extra.minY - h * 0.3
+                    && p.y <= extra.maxY + h * 0.5 {
+                    return k
+                }
+            }
             let b = g.rect
             // a tall field must not catch taps far above or below it
             let h: CGFloat = g.kind != .line ? min(b.height, textSize) : b.height
@@ -254,6 +262,13 @@ struct Reading {
         let fs = textSize
         let height = fs * 1.5
         let x = readingClamp(g.minX, 0, pageW - 120)
+        if let more = page.gaps[index].more, let last = more.last {
+            // one field over all lines: from the first line to the last, as wide as the widest line
+            let y = readingClamp(g.maxY - fs * 1.45, 0, pageH - fs * 2)
+            let right = max(g.maxX, more.map { $0.maxX }.max() ?? g.maxX)
+            let w = min(max(right - x, fs * 3.2), pageW - x)
+            return CGRect(x: x, y: y, width: w, height: max(height, last.maxY - y))
+        }
         if page.gaps[index].kind == .box {
             let inset = max(0, (g.height - fs * 1.45) / 2)
             let y = readingClamp(g.minY + inset, 0, pageH - fs * 2)

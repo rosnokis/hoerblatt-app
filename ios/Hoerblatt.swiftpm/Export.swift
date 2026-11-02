@@ -391,8 +391,17 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 /// Room for an answer in a table cell or field: from the field's top to the bottom of its box (nil: no box, the
 /// field grows freely).
 func answerRoom(_ a: Answer, in page: Page) -> CGFloat? {
-    guard let gid = a.gap, let g = page.gaps.first(where: { $0.id == gid }), g.kind == .box else { return nil }
-    let room = g.rect.maxY - a.rect.minY
+    guard let gid = a.gap, let g = page.gaps.first(where: { $0.id == gid }) else { return nil }
+    // a box, or writing lines over several rows: the answer has to fit down to the last line
+    let bottom: CGFloat
+    if let last = g.more?.last {
+        bottom = last.maxY
+    } else if g.kind == .box {
+        bottom = g.rect.maxY
+    } else {
+        return nil
+    }
+    let room = bottom - a.rect.minY
     return room > 0 ? room : nil
 }
 

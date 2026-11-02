@@ -127,6 +127,7 @@ enum PageReport {
             var d: [String: Any] = ["kind": g.kind.rawValue, "r": hearingRect(g.rect), "inText": g.inText,
                                     "ends": g.endsSentence]
             if let h = g.head { d["head"] = h }
+            if let more = g.more, !more.isEmpty { d["more"] = more.map { hearingRect($0) } }
             return d
         }
         // every sentence once, as the Satz button reads it ("*" = tone)

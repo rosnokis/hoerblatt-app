@@ -1504,8 +1504,38 @@ fileprivate final class LAEngine {
             if !w.junk && w.bx >= 0, let n = newIndex[w.bx] { wordBox[w.id] = n }
         }
 
+        // writing lines stacked under each other are one answer (teacher: one big field, not one per line) – also a
+        // line after text ("Ich vermute, dass ____") with the free lines below it. A line with text of its own beside it
+        // ("weil ____") or printed text between two lines starts a new answer.
+        var merged = Set<Int>()
+        var moreOf: [Int: [Int]] = [:]
+        let lineGaps = gaps.indices.filter { gaps[$0].y0 == nil && !gaps[$0].check }.sorted { gaps[$0].y < gaps[$1].y }
+        for a in lineGaps where !merged.contains(a) {
+            // a blank in the middle of a sentence ("Das Werkzeug ____ hilft mir …") is an answer of its own
+            let first = gaps[a]
+            let textAfter = words.contains { w in
+                !w.junk && w.x0 > first.x1 && abs(w.y1 - first.y) < max(first.h, mh) * 0.8
+            }
+            if textAfter { continue }
+            var last = first
+            for b in lineGaps where b != a && !merged.contains(b) && moreOf[b] == nil {
+                let g = gaps[b]
+                if g.hasLi { continue }
+                let dy = g.y - last.y
+                guard dy > mh * 0.8, dy < mh * 3.2 else { continue }
+                guard g.x0 <= last.x0 + mh, g.x1 >= last.x1 - mh * 2 else { continue }
+                let between = words.contains { w in
+                    !w.junk && w.cy > last.y && w.cy < g.y - mh * 0.2 && w.x1 > g.x0 && w.x0 < g.x1
+                }
+                if between { continue }
+                moreOf[a, default: []].append(b)
+                merged.insert(b)
+                last = g
+            }
+        }
+
         var outGaps: [Gap] = []
-        for g in gaps {
+        for (gi, g) in gaps.enumerated() where !merged.contains(gi) {
             let kind: GapKind
             let rect: CGRect
             if g.check, let y0 = g.y0 {
@@ -1519,7 +1549,13 @@ fileprivate final class LAEngine {
                 kind = .line
                 rect = laCGRect(g.x0, g.y - g.h, g.x1, g.y)
             }
-            outGaps.append(Gap(id: UUID(), kind: kind, rect: rect, head: g.head, endsSentence: g.end, inText: g.hasLi))
+            var gap = Gap(id: UUID(), kind: kind, rect: rect, head: g.head, endsSentence: g.end, inText: g.hasLi)
+            if let below = moreOf[gi], !below.isEmpty {
+                gap.more = below.map { laCGRect(gaps[$0].x0, gaps[$0].y - gaps[$0].h, gaps[$0].x1, gaps[$0].y) }
+                // (a full stop after the last line ends the sentence)
+                if let lastLine = below.last, gaps[lastLine].end { gap.endsSentence = true }
+            }
+            outGaps.append(gap)
         }
 
         var outWords = input

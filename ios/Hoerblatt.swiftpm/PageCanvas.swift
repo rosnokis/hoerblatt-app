@@ -368,8 +368,9 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
                 switch g.kind {
                 case .line:
                     // the rect ends on the writing line; a little below it the line stays visible inside
-                    gapRects.append(CGRect(x: g.rect.minX, y: g.rect.minY, width: g.rect.width,
-                                           height: g.rect.height + th * 0.08))
+                    for r in [g.rect] + (g.more ?? []) {
+                        gapRects.append(CGRect(x: r.minX, y: r.minY, width: r.width, height: r.height + th * 0.08))
+                    }
                 case .box:
                     gapRects.append(g.rect)
                 case .check:
