@@ -199,7 +199,7 @@ struct FinishView: View {
                 .contextMenu {
                     if canShare, let url = app.finishPagePDF {
                         ShareLink(item: url, preview: SharePreview("Hörblatt", image: picture)) {
-                            SwiftUI.Label("Teilen", systemImage: "square.and.arrow.up")
+                            SwiftUI.Label("Teilen mit AirDrop", systemImage: "airdrop")
                         }
                     }
                 }
@@ -313,16 +313,23 @@ struct FinishView: View {
         .accessibilityLabel(Text(caption))
     }
 
-    /// The big share button's face.
+    /// The big share button's face: what is shared, its name, and the AirDrop sign in a white circle – the child
+    /// cannot read "Teilen", but finds the same sign in the share menu next (teacher's wish).
     private func shareLabel(_ symbol: String, _ title: String, _ color: Color) -> some View {
         HStack(spacing: 16) {
             SwiftUI.Image(systemName: symbol)
                 .font(.system(size: 36, weight: .bold))
             Text(title)
                 .font(.system(size: 34, weight: .bold, design: .rounded))
+            SwiftUI.Image(systemName: "airdrop")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundColor(color)
+                .frame(width: 64, height: 64)
+                .background(Circle().fill(Color.white))
         }
         .foregroundColor(.white)
-        .padding(.horizontal, 40)
+        .padding(.leading, 40)
+        .padding(.trailing, 16)
         .frame(minWidth: 260)
         .frame(height: 96)
         .background(Capsule().fill(color))
