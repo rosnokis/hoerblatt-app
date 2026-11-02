@@ -24,6 +24,7 @@ struct SettingsView: View {
             Form {
                 readingSection
                 pageSection
+                HandinSettingsSection(handin: app.handin)
                 answerSection
                 mappeSection
                 trashSection
@@ -117,11 +118,12 @@ struct SettingsView: View {
             Toggle("Lücken markieren", isOn: $app.settings.markGaps)
             Toggle("Foto-Hinweis vor der Kamera", isOn: $app.settings.photoHelp)
             Toggle("Apples Dokument-Kamera verwenden", isOn: $app.settings.appleCamera)
-            Toggle("Vor dem Abschicken der Lehrkraft zeigen", isOn: $app.settings.showTeacherFirst)
+            Toggle("Vor dem Abgeben der Lehrkraft zeigen", isOn: $app.settings.showTeacherFirst)
+            Toggle("AirDrop-Knöpfe bei „Fertig“", isOn: $app.settings.airDrop)
         } header: {
             Text("Blatt und Foto")
         } footer: {
-            Text("Wort-Umrandungen: dünne Rahmen um erkannte Wörter. Kästen zusammen: Ein Wort in einem gedruckten Kasten liest den ganzen Kasten, dasselbe Wort noch einmal angetippt nur dieses Wort. Lücken markieren: Schreiblinien und Kästchen lila zeigen. Foto-Hinweis: kurze Bildanleitung (Heft flach, iPad gerade darüber, ganzes Blatt) vor jedem Foto. Der Lehrkraft zeigen: Bei „Fertig“ erscheint zuerst ein Daumen-Knopf; erst danach kann das Kind teilen. Kamera: Normal nimmt das Hörblatt seine eigene, einfache Kamera (löst von selbst aus, sobald das Blatt ruhig im Bild ist, großer Knopf, kein „Sichern“). Apples Dokument-Kamera braucht „Behalten“ und „Sichern“.")
+            Text("Wort-Umrandungen: dünne Rahmen um erkannte Wörter. Kästen zusammen: Ein Wort in einem gedruckten Kasten liest den ganzen Kasten, dasselbe Wort noch einmal angetippt nur dieses Wort. Lücken markieren: Schreiblinien und Kästchen lila zeigen. Foto-Hinweis: kurze Bildanleitung (Heft flach, iPad gerade darüber, ganzes Blatt) vor jedem Foto. Der Lehrkraft zeigen: Bei „Fertig“ erscheint zuerst ein Daumen-Knopf; erst danach kann das Kind abgeben. AirDrop-Knöpfe: kleine Knöpfe unter „Abgeben“, um die PDF zusätzlich per AirDrop zu schicken. Kamera: Normal nimmt das Hörblatt seine eigene, einfache Kamera (löst von selbst aus, sobald das Blatt ruhig im Bild ist, großer Knopf, kein „Sichern“). Apples Dokument-Kamera braucht „Behalten“ und „Sichern“.")
         }
     }
 
@@ -346,11 +348,11 @@ struct SettingsView: View {
             SettingsStepRow(number: nil, symbol: "pencil.tip", color: SettingsStyle.slate, title: "Stift",
                             text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Radiergummi: Antworten, Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nimmt den letzten Schritt zurück.")
             SettingsStepRow(number: "5", symbol: "checkmark.square.fill", color: SettingsStyle.blue, title: "Fertig",
-                            text: "Das Blatt mit allen Antworten, Markierungen und Stiftstrichen als PDF. Das Kind zeigt es zuerst der Lehrkraft und tippt auf den Daumen. Danach geht es über „Teilen“ per AirDrop an die Lehrkraft. Gibt es heute mehrere fotografierte Seiten, kommt „Alle von heute“ dazu: alle zusammen in einer PDF.")
+                            text: "Das Blatt mit allen Antworten, Markierungen und Stiftstrichen. Das Kind zeigt es zuerst der Lehrkraft und tippt auf den Daumen. Dann tippt es auf „Abgeben“: Die PDF wird im Abgabe-Ordner auf diesem iPad gespeichert (neue Datei mit Datum und Uhrzeit; auf einer Heftseite das ganze Heft). Darunter, wenn eingeschaltet, kleine AirDrop-Knöpfe: diese Seite, das ganze Heft oder „Alle von heute“ (alle heute fotografierten Seiten in einer PDF).")
             SettingsStepRow(number: nil, symbol: "folder.fill", color: SettingsStyle.teal, title: "Mappe und zwei Seiten",
                             text: "Jede Seite bleibt in der Mappe (Ordner oben links). Oben in der Leiste stehen die letzten Seiten: ein Tipp wechselt die Seite. Im Querformat zeigt der Knopf mit den zwei Rechtecken zwei Seiten nebeneinander, z. B. links das Buch und rechts das Arbeitsblatt. Die zuletzt berührte Seite hat einen türkisen Rahmen; eine Seite aus der Mappe oder der Leiste öffnet sich dort. Löschen: eine Seite in der Mappe oder in der Leiste lange drücken, dann der rote Papierkorb.")
             SettingsStepRow(number: nil, symbol: "book.fill", color: SettingsStyle.teal, title: "Heft (PDF)",
-                            text: "Eine PDF (z. B. ein Ermittlerheft) per AirDrop aufs iPad schicken oder in der Dateien-App ablegen. In der Mappe „PDF öffnen“ tippen und die Datei wählen. Die erste Seite wird sofort gelesen und geöffnet, die übrigen liest das Hörblatt im Hintergrund weiter (kleiner Kreisel unter der Seite, geht auch nach einem Neustart weiter). Blättert das Kind zu einer noch nicht gelesenen Seite, kommt sie sofort dran. Das Heft liegt danach als ein Eintrag in der Mappe und öffnet sich auf der zuletzt bearbeiteten Seite; unten blättern große Pfeile. Bei „Fertig“ kann das Kind diese Seite oder das ganze Heft als PDF teilen.")
+                            text: "Eine PDF (z. B. ein Ermittlerheft) per AirDrop aufs iPad schicken oder in der Dateien-App ablegen. In der Mappe „PDF öffnen“ tippen und die Datei wählen. Die erste Seite wird sofort gelesen und geöffnet, die übrigen liest das Hörblatt im Hintergrund weiter (kleiner Kreisel unter der Seite, geht auch nach einem Neustart weiter). Blättert das Kind zu einer noch nicht gelesenen Seite, kommt sie sofort dran. Das Heft liegt danach als ein Eintrag in der Mappe und öffnet sich auf der zuletzt bearbeiteten Seite; unten blättern große Pfeile. Bei „Fertig“ gibt das Kind das ganze Heft als PDF ab; per AirDrop geht auch nur diese Seite.")
         } header: {
             Text("So geht es")
         } footer: {
@@ -361,21 +363,19 @@ struct SettingsView: View {
     @MainActor
     private var sharingSection: some View {
         Section {
-            Text("Auf dem Lehrer-iPad: Einstellungen → Allgemein → AirDrop → „Für alle für 10 Minuten“ (oder im Kontrollzentrum lange auf die Verbindungen drücken → AirDrop).")
+            Text("Normal gibt das Kind mit „Abgeben“ ab: Die PDF liegt danach im Abgabe-Ordner (siehe oben) in der Dateien-App dieses iPads.")
                 .font(.callout)
-            Text("Das Kind tippt auf 5 Fertig, dann auf „Teilen“, dann auf AirDrop und auf das Lehrer-iPad. Erscheint auf dem Lehrer-iPad ein Code, gibt das Kind ihn ein.")
-                .font(.callout)
-            Text("Ohne AirDrop: Die Lehrkraft schaut direkt auf das iPad. Die Antworten bleiben in der Mappe gespeichert.")
+            Text("Zusätzlich per AirDrop: Auf dem Lehrer-iPad Einstellungen → Allgemein → AirDrop → „Für alle für 10 Minuten“. Das Kind tippt bei „Fertig“ auf einen kleinen Knopf mit dem AirDrop-Zeichen, dann auf AirDrop und auf das Lehrer-iPad. Erscheint ein Code, gibt das Kind ihn ein.")
                 .font(.callout)
         } header: {
-            Text("Abgabe mit AirDrop")
+            Text("Abgabe und AirDrop")
         }
     }
 
     @MainActor
     private var privacySection: some View {
         Section {
-            Text("Fotos, Antworten, Markierungen und Stiftstriche bleiben auf diesem iPad (ohne iCloud-Sicherung). Die Texterkennung läuft auf dem Gerät; es wird nichts hochgeladen.")
+            Text("Fotos, Antworten, Markierungen und Stiftstriche bleiben auf diesem iPad (ohne iCloud-Sicherung). Die Texterkennung läuft auf dem Gerät; es wird nichts hochgeladen. Abgegebene PDFs liegen in dem Ordner, den Sie gewählt haben – ist das ein Cloud-Ordner, auch dort.")
                 .font(.callout)
             Text("Ausnahme: Gesprochene Antworten erkennt Apple wie beim Tastatur-Diktat. Kann das iPad die Sprache nicht selbst erkennen, geschieht das gegebenenfalls auf Servern von Apple.")
                 .font(.callout)

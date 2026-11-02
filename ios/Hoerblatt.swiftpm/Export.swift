@@ -143,12 +143,15 @@ extension Exporter {
 // MARK: - Fertig view
 
 /// Big preview, first a yellow thumb "Gezeigt" (the teacher has seen it, can be switched off), then the big blue
-/// "Teilen" (→ AirDrop); back arrow. Spoken on appearing.
+/// "Abgeben" (PDF saved into the teacher's folder on this iPad, `HandinFolder`), small AirDrop buttons as an option;
+/// back arrow. Spoken on appearing.
 struct FinishView: View {
     @ObservedObject var app: AppState
     let image: UIImage
     /// The child has shown the picture to the teacher (thumb tapped); only then sharing is offered.
     @State private var shown = false
+    /// What became of "Abgeben" (nil: not handed in yet).
+    @State private var handedIn: HandinResult? = nil
 
     private var canShare: Bool { shown || !app.settings.showTeacherFirst }
 
@@ -197,7 +200,7 @@ struct FinishView: View {
                 .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
                 // (pressing long on the picture shares too, once the teacher has seen it)
                 .contextMenu {
-                    if canShare, let url = app.finishPagePDF {
+                    if canShare, app.settings.airDrop, let url = app.finishPagePDF {
                         ShareLink(item: url, preview: SharePreview("Hörblatt", image: picture)) {
                             SwiftUI.Label("Teilen mit AirDrop", systemImage: "airdrop")
                         }
@@ -210,7 +213,7 @@ struct FinishView: View {
                 // first step: show the picture to the teacher, then the thumb
                 Button(action: {
                     shown = true
-                    app.say(shareHint)
+                    app.say("Tippe auf Abgeben.")
                 }) {
                     HStack(spacing: 16) {
                         SwiftUI.Image(systemName: "hand.thumbsup.fill")
@@ -228,34 +231,12 @@ struct FinishView: View {
                 }
                 .buttonStyle(ExportPressStyle())
                 .accessibilityLabel(Text("Der Lehrkraft gezeigt"))
-            } else if let heft = app.finishHeft {
-                // a page of a Heft: this page or the whole Heft, both as a PDF
-                HStack(spacing: 24) {
-                    pageButton(picture, title: "Diese Seite", symbol: "doc.fill")
-                    if let url = app.finishHeftPDF {
-                        ShareLink(item: url, preview: SharePreview(heft.title)) {
-                            shareLabel("book.fill", "Ganzes Heft", ExportStyle.teal)
-                        }
-                        .buttonStyle(ExportPressStyle())
-                        .accessibilityLabel(Text("Ganzes Heft teilen, dann AirDrop"))
-                    } else {
-                        waiting("Heft …", caption: "Das Heft wird vorbereitet")
-                    }
-                }
             } else {
-                // a photographed page as a PDF; with more pages from today also all of them in one PDF
-                HStack(spacing: 24) {
-                    pageButton(picture, title: "Teilen", symbol: "square.and.arrow.up")
-                    if app.finishTodayCount >= 2 {
-                        if let url = app.finishTodayPDF {
-                            ShareLink(item: url, preview: SharePreview("Alle Seiten von heute")) {
-                                shareLabel("square.stack.fill", "Alle von heute", ExportStyle.teal)
-                            }
-                            .buttonStyle(ExportPressStyle())
-                            .accessibilityLabel(Text("Alle Seiten von heute teilen, dann AirDrop"))
-                        } else {
-                            waiting("Heute …", caption: "Die Seiten von heute werden vorbereitet")
-                        }
+                // handing in = a PDF saved on the iPad (teacher's folder); AirDrop only as an option below
+                VStack(spacing: 16) {
+                    handinButton
+                    if app.settings.airDrop {
+                        airDropRow
                     }
                 }
             }
@@ -265,34 +246,118 @@ struct FinishView: View {
         .background(ExportStyle.background.ignoresSafeArea())
         .onAppear {
             if canShare {
-                app.say("Fertig. " + shareHint)
+                app.say("Fertig. Tippe auf Abgeben.")
             } else {
                 app.say("Fertig. Zeig das Bild deiner Lehrkraft. Dann tippe auf den Daumen.")
             }
         }
     }
 
-    private var shareHint: String {
-        if app.finishHeft != nil {
-            return "Tippe auf Diese Seite oder auf Ganzes Heft. Dann auf AirDrop."
-        }
-        if app.finishTodayCount >= 2 {
-            return "Tippe auf Teilen. Oder auf Alle von heute. Dann auf AirDrop."
-        }
-        return "Tippe auf Teilen und dann auf AirDrop."
+    /// What "Abgeben" saves: a Heft page hands in the whole Heft, a photographed page itself.
+    private var handinSource: URL? {
+        return app.finishHeft != nil ? app.finishHeftPDF : app.finishPagePDF
     }
 
-    /// This page as a PDF (made when Fertig opened).
+    /// The big blue "Abgeben"; once saved a green "Abgegeben" (one hand-in per Fertig).
     @ViewBuilder
-    private func pageButton(_ picture: SwiftUI.Image, title: String, symbol: String) -> some View {
-        if let url = app.finishPagePDF {
-            ShareLink(item: url, preview: SharePreview("Hörblatt", image: picture)) {
-                shareLabel(symbol, title, ExportStyle.blue)
+    private var handinButton: some View {
+        if let result = handedIn, result != .failed {
+            HStack(spacing: 16) {
+                SwiftUI.Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 40, weight: .bold))
+                Text("Abgegeben")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 48)
+            .frame(minWidth: 320)
+            .frame(height: 104)
+            .background(Capsule().fill(ExportStyle.green))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Abgegeben"))
+        } else if let url = handinSource {
+            Button(action: { handIn(url) }) {
+                HStack(spacing: 16) {
+                    SwiftUI.Image(systemName: "tray.and.arrow.down.fill")
+                        .font(.system(size: 40, weight: .bold))
+                    Text("Abgeben")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 48)
+                .frame(minWidth: 320)
+                .frame(height: 104)
+                .background(Capsule().fill(ExportStyle.blue))
+                .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
             }
             .buttonStyle(ExportPressStyle())
-            .accessibilityLabel(Text(title + " teilen, dann AirDrop"))
+            .accessibilityLabel(Text("Abgeben: als PDF auf dem iPad speichern"))
         } else {
-            waiting(title + " …", caption: "Die Seite wird vorbereitet")
+            waiting("Abgeben …", caption: app.finishHeft != nil ? "Das Heft wird vorbereitet" : "Die Seite wird vorbereitet")
+        }
+    }
+
+    private func handIn(_ url: URL) {
+        let result = app.handin.save(url, title: app.finishTitle)
+        handedIn = result
+        switch result {
+        case .folder, .app:
+            app.say("Abgegeben. Gut gemacht!")
+        case .failed:
+            app.say("Das Speichern hat nicht geklappt. Frag deine Lehrkraft.")
+        }
+    }
+
+    /// Optional: small AirDrop buttons (this page, the whole Heft, all pages of today).
+    private var airDropRow: some View {
+        HStack(spacing: 14) {
+            SwiftUI.Image(systemName: "airdrop")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(ExportStyle.slate)
+                .accessibilityHidden(true)
+            if let heft = app.finishHeft {
+                smallShare(app.finishPagePDF, title: "Diese Seite", symbol: "doc.fill", preview: "Hörblatt")
+                smallShare(app.finishHeftPDF, title: "Ganzes Heft", symbol: "book.fill", preview: heft.title)
+            } else {
+                smallShare(app.finishPagePDF, title: "Diese Seite", symbol: "doc.fill", preview: "Hörblatt")
+                if app.finishTodayCount >= 2 {
+                    smallShare(app.finishTodayPDF, title: "Alle von heute", symbol: "square.stack.fill",
+                               preview: "Alle Seiten von heute")
+                }
+            }
+        }
+    }
+
+    /// A small white share button with the AirDrop sign; a spinner while its PDF is still being made.
+    @ViewBuilder
+    private func smallShare(_ url: URL?, title: String, symbol: String, preview: String) -> some View {
+        if let url = url {
+            ShareLink(item: url, preview: SharePreview(preview)) {
+                HStack(spacing: 8) {
+                    SwiftUI.Image(systemName: symbol)
+                    Text(title)
+                    SwiftUI.Image(systemName: "airdrop")
+                }
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .foregroundColor(ExportStyle.blue)
+                .padding(.horizontal, 18)
+                .frame(height: 52)
+                .background(Capsule().fill(Color.white))
+                .overlay(Capsule().stroke(ExportStyle.blue.opacity(0.5), lineWidth: 2))
+            }
+            .buttonStyle(ExportPressStyle())
+            .accessibilityLabel(Text(title + " mit AirDrop senden"))
+        } else {
+            HStack(spacing: 8) {
+                ProgressView()
+                Text(title)
+            }
+            .font(.system(size: 20, weight: .semibold, design: .rounded))
+            .foregroundColor(ExportStyle.slate)
+            .padding(.horizontal, 18)
+            .frame(height: 52)
+            .background(Capsule().fill(Color.white))
+            .accessibilityLabel(Text(title + " wird vorbereitet"))
         }
     }
 
@@ -312,29 +377,6 @@ struct FinishView: View {
         .overlay(Capsule().stroke(ExportStyle.slate.opacity(0.4), lineWidth: 3))
         .accessibilityLabel(Text(caption))
     }
-
-    /// The big share button's face: what is shared, its name, and the AirDrop sign in a white circle – the child
-    /// cannot read "Teilen", but finds the same sign in the share menu next (teacher's wish).
-    private func shareLabel(_ symbol: String, _ title: String, _ color: Color) -> some View {
-        HStack(spacing: 16) {
-            SwiftUI.Image(systemName: symbol)
-                .font(.system(size: 36, weight: .bold))
-            Text(title)
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-            SwiftUI.Image(systemName: "airdrop")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundColor(color)
-                .frame(width: 64, height: 64)
-                .background(Circle().fill(Color.white))
-        }
-        .foregroundColor(.white)
-        .padding(.leading, 40)
-        .padding(.trailing, 16)
-        .frame(minWidth: 260)
-        .frame(height: 96)
-        .background(Capsule().fill(color))
-        .shadow(color: Color.black.opacity(0.22), radius: 8, x: 0, y: 4)
-    }
 }
 
 // MARK: - Helpers
@@ -347,6 +389,7 @@ fileprivate enum ExportStyle {
     static let background = Color(red: 238.0 / 255, green: 241.0 / 255, blue: 236.0 / 255)
     static let ink = Color(red: 30.0 / 255, green: 41.0 / 255, blue: 59.0 / 255)
     static let thumb = Color(red: 253.0 / 255, green: 230.0 / 255, blue: 138.0 / 255)
+    static let green = Color(red: 22.0 / 255, green: 163.0 / 255, blue: 74.0 / 255)
 }
 
 /// Answer fields look as on the screen (PageCanvas): light purple, purple edge, blue rounded writing.

@@ -290,10 +290,12 @@ struct AppSettings: Codable, Equatable {
     var photoHelp: Bool = false
     var markColor: MarkColor = .gelb
     var penColor: PenColor = .blau
-    /// Fertig: first show the picture to the teacher (thumb), only then "Teilen" appears.
+    /// Fertig: first show the picture to the teacher (thumb), only then "Abgeben" appears.
     var showTeacherFirst: Bool = true
     /// Apple's document camera (Keep/Save) instead of the Hörblatt's own simple camera.
     var appleCamera: Bool = false
+    /// Fertig: small AirDrop buttons below "Abgeben" (handing in saves a PDF on the iPad; AirDrop is optional).
+    var airDrop: Bool = true
 
     private static let key = "hoerblatt.settings"
 
@@ -313,7 +315,7 @@ struct AppSettings: Codable, Equatable {
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case rate, announce, outlines, boxesTogether, markGaps, mic, tone, markColor, penColor, showTeacherFirst
-        case appleCamera
+        case appleCamera, airDrop
         // (a new key: the guide was on everywhere before; the teacher wants it off – the camera explains itself)
         case photoHelp = "photoGuide"
     }
@@ -334,6 +336,7 @@ extension AppSettings {
         penColor = (try? c.decodeIfPresent(PenColor.self, forKey: .penColor)) ?? penColor
         showTeacherFirst = try c.decodeIfPresent(Bool.self, forKey: .showTeacherFirst) ?? showTeacherFirst
         appleCamera = try c.decodeIfPresent(Bool.self, forKey: .appleCamera) ?? appleCamera
+        airDrop = try c.decodeIfPresent(Bool.self, forKey: .airDrop) ?? airDrop
     }
 }
 

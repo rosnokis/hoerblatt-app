@@ -103,6 +103,8 @@ fileprivate let appStatePhotoHint =
     @Published var finishPagePDF: URL? = nil
     @Published var finishTodayPDF: URL? = nil
     @Published var finishTodayCount: Int = 0
+    /// Name of the open page for the hand-in file (a Heft: its title).
+    @Published var finishTitle: String = ""
     /// Pages of a Heft being read in the background (small spinner under the page).
     @Published var heftProgress: HeftProgress? = nil
     @Published var photoProblem: PhotoProblem? = nil
@@ -112,6 +114,8 @@ fileprivate let appStatePhotoHint =
     let store: PageStore
     let speaker: Speaker
     let listener: Listener
+    /// Abgabe: the folder the finished PDFs are saved into.
+    let handin: HandinFolder
 
     private var bag = Set<AnyCancellable>()
     /// Set while this class itself opens or closes a sheet (no re-planning then).
@@ -144,6 +148,7 @@ fileprivate let appStatePhotoHint =
         store = PageStore()
         speaker = Speaker()
         listener = Listener()
+        handin = HandinFolder()
         speaker.rate = settings.rate
         speaker.tone = settings.tone
 
@@ -465,6 +470,7 @@ fileprivate let appStatePhotoHint =
         var title = c.page.title
         if let h = finishHeft, let n = h.number(of: c.id) { title = h.title + " Seite \(n + 1)" }
         finishPagePDF = Exporter.pagePDF(picture, title: title)
+        finishTitle = finishHeft?.title ?? c.page.title
         finishTodayCount = finishHeft == nil ? Exporter.todayCount(app: self) : 0
         presentSoon(.finish)
         if let h = finishHeft {
