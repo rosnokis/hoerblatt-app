@@ -180,8 +180,7 @@ struct Reading {
             if let lines = page.answerLines(a) {
                 // an answer over several writing lines: only its bands, not the box around them (a tap under the
                 // field or on the printed text before the first line is not the answer)
-                let rows = answerRowsEstimate(a.text, lines: lines, textHeight: textSize)
-                for band in answerBands(lines, rows: rows, textHeight: textSize)
+                for band in answerFieldBands(a.text, lines: lines, textHeight: textSize)
                 where band.insetBy(dx: -pad, dy: -pad).contains(p) {
                     return k
                 }
@@ -952,16 +951,25 @@ func answerBands(_ lines: [CGRect], rows: Int, textHeight th: CGFloat) -> [CGRec
     return out
 }
 
-/// About how many rows an answer on writing lines needs (the screen measures the letters; this is for tapping):
-/// the writing gets smaller down to half before it needs more rows than there are lines.
-func answerRowsEstimate(_ text: String, lines: [CGRect], textHeight th: CGFloat) -> Int {
-    var left = CGFloat(readingTrim(text).count)
-    // (half the writing size: about a quarter text height per letter)
-    let perLetter = max(1, th * 1.1 * 0.5 * 0.5)
-    var rows = 0
-    while left > 0 && rows < 200 {
-        left -= max(1, (answerLine(lines, rows).width / perLetter).rounded(.down))
-        rows += 1
+/// Distance of the rows when a long answer fills its field (`answerLineLayout`).
+func answerRowPitch(_ fontSize: CGFloat) -> CGFloat {
+    return fontSize * 1.3
+}
+
+/// The field of an answer on writing lines, for tapping (the screen measures the letters, this estimates): the
+/// bands over the lines; only an answer too long even at half size, rows filling the whole field, reaches further.
+func answerFieldBands(_ text: String, lines: [CGRect], textHeight th: CGFloat) -> [CGRect] {
+    var bands = answerBands(lines, rows: lines.count, textHeight: th)
+    guard let first = bands.first, let last = bands.last else { return bands }
+    let small = th * 1.1 * 0.5
+    let pitch = answerRowPitch(small)
+    let rows = 1 + max(0, ((last.maxY - first.maxY) / pitch).rounded(.down))
+    let width = max(1, bands.map { $0.width }.reduce(0, +) / CGFloat(bands.count) - th * 0.3)
+    // (about half a letter height per letter)
+    let perRow = max(1, (width / (small * 0.55)).rounded(.down))
+    let needed = (CGFloat(readingTrim(text).count) / perRow).rounded(.up)
+    if needed > rows {
+        bands[bands.count - 1].size.height += (needed - rows) * pitch
     }
-    return max(lines.count, rows)
+    return bands
 }

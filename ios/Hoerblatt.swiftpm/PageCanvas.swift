@@ -1283,7 +1283,7 @@ fileprivate final class PageCanvasAnswerField: UIView {
         let font = PageCanvasAnswerField.answerFont(layout.fontSize)
         rowsView.font = font
         rowsView.rows = layout.rows.map { row in
-            (text: row.text, origin: answerRowOrigin(row.line, font: font, textHeight: th).applying(move))
+            (text: row.text, origin: row.origin.applying(move))
         }
         rowsView.setNeedsDisplay()
     }

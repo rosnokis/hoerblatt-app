@@ -464,7 +464,7 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
     let font = exportAnswerFont(layout.fontSize)
     let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ExportPalette.answerInk]
     for row in layout.rows {
-        (row.text as NSString).draw(at: answerRowOrigin(row.line, font: font, textHeight: th), withAttributes: attributes)
+        (row.text as NSString).draw(at: row.origin, withAttributes: attributes)
     }
 }
 
@@ -482,57 +482,110 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 
 // MARK: - Answer size (screen and picture)
 
-/// An answer written onto writing lines (an answer over several lines): each row of text on its line, and the
-/// field around them (`answerBands`). Screen and finished picture use the same.
+/// An answer over several writing lines (screen and finished picture use the same): its rows of text and the
+/// field around them (`answerBands`).
 struct AnswerLineLayout {
     var fontSize: CGFloat
-    /// The text of each row and the writing line it stands on.
-    var rows: [(text: String, line: CGRect)]
+    /// Each row of text and where it is drawn (top left corner, as `draw(at:)` takes it).
+    var rows: [(text: String, origin: CGPoint)]
     var bands: [CGRect]
     var frame: CGRect { return bands.reduce(CGRect.null) { $0.union($1) } }
 }
 
-/// Wraps the answer onto its lines: normal size if it fits, else smaller (down to half, as in a table cell);
-/// beyond that more rows below the last line.
+/// A short answer stands on the writing lines, as if written by hand (normal size or a little smaller).
+/// A longer one fills the whole field row by row, close together, as large as it fits (down to half the size);
+/// only beyond that the field grows downwards. (Teacher: much room in the field stayed empty while the writing got
+/// tiny and ran over the next gap.)
 @MainActor func answerLineLayout(_ text: String, lines: [CGRect], textHeight th: CGFloat,
                                  font: @MainActor (CGFloat) -> UIFont) -> AnswerLineLayout {
     let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map { String($0) }
+    var bands = answerBands(lines, rows: lines.count, textHeight: th)
+    guard !lines.isEmpty, let first = bands.first, let last = bands.last else {
+        return AnswerLineLayout(fontSize: th * 1.1, rows: [], bands: bands)
+    }
     let base = th * 1.1
-    let smallest = base * 0.5
+    let padX = th * 0.15
+
+    // on the lines
     var size = base
-    var rows: [String] = []
+    while size >= base * 0.8 {
+        let f = font(size)
+        let rows = answerWrap(words, font: f) { i in answerLine(lines, i).width - 2 * padX }
+        if rows.count <= lines.count {
+            var placed: [(text: String, origin: CGPoint)] = []
+            for (i, row) in rows.enumerated() {
+                placed.append((text: row, origin: answerRowOrigin(lines[i], font: f, textHeight: th)))
+            }
+            return AnswerLineLayout(fontSize: size, rows: placed, bands: bands)
+        }
+        size *= 0.9
+    }
+
+    // filling the field: the first row on the first line, the others close together below it
+    size = base
     while true {
-        rows = answerWrap(words, lines: lines, padX: th * 0.15, font: font(size))
-        if rows.count <= lines.count || size <= smallest { break }
-        size = max(smallest, size * 0.9)
+        let f = font(size)
+        let pitch = answerRowPitch(size)
+        // (x range of a row: where all bands it reaches into overlap)
+        func span(_ i: Int) -> (x: CGFloat, w: CGFloat) {
+            if i == 0 { return (x: first.minX + padX, w: first.width - 2 * padX) }
+            let top = first.maxY + CGFloat(i - 1) * pitch
+            var x0 = -CGFloat.greatestFiniteMagnitude
+            var x1 = CGFloat.greatestFiniteMagnitude
+            var any = false
+            for b in bands where min(b.maxY, top + pitch) - max(b.minY, top) > pitch * 0.15 {
+                x0 = max(x0, b.minX)
+                x1 = min(x1, b.maxX)
+                any = true
+            }
+            if !any || x1 <= x0 {
+                x0 = last.minX
+                x1 = last.maxX
+            }
+            return (x: x0 + padX, w: x1 - x0 - 2 * padX)
+        }
+        let rows = answerWrap(words, font: f) { i in span(i).w }
+        let bottom = first.maxY + CGFloat(max(0, rows.count - 1)) * pitch
+        if bottom <= last.maxY + th * 0.02 || size <= base * 0.5 {
+            var placed: [(text: String, origin: CGPoint)] = []
+            for (i, row) in rows.enumerated() {
+                if i == 0 {
+                    placed.append((text: row, origin: answerRowOrigin(lines[0], font: f, textHeight: th)))
+                } else {
+                    let top = first.maxY + CGFloat(i - 1) * pitch
+                    placed.append((text: row, origin: CGPoint(x: span(i).x, y: top + (pitch - f.lineHeight) / 2)))
+                }
+            }
+            // (only a very long answer: the field grows below its last line)
+            if bottom > last.maxY {
+                bands[bands.count - 1].size.height += bottom + th * 0.1 - last.maxY
+            }
+            return AnswerLineLayout(fontSize: size, rows: placed, bands: bands)
+        }
+        size = max(base * 0.5, size * 0.92)
     }
-    var placed: [(text: String, line: CGRect)] = []
-    for (i, row) in rows.enumerated() {
-        placed.append((text: row, line: answerLine(lines, i)))
-    }
-    return AnswerLineLayout(fontSize: size, rows: placed, bands: answerBands(lines, rows: rows.count, textHeight: th))
 }
 
-/// Words into rows, row `i` as wide as writing line `i` (a word longer than its line stands alone).
-@MainActor fileprivate func answerWrap(_ words: [String], lines: [CGRect], padX: CGFloat, font: UIFont) -> [String] {
+/// Words into rows, row `i` at most `width(i)` wide (a word longer than its row stands alone).
+@MainActor fileprivate func answerWrap(_ words: [String], font: UIFont, width: (Int) -> CGFloat) -> [String] {
     let attributes: [NSAttributedString.Key: Any] = [.font: font]
     let space = (" " as NSString).size(withAttributes: attributes).width
     var rows: [String] = []
     var current = ""
     var used: CGFloat = 0
     for w in words {
-        let width = (w as NSString).size(withAttributes: attributes).width
-        let room = max(1, answerLine(lines, rows.count).width - 2 * padX)
+        let wordWidth = (w as NSString).size(withAttributes: attributes).width
+        let room = max(1, width(rows.count))
         if current.isEmpty {
             current = w
-            used = width
-        } else if used + space + width <= room {
+            used = wordWidth
+        } else if used + space + wordWidth <= room {
             current += " " + w
-            used += space + width
+            used += space + wordWidth
         } else {
             rows.append(current)
             current = w
-            used = width
+            used = wordWidth
         }
     }
     if !current.isEmpty { rows.append(current) }
