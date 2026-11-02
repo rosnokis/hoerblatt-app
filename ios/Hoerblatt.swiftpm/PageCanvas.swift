@@ -434,7 +434,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         for ans in answers {
             guard let f = fields[ans.id] else { continue }
             let active = c.activeAnswer == ans.id
-            f.update(answer: ans, room: answerRoom(ans, in: c.page), textHeight: th,
+            f.update(answer: ans, room: answerRoom(ans, in: c.page), lines: c.page.answerLines(ans), textHeight: th,
                      editable: c.keyboardAnswer == ans.id, active: active,
                      listening: anyListening && active && c.isListening(to: ans.id), erasing: mode == .radieren)
         }
@@ -1069,6 +1069,31 @@ fileprivate final class PageCanvasOverlayView: UIView {
 
 // MARK: - Answer field
 
+/// The rows of an answer written onto writing lines (each row where its line is).
+fileprivate final class PageCanvasAnswerRows: UIView {
+    var rows: [(text: String, origin: CGPoint)] = []
+    var font = UIFont.systemFont(ofSize: 12)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        contentMode = .redraw
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    override func draw(_ rect: CGRect) {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: PageCanvasPalette.answerInk]
+        for row in rows {
+            (row.text as NSString).draw(at: row.origin, withAttributes: attributes)
+        }
+    }
+}
+
 /// One answer on the page: blue text on light purple, growing downwards with its text.
 /// Only the field that should get the keyboard takes touches; all others are hit-tested by the page.
 fileprivate final class PageCanvasAnswerField: UIView {
@@ -1081,6 +1106,12 @@ fileprivate final class PageCanvasAnswerField: UIView {
     private var th: CGFloat = 20
     private var fontSize: CGFloat = 0
     private var pulsing = false
+    /// An answer over several writing lines: its lines (written onto them, the field shaped like them).
+    private var lines: [CGRect]? = nil
+    /// The field shaped like the lines (instead of the view's own background and border).
+    private let shape = CAShapeLayer()
+    /// The rows of text on the lines (instead of the text view, except while typing).
+    private let rowsView = PageCanvasAnswerRows(frame: .zero)
 
     init(answerId: UUID, delegate: UITextViewDelegate) {
         self.answerId = answerId
@@ -1108,6 +1139,15 @@ fileprivate final class PageCanvasAnswerField: UIView {
         textView.isSelectable = false
         textView.accessibilityLabel = "Antwort"
         textView.delegate = delegate
+        shape.isHidden = true
+        shape.lineJoin = .round
+        // (no implicit animations: the field follows the text at once)
+        let still = NSNull()
+        shape.actions = ["path": still, "bounds": still, "position": still, "fillColor": still, "strokeColor": still,
+                         "lineWidth": still, "hidden": still]
+        layer.insertSublayer(shape, at: 0)
+        rowsView.isHidden = true
+        addSubview(rowsView)
         addSubview(textView)
     }
 
@@ -1123,16 +1163,15 @@ fileprivate final class PageCanvasAnswerField: UIView {
         return base
     }
 
-    func update(answer: Answer, room: CGFloat?, textHeight: CGFloat, editable newEditable: Bool, active: Bool,
-                listening: Bool, erasing: Bool) {
+    func update(answer: Answer, room: CGFloat?, lines newLines: [CGRect]?, textHeight: CGFloat, editable newEditable: Bool,
+                active: Bool, listening: Bool, erasing: Bool) {
         th = max(4, textHeight)
         answerRect = answer.rect
-        // smaller in a table cell, so a long spoken answer still fits (down to half the size)
-        let size = answerFontSize(answer.text, width: answer.rect.width, limit: room, textHeight: th,
-                                  font: PageCanvasAnswerField.answerFont)
-        if size != fontSize {
-            fontSize = size
-            textView.font = PageCanvasAnswerField.answerFont(size)
+        lines = newLines
+        if newLines == nil {
+            // smaller in a table cell, so a long spoken answer still fits (down to half the size)
+            setFontSize(answerFontSize(answer.text, width: answer.rect.width, limit: room, textHeight: th,
+                                       font: PageCanvasAnswerField.answerFont))
         }
         // (not while the keyboard composes a word, and the cursor stays where it is when nothing changed)
         if textView.text != answer.text && textView.markedTextRange == nil {
@@ -1148,18 +1187,45 @@ fileprivate final class PageCanvasAnswerField: UIView {
         }
 
         let line = max(2, th * 0.06)
+        let fill = listening ? PageCanvasPalette.answerListening : PageCanvasPalette.answerBackground
+        let stroke = erasing ? PageCanvasPalette.slate : PageCanvasPalette.purple
         layer.cornerRadius = th * 0.3
-        layer.borderWidth = active ? line * 2 : line
-        layer.borderColor = (erasing ? PageCanvasPalette.slate : PageCanvasPalette.purple).cgColor
-        backgroundColor = listening ? PageCanvasPalette.answerListening : PageCanvasPalette.answerBackground
+        if lines == nil {
+            layer.borderWidth = active ? line * 2 : line
+            layer.borderColor = stroke.cgColor
+            backgroundColor = fill
+        } else {
+            // (the shape draws background and border)
+            layer.borderWidth = 0
+            backgroundColor = .clear
+            shape.fillColor = fill.cgColor
+            shape.strokeColor = stroke.cgColor
+            shape.lineWidth = active ? line * 2 : line
+        }
         layer.shadowRadius = th * 0.35
         layer.shadowOpacity = active ? 0.45 : 0
         setPulsing(listening)
         relayout()
     }
 
+    private func setFontSize(_ size: CGFloat) {
+        if size != fontSize {
+            fontSize = size
+            textView.font = PageCanvasAnswerField.answerFont(size)
+        }
+    }
+
     /// Width as stored (at least two letters), height as the text needs, never smaller than stored.
+    /// An answer over several writing lines: written onto the lines instead.
     func relayout() {
+        if let lines = lines {
+            relayoutOnLines(lines)
+            return
+        }
+        shape.isHidden = true
+        rowsView.isHidden = true
+        textView.isHidden = false
+        textView.textContainer.exclusionPaths = []
         let padX = th * 0.15
         let padY = th * 0.06
         let width = max(answerRect.width, th * 2)
@@ -1172,6 +1238,54 @@ fileprivate final class PageCanvasAnswerField: UIView {
         let textFrame = CGRect(x: padX, y: max(padY, (height - textHeight) / 2), width: innerWidth, height: textHeight)
         if textView.frame != textFrame { textView.frame = textFrame }
         layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: min(layer.cornerRadius, height / 2)).cgPath
+    }
+
+    /// One field shaped like the writing lines, each row of the answer on its line (as in the finished picture).
+    /// While typing, the text view lies over the field, kept off the printed text before the first line.
+    private func relayoutOnLines(_ lines: [CGRect]) {
+        let layout = answerLineLayout(textView.text ?? "", lines: lines, textHeight: th, font: PageCanvasAnswerField.answerFont)
+        setFontSize(layout.fontSize)
+        var box = layout.frame
+        if box.isNull || box.isEmpty { box = CGRect(x: answerRect.minX, y: answerRect.minY, width: max(1, answerRect.width), height: max(1, answerRect.height)) }
+        let padX = th * 0.15
+        let padY = th * 0.06
+        if editable {
+            let inner = CGRect(x: box.minX + padX, y: box.minY + padY, width: max(1, box.width - 2 * padX),
+                               height: max(1, box.height - 2 * padY))
+            var free: [UIBezierPath] = []
+            for band in layout.bands {
+                let left = CGRect(x: inner.minX, y: band.minY, width: band.minX + padX - inner.minX, height: band.height)
+                let right = CGRect(x: band.maxX - padX, y: band.minY, width: inner.maxX - band.maxX + padX, height: band.height)
+                for r in [left, right] where r.width > 1 {
+                    free.append(UIBezierPath(rect: r.offsetBy(dx: -inner.minX, dy: -inner.minY)))
+                }
+            }
+            textView.textContainer.exclusionPaths = free
+            let fitted = textView.sizeThatFits(CGSize(width: inner.width, height: CGFloat.greatestFiniteMagnitude))
+            let textHeight = max(inner.height, fitted.height)
+            box.size.height = max(box.height, textHeight + 2 * padY)
+            let textFrame = CGRect(x: padX, y: padY, width: inner.width, height: textHeight)
+            if textView.frame != textFrame { textView.frame = textFrame }
+        } else {
+            textView.textContainer.exclusionPaths = []
+        }
+        if frame != box { frame = box }
+        let move = CGAffineTransform(translationX: -box.minX, y: -box.minY)
+        let path = answerBandsPath(layout.bands)
+        path.apply(move)
+        shape.frame = bounds
+        shape.path = path.cgPath
+        shape.isHidden = false
+        layer.shadowPath = path.cgPath
+        textView.isHidden = !editable
+        rowsView.isHidden = editable
+        rowsView.frame = bounds
+        let font = PageCanvasAnswerField.answerFont(layout.fontSize)
+        rowsView.font = font
+        rowsView.rows = layout.rows.map { row in
+            (text: row.text, origin: answerRowOrigin(row.line, font: font, textHeight: th).applying(move))
+        }
+        rowsView.setNeedsDisplay()
     }
 
     /// The glow pulses while the app listens for this field.

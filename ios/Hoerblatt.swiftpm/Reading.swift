@@ -176,7 +176,18 @@ struct Reading {
     func answerAt(_ p: CGPoint) -> Int? {
         let pad = textSize * 0.2
         for k in page.answers.indices.reversed() {
-            let r = fieldRect(page.answers[k]).insetBy(dx: -pad, dy: -pad)
+            let a = page.answers[k]
+            if let lines = page.answerLines(a) {
+                // an answer over several writing lines: only its bands, not the box around them (a tap under the
+                // field or on the printed text before the first line is not the answer)
+                let rows = answerRowsEstimate(a.text, lines: lines, textHeight: textSize)
+                for band in answerBands(lines, rows: rows, textHeight: textSize)
+                where band.insetBy(dx: -pad, dy: -pad).contains(p) {
+                    return k
+                }
+                continue
+            }
+            let r = fieldRect(a).insetBy(dx: -pad, dy: -pad)
             if r.contains(p) { return k }
         }
         return nil
@@ -262,12 +273,10 @@ struct Reading {
         let fs = textSize
         let height = fs * 1.5
         let x = readingClamp(g.minX, 0, pageW - 120)
-        if let more = page.gaps[index].more, let last = more.last {
-            // one field over all lines: from the first line to the last, as wide as the widest line
-            let y = readingClamp(g.maxY - fs * 1.45, 0, pageH - fs * 2)
-            let right = max(g.maxX, more.map { $0.maxX }.max() ?? g.maxX)
-            let w = min(max(right - x, fs * 3.2), pageW - x)
-            return CGRect(x: x, y: y, width: w, height: max(height, last.maxY - y))
+        if let more = page.gaps[index].more, !more.isEmpty {
+            // one field over all lines (drawn as bands on the lines, see `answerBands`): the box around them
+            let lines = [g] + more
+            return answerBands(lines, rows: lines.count, textHeight: fs).reduce(CGRect.null) { $0.union($1) }
         }
         if page.gaps[index].kind == .box {
             let inset = max(0, (g.height - fs * 1.45) / 2)
@@ -318,14 +327,24 @@ struct Reading {
         return page.words.firstIndex(where: { $0.id == id })
     }
 
-    /// The answer field as it appears: it grows downwards with longer answers.
+    /// The answer field as it appears (about): it grows downwards with longer answers; in a box the writing gets
+    /// smaller first (down to half, as `answerFontSize`), so the field stays in its box as long as it can.
     private func fieldRect(_ a: Answer) -> CGRect {
-        let font = textSize * 1.1
         let width = max(a.rect.width, textSize * 2)
-        let chars = CGFloat(a.text.count)
-        let perLine = max(1, (width / (font * 0.5)).rounded(.down))
-        let lines = max(1, (chars / perLine).rounded(.up))
-        let height = max(a.rect.height, textSize * 1.5, lines * font * 1.25)
+        let inner = max(1, width - textSize * 0.3)
+        let chars = CGFloat(readingTrim(a.text).count)
+        func lines(_ font: CGFloat) -> CGFloat {
+            let perLine = max(1, (inner / (font * 0.5)).rounded(.down))
+            return max(1, (chars / perLine).rounded(.up))
+        }
+        let base = textSize * 1.1
+        var font = base
+        if let room = answerRoom(a, in: page) {
+            while lines(font) * font * 1.25 + textSize * 0.12 > room && font > base * 0.5 {
+                font = max(base * 0.5, font * 0.9)
+            }
+        }
+        let height = max(a.rect.height, textSize * 1.5, lines(font) * font * 1.25 + textSize * 0.12)
         return CGRect(x: a.rect.minX, y: a.rect.minY, width: width, height: height)
     }
 
@@ -886,4 +905,63 @@ fileprivate func readingStartsCapital(_ t: String) -> Bool {
     default:
         return false
     }
+}
+
+// MARK: - Answer fields: room, writing lines
+
+/// Room for an answer in a table cell or field: from the field's top to the bottom of its box (nil: no box, the
+/// field grows freely). (Answers over several writing lines: see `answerLines`.)
+func answerRoom(_ a: Answer, in page: Page) -> CGFloat? {
+    guard let gid = a.gap, let g = page.gaps.first(where: { $0.id == gid }), g.kind == .box else { return nil }
+    let room = g.rect.maxY - a.rect.minY
+    return room > 0 ? room : nil
+}
+
+extension Page {
+    /// The writing lines of an answer over several lines (the gap's own line, then the lines below it), in order;
+    /// nil for any other answer. Such an answer is written onto the lines, row by row.
+    func answerLines(_ a: Answer) -> [CGRect]? {
+        guard let gid = a.gap, let g = gaps.first(where: { $0.id == gid }), let more = g.more, !more.isEmpty
+        else { return nil }
+        return [g.rect] + more
+    }
+}
+
+/// Writing line `i` of an answer: the printed lines, then (a long answer) more of them below at the last spacing.
+func answerLine(_ lines: [CGRect], _ i: Int) -> CGRect {
+    guard let last = lines.last else { return CGRect.zero }
+    if i < lines.count { return lines[max(0, i)] }
+    let step = lines.count > 1 ? last.maxY - lines[lines.count - 2].maxY : last.height * 2
+    return last.offsetBy(dx: 0, dy: max(step, 1) * CGFloat(i - lines.count + 1))
+}
+
+/// The field of an answer on writing lines: one band per row (at least one per printed line), as wide as its
+/// line, from just under the line above (the first: a text height and a half above its line) down to just under
+/// its own line. The bands touch: together one field shaped like the lines (the printed text before the first
+/// line stays free).
+func answerBands(_ lines: [CGRect], rows: Int, textHeight th: CGFloat) -> [CGRect] {
+    guard let first = lines.first else { return [] }
+    var out: [CGRect] = []
+    var top = first.maxY - th * 1.45
+    for i in 0..<max(rows, lines.count) {
+        let l = answerLine(lines, i)
+        let bottom = max(top + 1, l.maxY + th * 0.15)
+        out.append(CGRect(x: l.minX - th * 0.1, y: top, width: l.width + th * 0.2, height: bottom - top))
+        top = bottom
+    }
+    return out
+}
+
+/// About how many rows an answer on writing lines needs (the screen measures the letters; this is for tapping):
+/// the writing gets smaller down to half before it needs more rows than there are lines.
+func answerRowsEstimate(_ text: String, lines: [CGRect], textHeight th: CGFloat) -> Int {
+    var left = CGFloat(readingTrim(text).count)
+    // (half the writing size: about a quarter text height per letter)
+    let perLetter = max(1, th * 1.1 * 0.5 * 0.5)
+    var rows = 0
+    while left > 0 && rows < 200 {
+        left -= max(1, (answerLine(lines, rows).width / perLetter).rounded(.down))
+        rows += 1
+    }
+    return max(lines.count, rows)
 }

@@ -46,7 +46,11 @@ enum Exporter {
             cg.restoreGState()
 
             for a in page.answers {
-                exportDrawAnswer(a, textHeight: th, limit: answerRoom(a, in: page), in: cg)
+                if let lines = page.answerLines(a) {
+                    exportDrawLinedAnswer(a, lines: lines, textHeight: th, in: cg)
+                } else {
+                    exportDrawAnswer(a, textHeight: th, limit: answerRoom(a, in: page), in: cg)
+                }
             }
 
             if let p = pen {
@@ -441,6 +445,29 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
     writing.draw(with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
 }
 
+/// An answer over several writing lines: one field shaped like the lines, each row of text on its line.
+@MainActor fileprivate func exportDrawLinedAnswer(_ a: Answer, lines: [CGRect], textHeight th: CGFloat, in cg: CGContext) {
+    let text = a.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if text.isEmpty { return }
+    let layout = answerLineLayout(text, lines: lines, textHeight: th, font: exportAnswerFont)
+    let path = answerBandsPath(layout.bands)
+    cg.saveGState()
+    cg.setFillColor(ExportPalette.answerBackground.cgColor)
+    cg.addPath(path.cgPath)
+    cg.fillPath()
+    cg.setStrokeColor(ExportPalette.purple.cgColor)
+    cg.setLineWidth(max(2, th * 0.06))
+    cg.setLineJoin(.round)
+    cg.addPath(path.cgPath)
+    cg.strokePath()
+    cg.restoreGState()
+    let font = exportAnswerFont(layout.fontSize)
+    let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ExportPalette.answerInk]
+    for row in layout.rows {
+        (row.text as NSString).draw(at: answerRowOrigin(row.line, font: font, textHeight: th), withAttributes: attributes)
+    }
+}
+
 /// The pen strokes as an image of the whole page. Drawn in light mode: PencilKit would turn dark ink light otherwise.
 @MainActor fileprivate func exportDrawingImage(_ data: Data, size: CGSize) -> UIImage? {
     if data.isEmpty { return nil }
@@ -455,21 +482,84 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 
 // MARK: - Answer size (screen and picture)
 
-/// Room for an answer in a table cell or field: from the field's top to the bottom of its box (nil: no box, the
-/// field grows freely).
-func answerRoom(_ a: Answer, in page: Page) -> CGFloat? {
-    guard let gid = a.gap, let g = page.gaps.first(where: { $0.id == gid }) else { return nil }
-    // a box, or writing lines over several rows: the answer has to fit down to the last line
-    let bottom: CGFloat
-    if let last = g.more?.last {
-        bottom = last.maxY
-    } else if g.kind == .box {
-        bottom = g.rect.maxY
-    } else {
-        return nil
+/// An answer written onto writing lines (an answer over several lines): each row of text on its line, and the
+/// field around them (`answerBands`). Screen and finished picture use the same.
+struct AnswerLineLayout {
+    var fontSize: CGFloat
+    /// The text of each row and the writing line it stands on.
+    var rows: [(text: String, line: CGRect)]
+    var bands: [CGRect]
+    var frame: CGRect { return bands.reduce(CGRect.null) { $0.union($1) } }
+}
+
+/// Wraps the answer onto its lines: normal size if it fits, else smaller (down to half, as in a table cell);
+/// beyond that more rows below the last line.
+@MainActor func answerLineLayout(_ text: String, lines: [CGRect], textHeight th: CGFloat,
+                                 font: @MainActor (CGFloat) -> UIFont) -> AnswerLineLayout {
+    let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map { String($0) }
+    let base = th * 1.1
+    let smallest = base * 0.5
+    var size = base
+    var rows: [String] = []
+    while true {
+        rows = answerWrap(words, lines: lines, padX: th * 0.15, font: font(size))
+        if rows.count <= lines.count || size <= smallest { break }
+        size = max(smallest, size * 0.9)
     }
-    let room = bottom - a.rect.minY
-    return room > 0 ? room : nil
+    var placed: [(text: String, line: CGRect)] = []
+    for (i, row) in rows.enumerated() {
+        placed.append((text: row, line: answerLine(lines, i)))
+    }
+    return AnswerLineLayout(fontSize: size, rows: placed, bands: answerBands(lines, rows: rows.count, textHeight: th))
+}
+
+/// Words into rows, row `i` as wide as writing line `i` (a word longer than its line stands alone).
+@MainActor fileprivate func answerWrap(_ words: [String], lines: [CGRect], padX: CGFloat, font: UIFont) -> [String] {
+    let attributes: [NSAttributedString.Key: Any] = [.font: font]
+    let space = (" " as NSString).size(withAttributes: attributes).width
+    var rows: [String] = []
+    var current = ""
+    var used: CGFloat = 0
+    for w in words {
+        let width = (w as NSString).size(withAttributes: attributes).width
+        let room = max(1, answerLine(lines, rows.count).width - 2 * padX)
+        if current.isEmpty {
+            current = w
+            used = width
+        } else if used + space + width <= room {
+            current += " " + w
+            used += space + width
+        } else {
+            rows.append(current)
+            current = w
+            used = width
+        }
+    }
+    if !current.isEmpty { rows.append(current) }
+    return rows
+}
+
+/// The outline of touching bands as one shape (steps where the lines start or end at different places).
+func answerBandsPath(_ bands: [CGRect]) -> UIBezierPath {
+    let path = UIBezierPath()
+    guard let first = bands.first else { return path }
+    path.move(to: CGPoint(x: first.minX, y: first.minY))
+    for b in bands {
+        path.addLine(to: CGPoint(x: b.maxX, y: b.minY))
+        path.addLine(to: CGPoint(x: b.maxX, y: b.maxY))
+    }
+    for b in bands.reversed() {
+        path.addLine(to: CGPoint(x: b.minX, y: b.maxY))
+        path.addLine(to: CGPoint(x: b.minX, y: b.minY))
+    }
+    path.close()
+    path.lineJoinStyle = .round
+    return path
+}
+
+/// Where a row of an answer starts: its letters stand on the writing line.
+@MainActor func answerRowOrigin(_ line: CGRect, font: UIFont, textHeight th: CGFloat) -> CGPoint {
+    return CGPoint(x: line.minX + th * 0.15, y: line.maxY - th * 0.1 - font.ascender)
 }
 
 /// Font size of an answer: normally 1.1 text heights; in a box (`limit`) smaller, down to half, until the wrapped
