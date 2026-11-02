@@ -3,7 +3,8 @@ import UIKit
 import PencilKit
 
 // Fertig: one picture of the page with everything the child did (marks, answers, pen), in page pixels.
-// It goes to the teacher by AirDrop (an image is enough, no PDF: teacher's decision).
+// It goes to the teacher by AirDrop as a PDF (teacher's decision, November 2026): this page, the whole Heft, or all
+// pages photographed today.
 
 enum Exporter {
     /// Photo → marks (multiplied, so the print stays dark) → answer fields → pen strokes.
@@ -59,15 +60,34 @@ extension Exporter {
     /// All pages of a Heft with their answers as one PDF (one page each, A4, upright or across like the page),
     /// in a temporary folder. Pages not open are loaded for this only.
     @MainActor static func heftPDF(_ heft: Heft, app: AppState) async -> URL? {
-        let fm = FileManager.default
-        let dir = fm.temporaryDirectory.appendingPathComponent("Hoerblatt-Abgabe", isDirectory: true)
-        try? fm.removeItem(at: dir)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        let url = dir.appendingPathComponent(exportFileName(heft.title) + ".pdf")
+        return await pagesPDF(heft.pages, title: heft.title, folder: "Heft", app: app)
+    }
 
+    /// The pages photographed today (not those of a Heft), oldest first, as one PDF.
+    @MainActor static func todayPDF(app: AppState) async -> URL? {
+        let ids = app.store.pages.filter { $0.heft == nil && Calendar.current.isDateInToday($0.created) }
+            .sorted { $0.created < $1.created }.map { $0.id }
+        if ids.count < 2 { return nil }
+        return await pagesPDF(ids, title: "Hörblatt " + exportDay(Date()), folder: "Heute", app: app)
+    }
+
+    /// How many pages were photographed today (the button "Alle von heute" needs at least two).
+    @MainActor static func todayCount(app: AppState) -> Int {
+        return app.store.pages.filter { $0.heft == nil && Calendar.current.isDateInToday($0.created) }.count
+    }
+
+    /// The finished page (as rendered for Fertig) as a one-page PDF.
+    @MainActor static func pagePDF(_ picture: UIImage, title: String) -> URL? {
+        guard let jpg = picture.jpegData(compressionQuality: 0.8) else { return nil }
+        let name = (title.isEmpty ? "Seite" : title) + " " + exportDay(Date())
+        return writePDF([jpg], name: name, folder: "Seite")
+    }
+
+    /// Pages with their answers as one PDF; each export gets a folder of its own (they are made at the same time).
+    @MainActor static func pagesPDF(_ ids: [UUID], title: String, folder: String, app: AppState) async -> URL? {
         // JPEG keeps the file small enough for AirDrop
         var pictures: [Data] = []
-        for id in heft.pages {
+        for id in ids {
             var c = app.openController(id)
             if c == nil, let page = app.store.loadPage(id), let image = app.store.loadImage(id) {
                 c = PageController(page: page, image: image, app: app)
@@ -79,7 +99,18 @@ extension Exporter {
             // (the Fertig view keeps moving meanwhile)
             await Task.yield()
         }
+        return writePDF(pictures, name: title, folder: folder)
+    }
+
+    /// JPEG pictures → PDF (A4, upright or across like each picture) in Temp/Hoerblatt-Abgabe/<folder>/.
+    @MainActor static func writePDF(_ pictures: [Data], name: String, folder: String) -> URL? {
         if pictures.isEmpty { return nil }
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("Hoerblatt-Abgabe", isDirectory: true)
+            .appendingPathComponent(folder, isDirectory: true)
+        try? fm.removeItem(at: dir)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        let url = dir.appendingPathComponent(exportFileName(name) + ".pdf")
 
         let upright = CGRect(x: 0, y: 0, width: 595, height: 842)
         let across = CGRect(x: 0, y: 0, width: 842, height: 595)
@@ -162,8 +193,8 @@ struct FinishView: View {
                 .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
                 // (pressing long on the picture shares too, once the teacher has seen it)
                 .contextMenu {
-                    if canShare {
-                        ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
+                    if canShare, let url = app.finishPagePDF {
+                        ShareLink(item: url, preview: SharePreview("Hörblatt", image: picture)) {
                             SwiftUI.Label("Teilen", systemImage: "square.and.arrow.up")
                         }
                     }
@@ -194,13 +225,9 @@ struct FinishView: View {
                 .buttonStyle(ExportPressStyle())
                 .accessibilityLabel(Text("Der Lehrkraft gezeigt"))
             } else if let heft = app.finishHeft {
-                // a page of a Heft: this page as a picture, or the whole Heft as a PDF
+                // a page of a Heft: this page or the whole Heft, both as a PDF
                 HStack(spacing: 24) {
-                    ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
-                        shareLabel("doc.fill", "Diese Seite", ExportStyle.blue)
-                    }
-                    .buttonStyle(ExportPressStyle())
-                    .accessibilityLabel(Text("Diese Seite teilen, dann AirDrop"))
+                    pageButton(picture, title: "Diese Seite", symbol: "doc.fill")
                     if let url = app.finishHeftPDF {
                         ShareLink(item: url, preview: SharePreview(heft.title)) {
                             shareLabel("book.fill", "Ganzes Heft", ExportStyle.teal)
@@ -208,27 +235,25 @@ struct FinishView: View {
                         .buttonStyle(ExportPressStyle())
                         .accessibilityLabel(Text("Ganzes Heft teilen, dann AirDrop"))
                     } else {
-                        HStack(spacing: 14) {
-                            ProgressView()
-                                .scaleEffect(1.4)
-                            Text("Heft …")
-                                .font(.system(size: 30, weight: .bold, design: .rounded))
-                        }
-                        .foregroundColor(ExportStyle.slate)
-                        .padding(.horizontal, 36)
-                        .frame(minWidth: 260)
-                        .frame(height: 96)
-                        .background(Capsule().fill(Color.white))
-                        .overlay(Capsule().stroke(ExportStyle.slate.opacity(0.4), lineWidth: 3))
-                        .accessibilityLabel(Text("Das Heft wird vorbereitet"))
+                        waiting("Heft …", caption: "Das Heft wird vorbereitet")
                     }
                 }
             } else {
-                ShareLink(item: picture, preview: SharePreview("Hörblatt", image: picture)) {
-                    shareLabel("square.and.arrow.up", "Teilen", ExportStyle.blue)
+                // a photographed page as a PDF; with more pages from today also all of them in one PDF
+                HStack(spacing: 24) {
+                    pageButton(picture, title: "Teilen", symbol: "square.and.arrow.up")
+                    if app.finishTodayCount >= 2 {
+                        if let url = app.finishTodayPDF {
+                            ShareLink(item: url, preview: SharePreview("Alle Seiten von heute")) {
+                                shareLabel("square.stack.fill", "Alle von heute", ExportStyle.teal)
+                            }
+                            .buttonStyle(ExportPressStyle())
+                            .accessibilityLabel(Text("Alle Seiten von heute teilen, dann AirDrop"))
+                        } else {
+                            waiting("Heute …", caption: "Die Seiten von heute werden vorbereitet")
+                        }
+                    }
                 }
-                .buttonStyle(ExportPressStyle())
-                .accessibilityLabel(Text("Teilen, dann AirDrop"))
             }
         }
         .padding(20)
@@ -247,7 +272,41 @@ struct FinishView: View {
         if app.finishHeft != nil {
             return "Tippe auf Diese Seite oder auf Ganzes Heft. Dann auf AirDrop."
         }
+        if app.finishTodayCount >= 2 {
+            return "Tippe auf Teilen. Oder auf Alle von heute. Dann auf AirDrop."
+        }
         return "Tippe auf Teilen und dann auf AirDrop."
+    }
+
+    /// This page as a PDF (made when Fertig opened).
+    @ViewBuilder
+    private func pageButton(_ picture: SwiftUI.Image, title: String, symbol: String) -> some View {
+        if let url = app.finishPagePDF {
+            ShareLink(item: url, preview: SharePreview("Hörblatt", image: picture)) {
+                shareLabel(symbol, title, ExportStyle.blue)
+            }
+            .buttonStyle(ExportPressStyle())
+            .accessibilityLabel(Text(title + " teilen, dann AirDrop"))
+        } else {
+            waiting(title + " …", caption: "Die Seite wird vorbereitet")
+        }
+    }
+
+    /// A PDF still being made: a grey button with a spinner.
+    private func waiting(_ title: String, caption: String) -> some View {
+        HStack(spacing: 14) {
+            ProgressView()
+                .scaleEffect(1.4)
+            Text(title)
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+        }
+        .foregroundColor(ExportStyle.slate)
+        .padding(.horizontal, 36)
+        .frame(minWidth: 260)
+        .frame(height: 96)
+        .background(Capsule().fill(Color.white))
+        .overlay(Capsule().stroke(ExportStyle.slate.opacity(0.4), lineWidth: 3))
+        .accessibilityLabel(Text(caption))
     }
 
     /// The big share button's face.
@@ -295,6 +354,14 @@ fileprivate struct ExportPressStyle: ButtonStyle {
 }
 
 /// The Heft's title as a file name ("Ermittlerheft Klasse 4.pdf").
+/// "2.11.2026" for file names (no child's name in them, only the page and the day).
+fileprivate func exportDay(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "de_DE")
+    f.dateFormat = "d.M.yyyy"
+    return f.string(from: date)
+}
+
 fileprivate func exportFileName(_ title: String) -> String {
     let bad = CharacterSet(charactersIn: "/\\:?*\"<>|")
     let cleaned = title.components(separatedBy: bad).joined(separator: " ").trimmingCharacters(in: .whitespaces)

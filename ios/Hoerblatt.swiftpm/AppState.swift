@@ -99,6 +99,10 @@ fileprivate let appStatePhotoHint =
     /// Fertig on a page of a Heft: the Heft, and its PDF with all answers once it is made.
     @Published var finishHeft: Heft? = nil
     @Published var finishHeftPDF: URL? = nil
+    /// Fertig: this page as a PDF; all pages photographed today as one PDF (when there are at least two).
+    @Published var finishPagePDF: URL? = nil
+    @Published var finishTodayPDF: URL? = nil
+    @Published var finishTodayCount: Int = 0
     /// Pages of a Heft being read in the background (small spinner under the page).
     @Published var heftProgress: HeftProgress? = nil
     @Published var photoProblem: PhotoProblem? = nil
@@ -452,14 +456,26 @@ fileprivate let appStatePhotoHint =
         appStateHideKeyboard()
         c.save()
         // (FinishView speaks its own hint when it appears)
-        pendingFinish = Exporter.render(c)
+        let picture = Exporter.render(c)
+        pendingFinish = picture
         finishHeftPDF = nil
+        finishTodayPDF = nil
         finishHeft = store.heft(containing: c.id)
+        // the page as a PDF (teacher: hand in a PDF); a Heft page is named "Seite N"
+        var title = c.page.title
+        if let h = finishHeft, let n = h.number(of: c.id) { title = h.title + " Seite \(n + 1)" }
+        finishPagePDF = Exporter.pagePDF(picture, title: title)
+        finishTodayCount = finishHeft == nil ? Exporter.todayCount(app: self) : 0
         presentSoon(.finish)
         if let h = finishHeft {
             Task { @MainActor in
                 let url = await Exporter.heftPDF(h, app: self)
                 if self.finishHeft?.id == h.id { self.finishHeftPDF = url }
+            }
+        } else if finishTodayCount >= 2 {
+            Task { @MainActor in
+                let url = await Exporter.todayPDF(app: self)
+                if self.finishHeft == nil { self.finishTodayPDF = url }
             }
         }
     }
