@@ -478,6 +478,12 @@ fileprivate func speechWAV(length: Double, _ value: (Double) -> Double) -> Data 
     /// Grows with every start and stop; results of older sessions are ignored.
     private var generation = 0
     private var heardText = ""
+    /// Text of the parts of the answer before the last pause, and of the part being spoken now. (iPadOS starts
+    /// anew after a short pause: its results then hold only the words since the pause.)
+    private var committed = ""
+    private var segment = ""
+    /// The last result ended a part (Apple sends its metadata then).
+    private var segmentEnded = false
     private var startTime = Date()
     private var lastChange = Date()
     /// Set when the audio has ended and only the last result is awaited.
@@ -556,28 +562,48 @@ fileprivate func speechWAV(length: Double, _ value: (Double) -> Double) -> Data 
         engine = newEngine
         request = newRequest
         heardText = ""
+        committed = ""
+        segment = ""
+        segmentEnded = false
         startTime = Date()
         lastChange = startTime
         endingSince = nil
-        let report: @Sendable (String?, Bool, String?, Int) -> Void = { [weak self] text, isFinal, domain, code in
+        let report: @Sendable (String?, Bool, Bool, String?, Int) -> Void = { [weak self] text, isFinal, ended, domain, code in
             guard let me = self else { return }
             Task { @MainActor in
-                me.handle(gen, text: text, isFinal: isFinal, errorDomain: domain, errorCode: code)
+                me.handle(gen, text: text, isFinal: isFinal, segmentEnd: ended, errorDomain: domain, errorCode: code)
             }
         }
         task = listenerRecognize(rec, request: newRequest, report: report)
         watch(gen)
     }
 
-    private func handle(_ gen: Int, text: String?, isFinal: Bool, errorDomain: String?, errorCode: Int) {
+    private func handle(_ gen: Int, text: String?, isFinal: Bool, segmentEnd: Bool, errorDomain: String?,
+                        errorCode: Int) {
         guard gen == generation, isListening else { return }
         if let t = text {
             let clean = t.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !clean.isEmpty && clean != heardText {
-                heardText = clean
-                lastChange = Date()
-                textHandler?(clean)
+            if !clean.isEmpty {
+                if !committed.isEmpty && listenerStarts(clean, like: committed) {
+                    // a result with everything said so far (e.g. the final one): it replaces the parts
+                    committed = ""
+                } else if !segment.isEmpty && listenerNewPart(clean, after: segment, partEnded: segmentEnded) {
+                    // the child paused and speaks on: keep what was said before the pause
+                    committed = listenerJoin(committed, segment)
+                }
+                segment = clean
+                segmentEnded = segmentEnd
+                let all = listenerJoin(committed, segment)
+                if all != heardText {
+                    heardText = all
+                    lastChange = Date()
+                    textHandler?(all)
+                }
+            } else if segmentEnd {
+                segmentEnded = true
             }
+        } else if segmentEnd {
+            segmentEnded = true
         }
         // the text handler may have stopped listening
         guard gen == generation else { return }
@@ -698,18 +724,55 @@ fileprivate func listenerInstallTap(_ input: AVAudioInputNode, format: AVAudioFo
 }
 
 fileprivate func listenerRecognize(_ recognizer: SFSpeechRecognizer, request: SFSpeechAudioBufferRecognitionRequest,
-                                   report: @escaping @Sendable (String?, Bool, String?, Int) -> Void) -> SFSpeechRecognitionTask {
+                                   report: @escaping @Sendable (String?, Bool, Bool, String?, Int) -> Void) -> SFSpeechRecognitionTask {
     return recognizer.recognitionTask(with: request) { result, error in
         let text = result?.bestTranscription.formattedString
         let isFinal = result?.isFinal ?? false
+        // (metadata comes with the result that closes a part of the speech, i.e. at a pause)
+        let ended = result?.speechRecognitionMetadata != nil
         var domain: String? = nil
         var code = 0
         if let ns = error as NSError? {
             domain = ns.domain
             code = ns.code
         }
-        report(text, isFinal, domain, code)
+        report(text, isFinal, ended, domain, code)
     }
+}
+
+/// The words of a recognised text, for comparing (small letters, no punctuation).
+fileprivate func listenerWords(_ s: String) -> [String] {
+    return s.lowercased().split(whereSeparator: { $0.isWhitespace }).map { word in
+        String(word.filter { $0.isLetter || $0.isNumber })
+    }.filter { !$0.isEmpty }
+}
+
+/// `text` begins with the first words of `earlier` (it holds what was said before as well).
+fileprivate func listenerStarts(_ text: String, like earlier: String) -> Bool {
+    let n = listenerWords(text)
+    let o = listenerWords(earlier)
+    let k = min(2, o.count)
+    if k == 0 || n.count < o.count { return false }
+    return Array(n.prefix(k)) == Array(o.prefix(k))
+}
+
+/// A result after a pause holds only the new words (iPadOS starts a new part): then it does not begin like the
+/// part before, or – right after Apple closed that part – is not longer than it. A result that only corrects the
+/// part being spoken begins the same way.
+fileprivate func listenerNewPart(_ text: String, after part: String, partEnded: Bool) -> Bool {
+    let n = listenerWords(text)
+    let o = listenerWords(part)
+    if n.isEmpty || o.isEmpty { return false }
+    if partEnded {
+        return !(listenerStarts(text, like: part) && n.count >= o.count)
+    }
+    return n.first != o.first && o.count >= 2 && n.count * 2 <= o.count
+}
+
+fileprivate func listenerJoin(_ a: String, _ b: String) -> String {
+    if a.isEmpty { return b }
+    if b.isEmpty { return a }
+    return a + " " + b
 }
 
 /// "No speech", "retry" and cancellations do not mean that listening is impossible.
