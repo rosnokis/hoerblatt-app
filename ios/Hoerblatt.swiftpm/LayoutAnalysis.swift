@@ -1265,7 +1265,10 @@ fileprivate final class LAEngine {
             if s.y < top - mh || gridH.contains(si) { continue }
             if tables.contains(where: { s.y > $0.y0 - tol && s.y < $0.y1 + tol && s.x1 > $0.x0 && s.x0 < $0.x1 }) { continue }
             if frames.contains(where: { s.y > $0.y0 - tol && s.y < $0.y1 + tol && s.x1 > $0.x0 && s.x0 < $0.x1 }) { continue }
-            if vNear(s.x0, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) || vNear(s.x1, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) { continue }
+            if frameSide(s.x0, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) || frameSide(s.x1, s.y - mh * 0.5, s.y + mh * 0.5, 0.3) { continue }
+            // the top or bottom edge of a frame with round corners: the sides end a little before and below/above it
+            // (one corner is enough: the other side is often lost in a shadow)
+            if len > Wd * 0.3 && (roundCorner(s, left: true) || roundCorner(s, left: false)) { continue }
             // an underline: words sitting on the line cover most of it. (Also the baseline of the letters themselves:
             // Vision's word boxes reach far below the baseline of the Grundschrift, so it lies in the middle of the box
             // – "Spielzeugauto", "Lagebesprechung" got a gap inside the word.)
@@ -1306,6 +1309,44 @@ fileprivate final class LAEngine {
             gaps.append(LAGapItem(x0: laRoundD(s.x0), x1: laRoundD(s.x1), y: laRoundD(s.y), h: laRoundD(h),
                                   li: li, hasLi: found, y0: nil, head: nil, square: false, end: false))
         }
+    }
+
+    /// vNear for the ends of an answer line, not counting the edge of the paper or of a book: on a photo that edge is
+    /// a vertical line over almost half the picture, or (often in pieces) right at the photo's border – and writing
+    /// lines often end just before it (Adjektiv-Blatt: all lines "ended at a frame" and were lost).
+    func frameSide(_ x: Double, _ ya: Double, _ yb: Double, _ part: Double) -> Bool {
+        let need = (yb - ya) * part
+        let border = Double(W) * 0.025
+        for v in vt {
+            if abs(v.x - x) >= tol { continue }
+            if !cleanPage && (v.y1 - v.y0 > Double(H) * 0.45 || v.x < border || v.x > Double(W) - border) { continue }
+            if min(v.y1, yb) - max(v.y0, ya) >= need { return true }
+        }
+        return false
+    }
+
+    /// A side of a frame with a round corner at this end of the line: a vertical line a little outside the line's end
+    /// (up to about two text heights), beginning or ending close to the line's height.
+    func roundCorner(_ s: LAHLine, left: Bool) -> Bool {
+        let r = mh * 2.2
+        let border = Double(W) * 0.025
+        for v in vt {
+            if v.y1 - v.y0 < mh * 1.2 { continue }
+            // (not the edge of the paper)
+            if !cleanPage && (v.x < border || v.x > Double(W) - border) { continue }
+            let dx = left ? s.x0 - v.x : v.x - s.x1
+            if dx < -tol || dx > r { continue }
+            // the side starts just below the top edge, or ends just above the bottom edge
+            let fromTop = v.y0 > s.y - tol && v.y0 < s.y + r
+            let fromBottom = v.y1 < s.y + tol && v.y1 > s.y - r
+            if !(fromTop || fromBottom) { continue }
+            // outside a frame there is free paper; beside the edge of a picture there is the picture
+            let out0 = left ? v.x - r : v.x + mh * 0.2
+            let out1 = left ? v.x - mh * 0.2 : v.x + r
+            if busy(out0, out1, v.y0, v.y1) > 0.06 { continue }
+            return true
+        }
+        return false
     }
 
     /// A small check box ☐ drawn in an otherwise empty field: its ink is a small, square, mostly hollow shape.

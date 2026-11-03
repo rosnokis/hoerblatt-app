@@ -41,6 +41,10 @@ fileprivate struct ReadingItem {
     /// The row holds only gaps (an answer line on its own, e.g. for writing a whole sentence).
     var gapRow: Bool = false
     var rowRight: CGFloat = 0
+    /// Words in the row (a list has one or two per row: "schnell = blitzschnell" / "schwarz = ____").
+    var rowWords: Int = 0
+    /// The row holds answers to choose, two or more ("(R) Auf dem Flur …   (M) Im dunklen Kellergang"): it ends there.
+    var choiceRow: Bool = false
     /// Typical word height of the row; 0 when the row has no words.
     var rowH: CGFloat = 0
     /// Right edge of the text block around the row.
@@ -387,8 +391,20 @@ struct Reading {
         if a.part != b.part { return true }
         if boxOf(a) != boxOf(b) { return true }
         if isSoloGap(a) || isSoloGap(b) { return true }
+        // an answer to choose ("(R) Auf dem Flur …   (M) Im dunklen Kellergang"): each one is read on its own,
+        // also side by side
+        if let bw = b.word, readingIsChoiceMark(page.words[bw].text) { return true }
         if a.li == b.li { return false }
         if a.gapRow || b.gapRow { return true }
+        // a row with answers to choose ends there ("(F) Er läuft wütend davon" / "Was entdeckt … ?")
+        if a.choiceRow { return true }
+        // a list: rows of one or two words each, one below the other ("schnell = blitzschnell" / "schwarz = ____";
+        // Live Text's tall boxes made them look like close lines of text). Not in a table: cells wrap narrow text.
+        // (really one below the other: a slanted line read in two pieces overlaps in height)
+        if a.rowWords <= 2 && b.rowWords <= 2 && a.rowWords > 0 && b.rowWords > 0 && boxOf(a) < 0,
+           b.y0 - a.y1 > min(a.h, b.h) * 0.3 {
+            return true
+        }
         let h = a.rowH > 0 ? a.rowH : a.h
         let h2 = b.rowH > 0 ? b.rowH : b.h
         // a line starting with a small letter right below the start of the line before goes on with it, however tall
@@ -645,6 +661,13 @@ fileprivate func readingRows(_ items: [ReadingItem], page: Page, firstRow: Int) 
         let rowX = r[0].x0
         let rowY1 = r[0].y1
         let rowRight = r[r.count - 1].x1
+        // (prose has a word space of about half a text height; a wide stretch is a list or two columns)
+        let texts = r.compactMap { it -> String? in
+            guard let w = it.word, w >= 0, w < page.words.count else { return nil }
+            return page.words[w].text
+        }
+        // (two or more: one at the start alone is a task number, "(5) Schreibe …", whose text may wrap)
+        let choice = texts.filter { readingIsChoiceMark($0) }.count >= 2
         for n in r.indices {
             r[n].li = firstRow + k
             r[n].first = (n == 0)
@@ -652,6 +675,8 @@ fileprivate func readingRows(_ items: [ReadingItem], page: Page, firstRow: Int) 
             r[n].rowY1 = rowY1
             r[n].gapRow = onlyGaps
             r[n].rowRight = rowRight
+            r[n].rowWords = texts.count
+            r[n].choiceRow = choice
             r[n].rowH = rowH
         }
         built.append(r)
@@ -859,6 +884,15 @@ fileprivate func readingIsLetterMark(_ t: String) -> Bool {
     guard let c = cs.first, "ABCDEFGHabcdefgh".contains(c) else { return false }
     if cs.count == 1 { return c.isUppercase }
     return cs.count == 2 && (cs[1] == ")" || cs[1] == ".")
+}
+
+/// "(R)", "(2)", "K)": the mark of an answer to choose (Live Text sometimes loses the opening bracket).
+fileprivate func readingIsChoiceMark(_ t: String) -> Bool {
+    var cs = Array(t)
+    guard cs.count >= 2, cs.count <= 3, cs.last == ")" else { return false }
+    cs.removeLast()
+    if cs.first == "(" { cs.removeFirst() }
+    return cs.count == 1 && (cs[0].isLetter || cs[0].isNumber)
 }
 
 /// "3." or "3)" at the start of a line: the next task (JS: /^\d+[.)]$/).
