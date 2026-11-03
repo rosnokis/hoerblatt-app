@@ -59,6 +59,8 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     private let markPan = UIPanGestureRecognizer(target: nil, action: nil)
     /// Markieren: finger held still on a word opens the word lens.
     private let lensPress = UILongPressGestureRecognizer(target: nil, action: nil)
+    /// Finger held on a word of a spoken answer (Wort, Satz, Sprechen): that word is spoken anew.
+    private let answerPress = UILongPressGestureRecognizer(target: nil, action: nil)
 
     private var controller: PageController?
     private var app: AppState?
@@ -184,6 +186,13 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         // a finger that moves before the lens opens is a swipe
         markPan.require(toFail: lensPress)
 
+        answerPress.addTarget(self, action: #selector(handleAnswerPress(_:)))
+        answerPress.minimumPressDuration = 0.5
+        answerPress.allowableMovement = 12
+        answerPress.delegate = self
+        answerPress.isEnabled = false
+        scroller.addGestureRecognizer(answerPress)
+
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)),
@@ -287,6 +296,9 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         let th = pageCanvasTextHeight(c.page)
         textHeight = th
         applyTool(mode: mode, settings: s, textHeight: th)
+        // (speaking a word anew belongs to "Sprechen": not when the teacher has hidden it)
+        let pressOn = (mode == .wort || mode == .satz || mode == .sprechen) && s.shows(.sprechen)
+        if answerPress.isEnabled != pressOn { answerPress.isEnabled = pressOn }
         applyOverlay(c, settings: s, mode: mode, textHeight: th)
         applyFields(c, a, mode: mode, textHeight: th)
         applyDrawing(c)
@@ -625,7 +637,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         guard tapFirst || otherGestureRecognizer === tapGesture else { return false }
         let other = tapFirst ? otherGestureRecognizer : gestureRecognizer
         // a swipe or a scroll is no tap; the pen canvas and the eraser may see the same touch
-        if other === markPan || other === lensPress || other === scroller.panGestureRecognizer
+        if other === markPan || other === lensPress || other === answerPress || other === scroller.panGestureRecognizer
             || other === scroller.pinchGestureRecognizer {
             return false
         }
@@ -639,7 +651,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         if mode == .stift { return }
         let p = g.location(in: contentView)
         if let id = answerHit(p, c) {
-            c.tapAnswer(id)
+            c.tapAnswer(id, at: p)
             return
         }
         switch mode {
@@ -697,6 +709,23 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         default:
             endMarkSwipe()
         }
+    }
+
+    /// The press only starts on an answer field: elsewhere the finger taps or scrolls as before.
+    /// (UIView has this too: the same method serves the views' own recognizers and, as delegate, the page's.)
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === answerPress {
+            guard let c = controller else { return false }
+            return answerHit(gestureRecognizer.location(in: contentView), c) != nil
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+
+    @objc private func handleAnswerPress(_ g: UILongPressGestureRecognizer) {
+        guard g.state == .began, let c = controller else { return }
+        let p = g.location(in: contentView)
+        guard let id = answerHit(p, c) else { return }
+        c.respeakWord(id, at: p)
     }
 
     @objc private func handleLensPress(_ g: UILongPressGestureRecognizer) {
@@ -777,6 +806,12 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     private func answerHit(_ p: CGPoint, _ c: PageController) -> UUID? {
         let pad = textHeight * 0.2
         for a in c.page.answers.reversed() {
+            if let lines = c.page.answerLines(a) {
+                // an answer on writing lines: its bands only (the printed text before the first line stays free)
+                let bands = answerFieldBands(a.text, lines: lines, textHeight: textHeight)
+                if bands.contains(where: { $0.insetBy(dx: -pad, dy: -pad).contains(p) }) { return a.id }
+                continue
+            }
             let r = fields[a.id]?.frame ?? a.rect
             if r.insetBy(dx: -pad, dy: -pad).contains(p) { return a.id }
         }
@@ -1156,11 +1191,7 @@ fileprivate final class PageCanvasAnswerField: UIView {
     }
 
     static func answerFont(_ size: CGFloat) -> UIFont {
-        let base = UIFont.systemFont(ofSize: size, weight: .semibold)
-        if let rounded = base.fontDescriptor.withDesign(.rounded) {
-            return UIFont(descriptor: rounded, size: size)
-        }
-        return base
+        return answerUIFont(size)
     }
 
     func update(answer: Answer, room: CGFloat?, lines newLines: [CGRect]?, textHeight: CGFloat, editable newEditable: Bool,

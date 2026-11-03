@@ -1007,3 +1007,75 @@ func answerFieldBands(_ text: String, lines: [CGRect], textHeight th: CGFloat) -
     }
     return bands
 }
+
+// MARK: - Words of an answer
+
+/// One word of a spoken answer: its place in the answer's text (UTF-16, as NSString and the speech synthesizer count)
+/// and where it stands on the page. The places come from the field's layout (`answerWords`, Export.swift).
+struct AnswerWord {
+    var range: NSRange
+    var rect: CGRect
+}
+
+/// The words of an answer's text: runs without spaces (punctuation stays with its word).
+func answerTokenRanges(_ text: String) -> [NSRange] {
+    var out: [NSRange] = []
+    var start: String.Index? = nil
+    var i = text.startIndex
+    while i < text.endIndex {
+        let c = text[i]
+        if c.isWhitespace || c.isNewline {
+            if let s = start {
+                out.append(NSRange(s..<i, in: text))
+                start = nil
+            }
+        } else if start == nil {
+            start = i
+        }
+        i = text.index(after: i)
+    }
+    if let s = start { out.append(NSRange(s..<text.endIndex, in: text)) }
+    return out
+}
+
+/// The word of an answer under the finger (or just beside it on its row); nil between rows or far off.
+func answerWordIndex(_ words: [AnswerWord], at p: CGPoint, textHeight th: CGFloat) -> Int? {
+    var best: Int? = nil
+    var bd = CGFloat.infinity
+    for (k, w) in words.enumerated() {
+        let r = w.rect
+        let dx = max(r.minX - p.x, 0, p.x - r.maxX)
+        let dy = max(r.minY - p.y, 0, p.y - r.maxY)
+        if dy > th * 0.4 || dx > th * 0.6 { continue }
+        let d = dx + dy * 2
+        if d < bd {
+            bd = d
+            best = k
+        }
+    }
+    return best
+}
+
+/// A word spoken anew replaces a word of an answer: punctuation and quotes around the old word stay; the recogniser's
+/// full stop goes; at the start of a sentence a capital, after a small old word a small letter.
+func answerReplacement(_ old: String, heard: String, sentenceStart: Bool) -> String {
+    var core = heard.trimmingCharacters(in: .whitespacesAndNewlines)
+    while let last = core.last, ".!?,;:".contains(last) { core.removeLast() }
+    if core.isEmpty { return "" }
+    let chars = Array(old)
+    // (an old "word" of punctuation only, e.g. "-", is replaced as a whole)
+    if !chars.contains(where: { $0.isLetter || $0.isNumber }) { return core }
+    let leadCount = chars.prefix(while: { !$0.isLetter && !$0.isNumber }).count
+    let trailCount = leadCount < chars.count ? chars.reversed().prefix(while: { !$0.isLetter && !$0.isNumber }).count : 0
+    let lead = String(chars.prefix(leadCount))
+    let trail = String(chars.suffix(trailCount))
+    if let f = core.first, f.isLetter {
+        let rest = String(core.dropFirst())
+        if sentenceStart {
+            core = String(f).uppercased() + rest
+        } else if let firstOld = chars.dropFirst(leadCount).first, firstOld.isLowercase {
+            core = String(f).lowercased() + rest
+        }
+    }
+    return lead + core + trail
+}

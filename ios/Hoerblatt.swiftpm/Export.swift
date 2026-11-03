@@ -442,11 +442,7 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 }
 
 @MainActor fileprivate func exportAnswerFont(_ size: CGFloat) -> UIFont {
-    let base = UIFont.systemFont(ofSize: size, weight: .semibold)
-    if let rounded = base.fontDescriptor.withDesign(.rounded) {
-        return UIFont(descriptor: rounded, size: size)
-    }
-    return base
+    return answerUIFont(size)
 }
 
 /// One answer field: width as stored (at least two letters), grows downwards with the text (as on the screen).
@@ -640,6 +636,66 @@ struct AnswerLineLayout {
     }
     if !current.isEmpty { rows.append(current) }
     return rows
+}
+
+/// The answers' writing (rounded, semibold), as the field and the finished picture show it.
+@MainActor func answerUIFont(_ size: CGFloat) -> UIFont {
+    let base = UIFont.systemFont(ofSize: size, weight: .semibold)
+    if let rounded = base.fontDescriptor.withDesign(.rounded) {
+        return UIFont(descriptor: rounded, size: size)
+    }
+    return base
+}
+
+/// The words of an answer and where they stand, laid out as the field shows them: on the writing lines
+/// (`answerLineLayout`) or wrapped in the field (same font size, width and padding as the text view).
+@MainActor func answerWords(_ a: Answer, in page: Page, textHeight th: CGFloat) -> [AnswerWord] {
+    let ranges = answerTokenRanges(a.text)
+    if ranges.isEmpty { return [] }
+    if let lines = page.answerLines(a) {
+        let layout = answerLineLayout(a.text, lines: lines, textHeight: th, font: answerUIFont)
+        let font = answerUIFont(layout.fontSize)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let space = (" " as NSString).size(withAttributes: attributes).width
+        var out: [AnswerWord] = []
+        var k = 0
+        for row in layout.rows {
+            var x = row.origin.x
+            for (n, w) in row.text.split(separator: " ").enumerated() {
+                if n > 0 { x += space }
+                let width = (String(w) as NSString).size(withAttributes: attributes).width
+                if k < ranges.count {
+                    out.append(AnswerWord(range: ranges[k], rect: CGRect(x: x, y: row.origin.y, width: width,
+                                                                         height: font.lineHeight)))
+                }
+                k += 1
+                x += width
+            }
+        }
+        return out
+    }
+    let fontSize = answerFontSize(a.text, width: a.rect.width, limit: answerRoom(a, in: page), textHeight: th,
+                                  font: answerUIFont)
+    let padX = th * 0.15
+    let padY = th * 0.06
+    let inner = max(1, max(a.rect.width, th * 2) - 2 * padX)
+    let storage = NSTextStorage(string: a.text, attributes: [.font: answerUIFont(fontSize)])
+    let manager = NSLayoutManager()
+    let container = NSTextContainer(size: CGSize(width: inner, height: CGFloat.greatestFiniteMagnitude))
+    container.lineFragmentPadding = 0
+    manager.addTextContainer(container)
+    storage.addLayoutManager(manager)
+    manager.ensureLayout(for: container)
+    let used = manager.usedRect(for: container)
+    let textHeight = max(ceil(used.height), fontSize * 1.25)
+    let height = max(a.rect.height, th * 1.5, textHeight + 2 * padY)
+    let x0 = a.rect.minX + padX
+    let y0 = a.rect.minY + max(padY, (height - textHeight) / 2)
+    return ranges.map { r in
+        let glyphs = manager.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
+        let b = manager.boundingRect(forGlyphRange: glyphs, in: container)
+        return AnswerWord(range: r, rect: b.offsetBy(dx: x0, dy: y0))
+    }
 }
 
 /// The outline of touching bands as one shape (steps where the lines start or end at different places).

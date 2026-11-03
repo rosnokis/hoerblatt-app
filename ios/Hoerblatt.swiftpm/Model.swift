@@ -266,9 +266,42 @@ enum Mode: String, Codable, CaseIterable {
     }
 }
 
+extension Mode {
+    /// The switch that hides this tool (Wort: none, it always stays).
+    var tool: ToolKey? {
+        switch self {
+        case .wort: return nil
+        case .satz: return .satz
+        case .sprechen: return .sprechen
+        case .markieren: return .markieren
+        case .stift: return .stift
+        case .radieren: return .radieren
+        }
+    }
+}
+
 /// Left or right half when two pages lie side by side.
 enum Side: String, Codable {
     case left, right
+}
+
+/// Tools the teacher can hide (Einstellungen → Werkzeuge). "Wort" always stays: it is what the iPad is mostly for.
+enum ToolKey: String, Codable, CaseIterable, Identifiable {
+    case foto, satz, seite, sprechen, markieren, stift, radieren, zurueck, fertig
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .foto: return "1 Foto"
+        case .satz: return "Satz vorlesen"
+        case .seite: return "▶ Seite vorlesen"
+        case .sprechen: return "3 Sprechen"
+        case .markieren: return "4 Markieren"
+        case .stift: return "Stift"
+        case .radieren: return "Radiergummi"
+        case .zurueck: return "Zurück"
+        case .fertig: return "5 Fertig"
+        }
+    }
 }
 
 /// Settings for teachers, kept on this device.
@@ -296,6 +329,17 @@ struct AppSettings: Codable, Equatable {
     var appleCamera: Bool = false
     /// Fertig: small AirDrop buttons below "Abgeben" (handing in saves a PDF on the iPad; AirDrop is optional).
     var airDrop: Bool = true
+    /// Tools the teacher has hidden (`ToolKey` names; the child works on paper, the iPad mostly reads).
+    var hiddenTools: [String] = []
+
+    func shows(_ tool: ToolKey) -> Bool {
+        return !hiddenTools.contains(tool.rawValue)
+    }
+
+    mutating func setShows(_ tool: ToolKey, _ on: Bool) {
+        hiddenTools.removeAll(where: { $0 == tool.rawValue })
+        if !on { hiddenTools.append(tool.rawValue) }
+    }
 
     private static let key = "hoerblatt.settings"
 
@@ -315,7 +359,7 @@ struct AppSettings: Codable, Equatable {
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case rate, announce, outlines, boxesTogether, markGaps, mic, tone, markColor, penColor, showTeacherFirst
-        case appleCamera, airDrop
+        case appleCamera, airDrop, hiddenTools
         // (a new key: the guide was on everywhere before; the teacher wants it off – the camera explains itself)
         case photoHelp = "photoGuide"
     }
@@ -337,6 +381,7 @@ extension AppSettings {
         showTeacherFirst = try c.decodeIfPresent(Bool.self, forKey: .showTeacherFirst) ?? showTeacherFirst
         appleCamera = try c.decodeIfPresent(Bool.self, forKey: .appleCamera) ?? appleCamera
         airDrop = try c.decodeIfPresent(Bool.self, forKey: .airDrop) ?? airDrop
+        hiddenTools = try c.decodeIfPresent([String].self, forKey: .hiddenTools) ?? hiddenTools
     }
 }
 

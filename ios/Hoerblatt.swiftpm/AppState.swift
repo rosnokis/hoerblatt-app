@@ -57,6 +57,9 @@ fileprivate let appStatePhotoHint =
             settings.save()
             speaker.rate = settings.rate
             speaker.tone = settings.tone
+            // a tool the teacher has just hidden is left (for "Wort", which always stays)
+            if let t = mode.tool, !settings.shows(t) { changeMode(.wort) }
+            if !settings.shows(.seite) { for c in openControllers { c.endPageReading() } }
         }
     }
     @Published private(set) var mode: Mode = .wort
@@ -222,6 +225,7 @@ fileprivate let appStatePhotoHint =
 
     /// Picks a tool without saying its name (the caller says what to do).
     func setModeQuietly(_ m: Mode) {
+        if let t = m.tool, !settings.shows(t) { return }
         changeMode(m)
     }
 

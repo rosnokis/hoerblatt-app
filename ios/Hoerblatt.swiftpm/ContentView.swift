@@ -134,8 +134,10 @@ fileprivate struct CVPane: View {
             .id(c.id)
             .overlay(alignment: .topLeading) {
                 // read the whole page aloud (a book): play / pause
-                CVPagePlay(controller: c)
-                    .padding(8)
+                if app.settings.shows(.seite) {
+                    CVPagePlay(controller: c)
+                        .padding(8)
+                }
             }
             .overlay(alignment: .bottom) {
                 if let h = app.store.heft(containing: c.id), h.pageTotal > 1, let n = h.number(of: c.id) {
@@ -497,46 +499,66 @@ fileprivate struct CVToolTray: View {
         GeometryReader { g in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    CVToolButton(symbol: "camera.fill", color: CVStyle.teal, number: 1, filled: true, caption: "Foto") {
-                        app.newPhoto()
+                    // (the teacher can hide tools: Einstellungen → Werkzeuge; "Wort" always stays)
+                    let s = app.settings
+                    if s.shows(.foto) {
+                        CVToolButton(symbol: "camera.fill", color: CVStyle.teal, number: 1, filled: true, caption: "Foto") {
+                            app.newPhoto()
+                        }
                     }
                     HStack(spacing: 8) {
                         CVToolButton(symbol: "hand.tap.fill", color: CVStyle.orange, number: 2,
                                      filled: app.mode == .wort, caption: "Wort vorlesen") {
                             app.setMode(.wort)
                         }
-                        CVToolButton(symbol: "text.alignleft", color: CVStyle.orange, number: nil,
-                                     filled: app.mode == .satz, caption: "Satz vorlesen") {
-                            app.setMode(.satz)
+                        if s.shows(.satz) {
+                            CVToolButton(symbol: "text.alignleft", color: CVStyle.orange, number: nil,
+                                         filled: app.mode == .satz, caption: "Satz vorlesen") {
+                                app.setMode(.satz)
+                            }
                         }
                     }
                     .padding(4)
                     .background(RoundedRectangle(cornerRadius: 22).fill(CVStyle.orange.opacity(0.12)))
-                    CVToolButton(symbol: "mic.fill", color: CVStyle.lila, number: 3,
-                                 filled: app.mode == .sprechen, caption: "Antwort sprechen") {
-                        app.setMode(.sprechen)
-                    }
-                    CVToolButton(symbol: "highlighter", color: CVStyle.amber, number: 4,
-                                 filled: app.mode == .markieren, caption: "Markieren") {
-                        app.setMode(.markieren)
-                    }
-                    CVToolButton(symbol: "pencil.tip", color: CVStyle.slate, number: nil,
-                                 filled: app.mode == .stift, caption: "Stift") {
-                        app.setMode(.stift)
-                    }
-                    HStack(spacing: 8) {
-                        CVToolButton(symbol: "eraser.fill", color: CVStyle.grey, number: nil,
-                                     filled: app.mode == .radieren, caption: "Radiergummi") {
-                            app.setMode(.radieren)
-                        }
-                        CVToolButton(symbol: "arrow.uturn.backward", color: CVStyle.slate, number: nil,
-                                     filled: false, caption: "Zurück") {
-                            app.undo()
+                    if s.shows(.sprechen) {
+                        CVToolButton(symbol: "mic.fill", color: CVStyle.lila, number: 3,
+                                     filled: app.mode == .sprechen, caption: "Antwort sprechen") {
+                            app.setMode(.sprechen)
                         }
                     }
-                    CVToolButton(symbol: "checkmark.square.fill", color: CVStyle.blue, number: 5, filled: true,
-                                 caption: "Fertig") {
-                        app.finish()
+                    if s.shows(.markieren) {
+                        CVToolButton(symbol: "highlighter", color: CVStyle.amber, number: 4,
+                                     filled: app.mode == .markieren, caption: "Markieren") {
+                            app.setMode(.markieren)
+                        }
+                    }
+                    if s.shows(.stift) {
+                        CVToolButton(symbol: "pencil.tip", color: CVStyle.slate, number: nil,
+                                     filled: app.mode == .stift, caption: "Stift") {
+                            app.setMode(.stift)
+                        }
+                    }
+                    if s.shows(.radieren) || s.shows(.zurueck) {
+                        HStack(spacing: 8) {
+                            if s.shows(.radieren) {
+                                CVToolButton(symbol: "eraser.fill", color: CVStyle.grey, number: nil,
+                                             filled: app.mode == .radieren, caption: "Radiergummi") {
+                                    app.setMode(.radieren)
+                                }
+                            }
+                            if s.shows(.zurueck) {
+                                CVToolButton(symbol: "arrow.uturn.backward", color: CVStyle.slate, number: nil,
+                                             filled: false, caption: "Zurück") {
+                                    app.undo()
+                                }
+                            }
+                        }
+                    }
+                    if s.shows(.fertig) {
+                        CVToolButton(symbol: "checkmark.square.fill", color: CVStyle.blue, number: 5, filled: true,
+                                     caption: "Fertig") {
+                            app.finish()
+                        }
                     }
                 }
                 .padding(.horizontal, 14)

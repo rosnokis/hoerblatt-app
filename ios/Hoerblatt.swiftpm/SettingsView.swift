@@ -24,6 +24,7 @@ struct SettingsView: View {
             Form {
                 readingSection
                 pageSection
+                toolsSection
                 HandinSettingsSection(handin: app.handin)
                 answerSection
                 mappeSection
@@ -334,6 +335,23 @@ struct SettingsView: View {
 
     // MARK: - Help
 
+    /// Each tool on or off (the child works on paper; the iPad mostly reads). "Wort" always stays.
+    @MainActor
+    private var toolsSection: some View {
+        Section {
+            ForEach(ToolKey.allCases) { t in
+                Toggle(t.title, isOn: Binding(
+                    get: { app.settings.shows(t) },
+                    set: { app.settings.setShows(t, $0) }
+                ))
+            }
+        } header: {
+            Text("Werkzeuge zeigen")
+        } footer: {
+            Text("Ausgeschaltete Werkzeuge verschwinden aus der Leiste unten (▶ oben links auf der Seite). „Wort vorlesen“ bleibt immer. Ohne „Sprechen“ startet das Antippen einer Lücke kein Mikrofon mehr, die Lücke wird nur vorgelesen; ohne „Stift“ sagen Ankreuz-Kästchen nur ihre Beschriftung.")
+        }
+    }
+
     @MainActor
     private var helpSection: some View {
         Section {
@@ -342,7 +360,7 @@ struct SettingsView: View {
             SettingsStepRow(number: "2", symbol: "hand.tap.fill", color: SettingsStyle.orange, title: "Wort und Satz",
                             text: "Wort antippen: Nur dieses Wort wird vorgelesen. Zweiter Knopf: der ganze Satz, auch über Zeilen hinweg. Wörter in gedruckten Kästen: der ganze Kasten. Lücken sind lila; im Satz steht für eine leere Lücke ein kurzer Ton, eine ausgefüllte wird mitgelesen. Eine leere Lücke antippen öffnet sofort das Antwortfeld und das Hörblatt hört zu (auch bei Wort und Satz); leere Tabellenzellen sagen vorher ihre Spaltenüberschrift. Eine ausgefüllte Lücke wird vorgelesen.")
             SettingsStepRow(number: "3", symbol: "mic.fill", color: SettingsStyle.lila, title: "Sprechen",
-                            text: "Eine Lücke oder eine beliebige Stelle antippen: Es öffnet sich ein Antwortfeld, das Hörblatt hört zu. Der lila Lautsprecher liest die Antwort vor, das Mikrofon nimmt sie neu auf, das Häkchen schließt das Feld.")
+                            text: "Eine Lücke oder eine beliebige Stelle antippen: Es öffnet sich ein Antwortfeld, das Hörblatt hört zu. Der lila Lautsprecher liest die Antwort vor (jedes Wort leuchtet mit), das Mikrofon nimmt sie neu auf, das Häkchen schließt das Feld. Mit „Wort“ ein Wort der Antwort antippen: nur dieses Wort wird vorgelesen. Ein falsch erkanntes Wort korrigieren: den Finger kurz auf dem Wort lassen, nach dem „Pling“ das Wort neu sprechen – nur dieses Wort wird ersetzt.")
             SettingsStepRow(number: "4", symbol: "highlighter", color: SettingsStyle.amber, title: "Markieren",
                             text: "Farbe wählen (gelb, grün, blau, orange). Wort antippen oder waagerecht über Wörter wischen. Für einen Wortteil den Finger kurz auf dem Wort liegen lassen: Die Wort-Lupe zeigt das Wort groß in Buchstaben, Wischen über die Buchstaben markiert genau diese. Die Seite verschiebt man dabei mit zwei Fingern.")
             SettingsStepRow(number: nil, symbol: "pencil.tip", color: SettingsStyle.slate, title: "Stift",

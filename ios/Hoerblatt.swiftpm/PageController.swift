@@ -93,7 +93,7 @@ enum PageReadState: Equatable {
         leaveAnswer()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
-            speakAnswer(page.answers[ai].id)
+            hearAnswer(page.answers[ai].id, at: p, whole: false)
             return
         }
         switch r.target(at: p) {
@@ -102,7 +102,7 @@ enum PageReadState: Equatable {
             // an empty gap: speak into it at once (teacher's wish); a filled one is read
             if page.gaps[k].kind == .check {
                 checkBoxTapped(k)
-            } else if r.answerText(onGap: k).isEmpty {
+            } else if r.answerText(onGap: k).isEmpty && canSpeak {
                 speakIntoGap(k)
             } else {
                 say(r.hearGap(k, wholeSentence: false))
@@ -130,7 +130,7 @@ enum PageReadState: Equatable {
         leaveAnswer()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
-            speakAnswer(page.answers[ai].id)
+            hearAnswer(page.answers[ai].id, at: p, whole: true)
             return
         }
         lastBoxTap = nil
@@ -139,7 +139,7 @@ enum PageReadState: Equatable {
             // an empty gap: speak into it at once; a filled one reads its sentence with the answer
             if page.gaps[k].kind == .check {
                 checkBoxTapped(k)
-            } else if r.answerText(onGap: k).isEmpty {
+            } else if r.answerText(onGap: k).isEmpty && canSpeak {
                 speakIntoGap(k)
             } else {
                 say(r.hearGap(k, wholeSentence: true))
@@ -164,7 +164,7 @@ enum PageReadState: Equatable {
         endPageReading()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
-            tapAnswer(page.answers[ai].id)
+            tapAnswer(page.answers[ai].id, at: p)
             return
         }
         stopListening()
@@ -195,6 +195,11 @@ enum PageReadState: Equatable {
         guard let app = app, k >= 0, k < page.gaps.count else { return }
         stopListening()
         let label = pageControllerTrim(page.gaps[k].head ?? "")
+        // (the pen hidden by the teacher: the child crosses on the paper; only the label is read)
+        if !app.settings.shows(.stift) {
+            if !label.isEmpty { app.say(label) }
+            return
+        }
         app.setModeQuietly(.stift)
         app.say(label.isEmpty ? "Kreuze mit dem Stift an." : label + ". Kreuze mit dem Stift an.")
     }
@@ -232,12 +237,17 @@ enum PageReadState: Equatable {
         save()
     }
 
-    /// A tap on an existing answer field: read it, open it for speaking, or erase it, depending on the tool.
-    func tapAnswer(_ id: UUID) {
+    /// A tap on an existing answer field: read it (Wort: the word under the finger), open it for speaking, or erase
+    /// it, depending on the tool.
+    func tapAnswer(_ id: UUID, at p: CGPoint? = nil) {
         guard let app = app, let a = answer(id) else { return }
         switch app.mode {
-        case .wort, .satz:
-            speakAnswer(id)
+        case .wort:
+            endPageReading()
+            hearAnswer(id, at: p, whole: false)
+        case .satz:
+            endPageReading()
+            hearAnswer(id, at: p, whole: true)
         case .sprechen:
             // (still listening for this field: let the child finish)
             if listeningAnswer == id && isMineListening { return }
@@ -304,6 +314,7 @@ enum PageReadState: Equatable {
         stopMyListening()
     }
 
+    /// Reads the answer; the word being spoken lights up (as in a printed sentence).
     func speakAnswer(_ id: UUID) {
         guard let app = app, let a = answer(id) else { return }
         if listeningAnswer != nil { stopMyListening() }
@@ -312,7 +323,110 @@ enum PageReadState: Equatable {
             app.say("Noch leer")
             return
         }
-        speak(t, rects: [a.rect])
+        // (the places of the words are counted in the whole text; what is spoken starts after leading spaces)
+        let lead = (a.text as NSString).range(of: t).location
+        let shift = lead == NSNotFound ? 0 : lead
+        let spoken = answerWordList(a).map { w in
+            SpokenWord(start: w.range.location - shift, length: w.range.length, rects: [w.rect])
+        }
+        speak(parts: [SpeechPart.text(t)], rects: [a.rect], words: [spoken])
+    }
+
+    /// Wort on an answer: only the word under the finger (as a printed word); where there is no word, and with Satz,
+    /// the whole answer.
+    private func hearAnswer(_ id: UUID, at p: CGPoint?, whole: Bool) {
+        guard let a = answer(id) else { return }
+        if !whole, let p = p {
+            let words = answerWordList(a)
+            if let k = answerWordIndex(words, at: p, textHeight: reading.textSize) {
+                let text = (a.text as NSString).substring(with: words[k].range)
+                let clean = Reading.cleanWord(text)
+                if listeningAnswer != nil { stopMyListening() }
+                speak(clean.isEmpty ? text : clean, rects: [words[k].rect])
+                return
+            }
+        }
+        speakAnswer(id)
+    }
+
+    /// The words of an answer and where they stand on the page (as the field lays them out).
+    func answerWordList(_ a: Answer) -> [AnswerWord] {
+        return answerWords(a, in: page, textHeight: reading.textSize)
+    }
+
+    /// Finger held on a word of an answer: that word is spoken anew (pling, listen) and replaces the old one; then the
+    /// new word is read. (The child mumbles a little: "Er Ritter durch den Wald" – only "Ritter" is said again.)
+    func respeakWord(_ id: UUID, at p: CGPoint) {
+        guard let app = app, let a = answer(id) else { return }
+        let words = answerWordList(a)
+        guard let k = answerWordIndex(words, at: p, textHeight: reading.textSize) else { return }
+        endPageReading()
+        stopListening()
+        app.speaker.stop()
+        activeAnswer = id
+        if !app.settings.mic {
+            // no own listening: the keyboard (with its dictation key) in this field
+            keyboardAnswer = id
+            return
+        }
+        keyboardAnswer = nil
+        let old = a.text as NSString
+        let range = words[k].range
+        let before = old.substring(to: range.location)
+        let after = old.substring(from: range.location + range.length)
+        let oldWord = old.substring(with: range)
+        let beforeTrim = pageControllerTrim(before)
+        let sentenceStart = beforeTrim.isEmpty || ".!?".contains(beforeTrim.last ?? " ")
+        pushUndo()
+        // (the whole run is one undo step)
+        typingUndoFor = id
+        listenGeneration += 1
+        let gen = listenGeneration
+        listeningAnswer = id
+        PageControllerMic.owner = ObjectIdentifier(self)
+        let pad = max(2, reading.textSize * 0.08)
+        flashWord = [words[k].rect.insetBy(dx: -pad, dy: -pad)]
+        var newWord = ""
+        app.speaker.playListenCue(then: { [weak self] in
+            guard let me = self, let app = me.app, me.listenGeneration == gen, me.listeningAnswer == id else { return }
+            app.listener.start(onText: { [weak self] text in
+                guard let me = self, me.listenGeneration == gen else { return }
+                let w = answerReplacement(oldWord, heard: text, sentenceStart: sentenceStart)
+                if w.isEmpty { return }
+                newWord = w
+                me.setAnswerText(id, before + w + after)
+            }, onEnd: { [weak self] in
+                guard let me = self, me.listenGeneration == gen else { return }
+                me.respeakFinished(id, word: newWord, at: range.location)
+            })
+        })
+    }
+
+    private func respeakFinished(_ id: UUID, word: String, at location: Int) {
+        listeningAnswer = nil
+        if PageControllerMic.owner == ObjectIdentifier(self) { PageControllerMic.owner = nil }
+        if !flashWord.isEmpty { flashWord = [] }
+        save()
+        guard let app = app, let a = answer(id) else { return }
+        if app.listener.blocked {
+            activeAnswer = id
+            keyboardAnswer = id
+            app.say("Tippe auf das Mikrofon der Tastatur und sprich.")
+            return
+        }
+        if word.isEmpty {
+            app.say("Ich habe nichts gehört. Halte den Finger auf das Wort und sprich.")
+            return
+        }
+        // the new word, lit up where it stands now
+        let words = answerWordList(a)
+        if let w = words.first(where: { $0.range.location == location }) {
+            let text = (a.text as NSString).substring(with: w.range)
+            let clean = Reading.cleanWord(text)
+            speak(clean.isEmpty ? text : clean, rects: [w.rect])
+        } else {
+            speakAnswer(id)
+        }
     }
 
     /// Typed or heard text; the first change in one go gets one undo step.
@@ -563,6 +677,11 @@ enum PageReadState: Equatable {
 
     // MARK: - Private
 
+    /// The teacher has not hidden "Sprechen": an empty gap starts listening (otherwise it is only read).
+    private var canSpeak: Bool {
+        return app?.settings.shows(.sprechen) ?? true
+    }
+
     private var markColor: MarkColor {
         return app?.settings.markColor ?? MarkColor.gelb
     }
@@ -582,6 +701,8 @@ enum PageReadState: Equatable {
     /// Ends this page's listening run (another page's run goes on).
     private func stopMyListening() {
         if isMineListening { app?.listener.stop() }
+        // (the word being spoken anew stays lit only while listening; while reading, speak() handles the light)
+        if !flashWord.isEmpty && flash.isEmpty { flashWord = [] }
         listenGeneration += 1
         if PageControllerMic.owner == ObjectIdentifier(self) { PageControllerMic.owner = nil }
         if listeningAnswer != nil {
