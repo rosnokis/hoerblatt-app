@@ -7,6 +7,7 @@ import Combine
 // Errors are ignored quietly: a missing file means a missing page, never a crash.
 // Deleted pages and Hefte go to the Papierkorb (Documents/Mappe/Papierkorb/<page uuid>/…, list in trash.json) and are
 // deleted for good after 30 days; only the teacher sees it (Einstellungen).
+// The Schrank (Documents/Mappe/schrank.json): what is handed out today, the teachers' subjects.
 
 /// An entry of the Papierkorb: one page, or a whole Heft with its pages.
 struct TrashItem: Codable, Identifiable, Hashable {
@@ -30,6 +31,8 @@ struct TrashItem: Codable, Identifiable, Hashable {
     @Published private(set) var hefte: [Heft] = []
     /// The Papierkorb, newest first.
     @Published private(set) var trash: [TrashItem] = []
+    /// What lies with the child today, and the subjects (only teachers see them).
+    @Published private(set) var shelf = Shelf()
 
     /// Days a deleted page stays in the Papierkorb.
     static let trashDays = 30
@@ -69,6 +72,117 @@ struct TrashItem: Codable, Identifiable, Hashable {
             item.pages.contains { fm.fileExists(atPath: bin.appendingPathComponent($0.uuidString, isDirectory: true).path) }
         }
         purgeOldTrash()
+        shelf = storeRead(Shelf.self, from: dir.appendingPathComponent("schrank.json")) ?? Shelf()
+        tidyShelf()
+    }
+
+    // MARK: - Schrank
+
+    /// What stands in the Schrank for a page: its Heft, or the page itself.
+    func shelfId(_ pageId: UUID) -> UUID {
+        return heft(containing: pageId)?.id ?? pageId
+    }
+
+    /// A page or Heft handed out today.
+    func isOut(_ itemId: UUID) -> Bool {
+        return shelf.isOut(itemId)
+    }
+
+    /// The page (or its Heft) is handed out today.
+    func isPageOut(_ pageId: UUID) -> Bool {
+        return shelf.isOut(shelfId(pageId))
+    }
+
+    /// Handed out until the end of today.
+    func handOut(_ itemId: UUID) {
+        shelf.out[itemId.uuidString] = Date()
+        writeShelf()
+    }
+
+    /// Back into the Schrank.
+    func putAway(_ itemId: UUID) {
+        guard shelf.out[itemId.uuidString] != nil else { return }
+        shelf.out[itemId.uuidString] = nil
+        writeShelf()
+    }
+
+    func putAwayAll() {
+        if shelf.out.isEmpty { return }
+        shelf.out = [:]
+        writeShelf()
+    }
+
+    /// What was handed out on an earlier day goes back; entries of pages that are gone are dropped (subjects of
+    /// pages in the Papierkorb stay, for restoring). true: something changed.
+    @discardableResult func tidyShelf() -> Bool {
+        var s = shelf
+        var present = Set(pages.map { $0.id.uuidString })
+        for h in hefte { present.insert(h.id.uuidString) }
+        var binned = Set<String>()
+        for item in trash {
+            binned.insert(item.id.uuidString)
+            for p in item.pages { binned.insert(p.uuidString) }
+        }
+        let today = Date()
+        s.out = s.out.filter { present.contains($0.key) && Calendar.current.isDate($0.value, inSameDayAs: today) }
+        let names = Set(s.subjects)
+        s.subjectOf = s.subjectOf.filter { (present.contains($0.key) || binned.contains($0.key)) && names.contains($0.value) }
+        if s == shelf { return false }
+        shelf = s
+        writeShelf()
+        return true
+    }
+
+    /// A new subject; false: empty or there already.
+    @discardableResult func addSubject(_ name: String) -> Bool {
+        let n = storeSubjectName(name)
+        if n.isEmpty || shelf.subjects.contains(where: { $0.caseInsensitiveCompare(n) == .orderedSame }) { return false }
+        shelf.subjects.append(n)
+        writeShelf()
+        return true
+    }
+
+    /// Pages and Hefte keep their subject under the new name; false: empty or the name is taken.
+    @discardableResult func renameSubject(_ old: String, to name: String) -> Bool {
+        let n = storeSubjectName(name)
+        guard let i = shelf.subjects.firstIndex(of: old), !n.isEmpty else { return false }
+        if n == old { return true }
+        if shelf.subjects.contains(where: { $0 != old && $0.caseInsensitiveCompare(n) == .orderedSame }) { return false }
+        shelf.subjects[i] = n
+        for (k, v) in shelf.subjectOf where v == old { shelf.subjectOf[k] = n }
+        writeShelf()
+        return true
+    }
+
+    /// The subject goes; its pages and Hefte stay (without a subject).
+    func removeSubject(_ name: String) {
+        shelf.subjects.removeAll { $0 == name }
+        shelf.subjectOf = shelf.subjectOf.filter { $0.value != name }
+        writeShelf()
+    }
+
+    func moveSubjects(from source: IndexSet, to destination: Int) {
+        var list = shelf.subjects
+        let moving = source.sorted().map { list[$0] }
+        for i in source.sorted(by: >) { list.remove(at: i) }
+        let before = source.filter { $0 < destination }.count
+        list.insert(contentsOf: moving, at: max(0, min(list.count, destination - before)))
+        shelf.subjects = list
+        writeShelf()
+    }
+
+    /// nil: no subject.
+    func setSubject(_ itemId: UUID, _ name: String?) {
+        if let n = name, shelf.subjects.contains(n) {
+            shelf.subjectOf[itemId.uuidString] = n
+        } else {
+            shelf.subjectOf[itemId.uuidString] = nil
+        }
+        writeShelf()
+    }
+
+    private func writeShelf() {
+        storeWrite(shelf, to: folder.appendingPathComponent("schrank.json"))
     }
 
     // MARK: - Hefte
@@ -444,6 +558,13 @@ fileprivate func storeScan(_ folder: URL) -> (pages: [PageInfo], changed: Bool) 
         changed = true
     }
     return (result, changed)
+}
+
+/// A subject's name: trimmed, one line, not too long.
+fileprivate func storeSubjectName(_ name: String) -> String {
+    let one = name.components(separatedBy: .newlines).joined(separator: " ")
+    let t = one.trimmingCharacters(in: .whitespaces)
+    return t.count > 40 ? String(t.prefix(40)).trimmingCharacters(in: .whitespaces) : t
 }
 
 /// Upright, scale 1: the stored image must match the page's pixel coordinates.

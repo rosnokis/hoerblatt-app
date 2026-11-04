@@ -24,7 +24,7 @@ struct HeftProgress: Equatable {
 /// Sheets and the camera. SwiftUI shows one at a time and drops one that comes while another is still
 /// going away, so they are opened one after another.
 fileprivate enum AppStateSheet {
-    case library, settings, photoHelp, picker, scanner, finish, pdfPicker
+    case library, settings, photoHelp, picker, scanner, finish, pdfPicker, shelf
 }
 
 /// Where the last photo came from ("Nochmal" opens the same again).
@@ -82,6 +82,10 @@ fileprivate let appStatePhotoHint =
     }
     @Published var showSettings: Bool = false {
         didSet { sheetChanged(.settings, from: oldValue, to: showSettings) }
+    }
+    /// The Schrank (teachers only: opens from the Mappe after pressing 1 s).
+    @Published var showShelf: Bool = false {
+        didSet { sheetChanged(.shelf, from: oldValue, to: showShelf) }
     }
     @Published var showPhotoHelp: Bool = false {
         didSet { sheetChanged(.photoHelp, from: oldValue, to: showPhotoHelp) }
@@ -194,9 +198,21 @@ fileprivate let appStatePhotoHint =
                 self?.objectWillChange.send()
             }
             .store(in: &bag)
+        // at the end of the day everything goes back into the Schrank: at midnight, and when the app comes back
+        // (e.g. the next morning)
+        NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)
+            .merge(with: NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification))
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.store.tidyShelf()
+                }
+            }
+            .store(in: &bag)
 
         // pages of a Heft not read when the app was closed; then pages read before an update, once more
         Task { @MainActor in
+            // (a page open yesterday is in the Schrank now)
+            self.dropMissingPages()
             self.startHeftReading()
             self.startRereading()
         }
@@ -510,18 +526,7 @@ fileprivate let appStatePhotoHint =
         guard let info = pendingDelete else { return }
         pendingDelete = nil
         if yes {
-            if let h = store.heft(info.id) {
-                for p in h.pages { closePage(p) }
-                heftDocs[h.id] = nil
-                if wantedPage?.heft == h.id {
-                    wantedPage = nil
-                    busy = nil
-                }
-                store.deleteHeft(h.id)
-            } else {
-                closePage(info.id)
-                store.delete(info.id)
-            }
+            deleteNow(info.id)
             announce("Gelöscht")
         } else {
             speaker.stop()
@@ -530,6 +535,44 @@ fileprivate let appStatePhotoHint =
             reopenLibrary = false
             presentSoon(.library)
         }
+    }
+
+    /// A page or a whole Heft into the Papierkorb (closed first if open).
+    func deleteNow(_ id: UUID) {
+        if let h = store.heft(id) {
+            for p in h.pages { closePage(p) }
+            heftDocs[h.id] = nil
+            if wantedPage?.heft == h.id {
+                wantedPage = nil
+                busy = nil
+            }
+            store.deleteHeft(h.id)
+        } else {
+            closePage(id)
+            store.delete(id)
+        }
+    }
+
+    // MARK: - Schrank
+
+    /// From the Schrank: hand out and open at once (the Schrank closes).
+    func openFromShelf(_ id: UUID) {
+        store.handOut(id)
+        showShelf = false
+        changeMode(.wort)
+        open(id)
+    }
+
+    /// The Schrank closes; the Mappe (what the child sees now) comes back.
+    func closeShelf() {
+        showShelf = false
+        presentSoon(.library)
+    }
+
+    /// "PDF öffnen" (teachers, in the Schrank): the PDF becomes a Heft, handed out at once.
+    func choosePDFFromShelf() {
+        showShelf = false
+        choosePDF()
     }
 
     // MARK: - Private: pages
@@ -582,11 +625,14 @@ fileprivate let appStatePhotoHint =
         }
     }
 
-    /// Pages deleted from the Mappe (also "alle löschen" in the settings) are closed.
+    /// Pages deleted from the Mappe (also "alle löschen" in the settings) and pages put back into the Schrank
+    /// (by a teacher, or at the end of the day) are closed.
     private func dropMissingPages() {
         let ids = Set(store.pages.map { $0.id })
-        if let l = left, !ids.contains(l.id) { closePage(l.id) }
-        if let r = right, !ids.contains(r.id) { closePage(r.id) }
+        for c in openControllers where !ids.contains(c.id) || !store.isPageOut(c.id) {
+            c.save()
+            closePage(c.id)
+        }
     }
 
     /// The answer bar of this page closes (an empty field goes away, its listening stops).
@@ -696,6 +742,8 @@ fileprivate let appStatePhotoHint =
         }
         busy = BusyInfo(progress: 1, message: prefix + "Fertig")
         store.add(page: analysis.page, image: analysis.image)
+        // (a new page lies with the child until the end of the day)
+        store.handOut(analysis.page.id)
         put(PageController(page: analysis.page, image: analysis.image, app: self), on: currentSide)
         return .opened(words: words)
     }
@@ -734,6 +782,7 @@ fileprivate let appStatePhotoHint =
         heftDocs[heftId] = doc
         store.addHeft(Heft(id: heftId, title: title, created: Date(), pages: [f.id], lastPage: 0,
                            numbers: [f.number], total: total))
+        store.handOut(heftId)
         changeMode(.wort)
         open(f.id)
         say(total == 1 ? "Fertig. Tippe auf ein Wort."
@@ -843,6 +892,7 @@ fileprivate let appStatePhotoHint =
         page.blank = true
         page.readVersion = Recognizer.version
         store.add(page: page, image: image)
+        store.handOut(page.id)
         put(PageController(page: page, image: image, app: self), on: currentSide)
         // (straight to speaking, unless the teacher hid it)
         setModeQuietly(.sprechen)
@@ -935,7 +985,8 @@ fileprivate let appStatePhotoHint =
         wantedPage = nil
         busy = nil
         if let id = page, store.heft(job.heft) != nil {
-            open(id)
+            // (put back into the Schrank meanwhile: it stays there)
+            if store.isOut(job.heft) { open(id) }
         } else {
             say("Diese Seite kann ich nicht lesen.")
         }
@@ -1039,6 +1090,8 @@ fileprivate let appStatePhotoHint =
             showScanner = on
         case .pdfPicker:
             showPDFPicker = on
+        case .shelf:
+            showShelf = on
         case .finish:
             if on {
                 finishImage = pendingFinish
@@ -1056,6 +1109,7 @@ fileprivate let appStatePhotoHint =
         if kind != .picker && showPicker { return true }
         if kind != .scanner && showScanner { return true }
         if kind != .pdfPicker && showPDFPicker { return true }
+        if kind != .shelf && showShelf { return true }
         if kind != .finish && finishImage != nil { return true }
         return false
     }
@@ -1067,6 +1121,7 @@ fileprivate let appStatePhotoHint =
         if kind != .picker && showPicker { showPicker = false }
         if kind != .scanner && showScanner { showScanner = false }
         if kind != .pdfPicker && showPDFPicker { showPDFPicker = false }
+        if kind != .shelf && showShelf { showShelf = false }
         if kind != .finish && finishImage != nil { finishImage = nil }
     }
 }

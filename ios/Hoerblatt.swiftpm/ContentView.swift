@@ -43,6 +43,9 @@ struct ContentView: View {
             .sheet(isPresented: $app.showSettings) {
                 SettingsView(app: app)
             }
+            .sheet(isPresented: $app.showShelf) {
+                ShelfView(app: app)
+            }
             // (the Dateien picker for a PDF hangs on a view of its own, like the sheets)
             Color.clear
                 .frame(width: 1, height: 1)
@@ -280,7 +283,8 @@ fileprivate struct CVEmptyState: View {
             Text("Foto vom Blatt machen")
                 .font(.title2.weight(.semibold))
                 .foregroundColor(CVStyle.slate)
-            if !app.store.pages.isEmpty {
+            // (always: the teacher reaches the Schrank through the Mappe, also when nothing is handed out)
+            Group {
                 Button(action: {
                     app.announce("Mappe")
                     app.showLibrary = true

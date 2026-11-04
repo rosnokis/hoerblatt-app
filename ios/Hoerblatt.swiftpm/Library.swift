@@ -4,15 +4,19 @@ import UIKit
 // The Mappe: every photographed page stays with all answers, so the child can switch between pages,
 // e.g. a book page and the worksheet about it. LibraryView is the sheet with all pages,
 // PageStrip the row of recent pages in the header (one tap switches).
+// Both show only what is handed out today (the Schrank, Shelf.swift, holds the rest; only teachers open it).
 
 struct LibraryView: View {
     @ObservedObject var app: AppState
 
     var body: some View {
         // pages of a Heft are shown as their Heft (pages of an unfinished import would get lost otherwise)
-        let books = app.store.hefte
-        let bookIds = Set(books.map { $0.id })
-        let pages = app.store.pages.filter { info in info.heft.map { !bookIds.contains($0) } ?? true }
+        let allBooks = app.store.hefte
+        let bookIds = Set(allBooks.map { $0.id })
+        let books = allBooks.filter { app.store.isOut($0.id) }
+        let pages = app.store.pages.filter { info in
+            (info.heft.map { !bookIds.contains($0) } ?? true) && app.store.isOut(info.id)
+        }
         VStack(spacing: 0) {
             header
             ScrollView {
@@ -23,13 +27,7 @@ struct LibraryView: View {
                         app.showLibrary = false
                         app.newPhoto()
                     }
-                    // ("Foto wählen" from the Fotos app is in the settings: for the teacher)
-                    LibraryActionTile(symbol: "doc.richtext", title: "PDF öffnen", filled: false) {
-                        // (the Dateien picker comes once the Mappe has gone away)
-                        app.announce("PDF öffnen")
-                        app.showLibrary = false
-                        app.choosePDF()
-                    }
+                    // ("PDF öffnen" and "Foto wählen" are in the Schrank: for the teacher)
                     // an empty sheet to write on: speaking, the pen; no lines
                     LibraryActionTile(symbol: "square.and.pencil", title: "Schreibblatt", filled: false) {
                         app.showLibrary = false
@@ -45,7 +43,7 @@ struct LibraryView: View {
                 }
                 .padding(20)
                 if pages.isEmpty && books.isEmpty {
-                    Text("Die Mappe ist noch leer. Mach ein Foto von einem Blatt.")
+                    Text("Die Mappe ist leer. Mach ein Foto von einem Blatt.")
                         .font(.title3.weight(.semibold))
                         .foregroundColor(LibraryStyle.slate)
                         .multilineTextAlignment(.center)
@@ -53,7 +51,7 @@ struct LibraryView: View {
                         .padding(.bottom, 24)
                         .onAppear {
                             // (the child cannot read it)
-                            app.say("Die Mappe ist noch leer. Tippe auf die Kamera und mach ein Foto von einem Blatt.")
+                            app.say("Die Mappe ist leer. Tippe auf die Kamera und mach ein Foto von einem Blatt.")
                         }
                 }
             }
@@ -86,6 +84,8 @@ struct LibraryView: View {
                 .accessibilityElement(children: .combine)
             }
             Spacer(minLength: 0)
+            // the Schrank: teachers only (press 1 s)
+            ShelfKnob(app: app)
             Button(action: {
                 app.showLibrary = false
             }) {
@@ -127,14 +127,14 @@ struct PageStrip: View {
         }
     }
 
-    /// The newest ~12 pages; an open page is always there, even if it is older. A Heft stands here once, as its
+    /// The newest ~12 pages handed out today; an open page is always there, even if it is older. A Heft stands here once, as its
     /// open page or the page last worked on (teacher: switching between a Heft and a photo must not need the Mappe).
     @MainActor
     private var stripPages: [PageInfo] {
         var list: [PageInfo] = []
         var hefteSeen = Set<UUID>()
         var count = 0
-        for info in app.store.pages {
+        for info in app.store.pages where app.store.isPageOut(info.id) {
             var item = info
             if let hid = info.heft, let h = app.store.heft(hid) {
                 if hefteSeen.contains(hid) { continue }

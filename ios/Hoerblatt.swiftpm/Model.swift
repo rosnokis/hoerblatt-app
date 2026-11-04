@@ -179,6 +179,36 @@ struct Page: Codable, Identifiable {
     var blank: Bool? = nil
 }
 
+/// The Schrank (teacher, November 2026): the child sees only what is handed out today; everything else waits in the
+/// Schrank, which only teachers open. Keys are the ids of single pages and of Hefte (`PageStore.shelfId`).
+struct Shelf: Codable, Equatable {
+    /// Handed out, with the time; only today counts (at the end of the day everything goes back by itself).
+    var out: [String: Date] = [:]
+    /// The subjects the teachers named, in their order.
+    var subjects: [String] = []
+    /// The subject of a page or Heft (none: not in the list).
+    var subjectOf: [String: String] = [:]
+
+    init() {}
+
+    // (missing keys keep their defaults: an older or newer file still loads)
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        out = try c.decodeIfPresent([String: Date].self, forKey: .out) ?? [:]
+        subjects = try c.decodeIfPresent([String].self, forKey: .subjects) ?? []
+        subjectOf = try c.decodeIfPresent([String: String].self, forKey: .subjectOf) ?? [:]
+    }
+
+    func isOut(_ id: UUID, now: Date = Date()) -> Bool {
+        guard let d = out[id.uuidString] else { return false }
+        return Calendar.current.isDate(d, inSameDayAs: now)
+    }
+
+    func subject(of id: UUID) -> String? {
+        return subjectOf[id.uuidString]
+    }
+}
+
 /// Entry of the Mappe list (the page itself is loaded only when opened).
 struct PageInfo: Codable, Identifiable, Hashable {
     var id: UUID
