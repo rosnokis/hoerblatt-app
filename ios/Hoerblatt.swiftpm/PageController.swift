@@ -33,6 +33,10 @@ enum PageReadState: Equatable {
     @Published var flash: [CGRect] = []
     /// The word being spoken in a sentence, lit up more strongly (teacher's wish: read along word by word).
     @Published var flashWord: [CGRect] = []
+    /// While one word of an answer is spoken anew: that word (it pulses red; the field itself does not).
+    @Published var respeakWordRect: CGRect? = nil
+    /// The word just spoken anew, green for a moment.
+    @Published var renewedWordRect: CGRect? = nil
     /// The whole page read aloud (a book; play button at the top left of the page).
     @Published var pageReadState: PageReadState = .off
     /// Answer field with its bar (microphone, speaker, done). An empty field is dropped when left.
@@ -342,7 +346,10 @@ enum PageReadState: Equatable {
                 let text = (a.text as NSString).substring(with: words[k].range)
                 let clean = Reading.cleanWord(text)
                 if listeningAnswer != nil { stopMyListening() }
-                speak(clean.isEmpty ? text : clean, rects: [words[k].rect])
+                // (lit up strongly while spoken, as a printed word being read)
+                let said = clean.isEmpty ? text : clean
+                let lit = SpokenWord(start: 0, length: (said as NSString).length, rects: [words[k].rect])
+                speak(parts: [SpeechPart.text(said)], rects: [words[k].rect], words: [[lit]])
                 return
             }
         }
@@ -384,8 +391,8 @@ enum PageReadState: Equatable {
         let gen = listenGeneration
         listeningAnswer = id
         PageControllerMic.owner = ObjectIdentifier(self)
-        let pad = max(2, reading.textSize * 0.08)
-        flashWord = [words[k].rect.insetBy(dx: -pad, dy: -pad)]
+        respeakWordRect = words[k].rect
+        renewedWordRect = nil
         var newWord = ""
         app.speaker.playListenCue(then: { [weak self] in
             guard let me = self, let app = me.app, me.listenGeneration == gen, me.listeningAnswer == id else { return }
@@ -395,6 +402,11 @@ enum PageReadState: Equatable {
                 if w.isEmpty { return }
                 newWord = w
                 me.setAnswerText(id, before + w + after)
+                // (the red mark follows the new word as it is heard)
+                if let now = me.answer(id),
+                   let nw = me.answerWordList(now).first(where: { $0.range.location == range.location }) {
+                    me.respeakWordRect = nw.rect
+                }
             }, onEnd: { [weak self] in
                 guard let me = self, me.listenGeneration == gen else { return }
                 me.respeakFinished(id, word: newWord, at: range.location)
@@ -405,7 +417,7 @@ enum PageReadState: Equatable {
     private func respeakFinished(_ id: UUID, word: String, at location: Int) {
         listeningAnswer = nil
         if PageControllerMic.owner == ObjectIdentifier(self) { PageControllerMic.owner = nil }
-        if !flashWord.isEmpty { flashWord = [] }
+        respeakWordRect = nil
         save()
         guard let app = app, let a = answer(id) else { return }
         if app.listener.blocked {
@@ -418,12 +430,17 @@ enum PageReadState: Equatable {
             app.say("Ich habe nichts gehört. Halte den Finger auf das Wort und sprich.")
             return
         }
-        // the new word, lit up where it stands now
+        // the new word, green for a moment where it stands now, and read
         let words = answerWordList(a)
         if let w = words.first(where: { $0.range.location == location }) {
             let text = (a.text as NSString).substring(with: w.range)
             let clean = Reading.cleanWord(text)
-            speak(clean.isEmpty ? text : clean, rects: [w.rect])
+            renewedWordRect = w.rect
+            speak(clean.isEmpty ? text : clean, rects: [])
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 1_800_000_000)
+                if let me = self, me.renewedWordRect == w.rect { me.renewedWordRect = nil }
+            }
         } else {
             speakAnswer(id)
         }
@@ -723,8 +740,8 @@ enum PageReadState: Equatable {
     /// Ends this page's listening run (another page's run goes on).
     private func stopMyListening() {
         if isMineListening { app?.listener.stop() }
-        // (the word being spoken anew stays lit only while listening; while reading, speak() handles the light)
-        if !flashWord.isEmpty && flash.isEmpty { flashWord = [] }
+        // (the word being spoken anew is marked only while listening)
+        if respeakWordRect != nil { respeakWordRect = nil }
         listenGeneration += 1
         if PageControllerMic.owner == ObjectIdentifier(self) { PageControllerMic.owner = nil }
         if listeningAnswer != nil {

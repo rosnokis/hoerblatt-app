@@ -83,6 +83,8 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     private var overlayKey: PageCanvasOverlayKey?
     private var toolKey: PageCanvasToolKey?
     private var fields: [UUID: PageCanvasAnswerField] = [:]
+    /// Word places of each answer (for the outlines), with the answer's state they belong to.
+    private var answerWordCache: [UUID: (key: String, rects: [CGRect])] = [:]
     private var fieldOrder: [UUID] = []
 
     /// The controller's drawing as last seen, and the bytes this view last sent or loaded:
@@ -443,12 +445,33 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         // (red and pulsing while the Hörblatt listens to the field, whatever the tool: a gap starts listening in
         // Wort and Satz too; `a.listener.isListening` is read so the fields follow the listener)
         let anyListening = a.listener.isListening
+        // word outlines in answers as on the printed words (and in Sprechen, where words are spoken anew)
+        let outlines = a.settings.outlines && (mode == .wort || mode == .satz || mode == .sprechen)
+        let wordPad = th * 0.08
         for ans in answers {
             guard let f = fields[ans.id] else { continue }
             let active = c.activeAnswer == ans.id
+            let editable = c.keyboardAnswer == ans.id
+            // (one word spoken anew: only that word pulses, not the whole field)
+            let respeak = active ? c.respeakWordRect : nil
             f.update(answer: ans, room: answerRoom(ans, in: c.page), lines: c.page.answerLines(ans), textHeight: th,
-                     editable: c.keyboardAnswer == ans.id, active: active,
-                     listening: anyListening && active && c.isListening(to: ans.id), erasing: mode == .radieren)
+                     editable: editable, active: active,
+                     listening: anyListening && active && c.isListening(to: ans.id) && respeak == nil,
+                     erasing: mode == .radieren)
+            var marks = PageCanvasAnswerMarks()
+            if outlines && !editable {
+                marks.outlines = answerWordRects(ans, c, textHeight: th).map { $0.insetBy(dx: -wordPad, dy: -wordPad) }
+            }
+            if !editable {
+                marks.light = c.flash
+                marks.strong = c.flashWord
+                if let r = c.renewedWordRect { marks.renewed = [r] }
+                marks.respeak = respeak
+            }
+            f.setMarks(marks)
+        }
+        for id in Array(answerWordCache.keys) where !keep.contains(id) {
+            answerWordCache[id] = nil
         }
         focusPendingField()
     }
@@ -803,6 +826,15 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     // MARK: - Hits
 
     /// The answer field under the finger (topmost), as it is shown.
+    /// Where the words of an answer stand (laid out as the field shows them); kept until the answer changes.
+    private func answerWordRects(_ a: Answer, _ c: PageController, textHeight th: CGFloat) -> [CGRect] {
+        let key = "\(a.text)|\(a.rect)|\(a.gap?.uuidString ?? "-")|\(th)|\(c.page.answerLines(a)?.count ?? 0)"
+        if let cached = answerWordCache[a.id], cached.key == key { return cached.rects }
+        let rects = c.answerWordList(a).map { $0.rect }
+        answerWordCache[a.id] = (key: key, rects: rects)
+        return rects
+    }
+
     private func answerHit(_ p: CGPoint, _ c: PageController) -> UUID? {
         let pad = textHeight * 0.2
         for a in c.page.answers.reversed() {
@@ -1104,6 +1136,117 @@ fileprivate final class PageCanvasOverlayView: UIView {
 
 // MARK: - Answer field
 
+/// What lights up in an answer field (page pixels): word outlines, the light while reading (the whole answer, the word
+/// being spoken), the word just spoken anew (green), the word being spoken anew (red, pulsing).
+fileprivate struct PageCanvasAnswerMarks: Equatable {
+    var outlines: [CGRect] = []
+    var light: [CGRect] = []
+    var strong: [CGRect] = []
+    var renewed: [CGRect] = []
+    var respeak: CGRect? = nil
+}
+
+fileprivate final class PageCanvasAnswerMarksView: UIView {
+    var marks = PageCanvasAnswerMarks()
+    /// The field's place on the page (marks come in page pixels).
+    var offset = CGPoint.zero
+    var th: CGFloat = 20
+    private let pulse = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        contentMode = .redraw
+        let still = NSNull()
+        pulse.actions = ["path": still, "bounds": still, "position": still, "hidden": still]
+        pulse.fillColor = UIColor(red: 220 / 255, green: 38 / 255, blue: 38 / 255, alpha: 0.35).cgColor
+        pulse.strokeColor = UIColor(red: 220 / 255, green: 38 / 255, blue: 38 / 255, alpha: 1).cgColor
+        pulse.isHidden = true
+        layer.addSublayer(pulse)
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    private func local(_ r: CGRect) -> CGRect {
+        return r.offsetBy(dx: -offset.x, dy: -offset.y)
+    }
+
+    /// The word being spoken anew pulses red.
+    func updatePulse() {
+        guard let r = marks.respeak else {
+            if !pulse.isHidden {
+                pulse.removeAnimation(forKey: "hoerblattRespeak")
+                pulse.isHidden = true
+            }
+            return
+        }
+        let box = local(r).insetBy(dx: -th * 0.12, dy: -th * 0.12)
+        pulse.frame = bounds
+        pulse.path = UIBezierPath(roundedRect: box, cornerRadius: th * 0.2).cgPath
+        pulse.lineWidth = max(2, th * 0.08)
+        if pulse.isHidden {
+            pulse.isHidden = false
+            let anim = CABasicAnimation(keyPath: "opacity")
+            anim.fromValue = 0.35
+            anim.toValue = 1
+            anim.duration = 0.5
+            anim.autoreverses = true
+            anim.repeatCount = Float.infinity
+            pulse.add(anim, forKey: "hoerblattRespeak")
+        }
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let orange = PageCanvasPalette.orange
+        let radius = th * 0.2
+        func path(_ r: CGRect) -> UIBezierPath {
+            return UIBezierPath(roundedRect: local(r), cornerRadius: radius)
+        }
+        // word outlines: where one word ends and the next begins
+        if !marks.outlines.isEmpty {
+            ctx.saveGState()
+            ctx.setStrokeColor(orange.withAlphaComponent(0.6).cgColor)
+            ctx.setLineWidth(max(1.5, th * 0.045))
+            ctx.setLineDash(phase: 0, lengths: [th * 0.15, th * 0.15])
+            for r in marks.outlines {
+                ctx.addPath(path(r).cgPath)
+            }
+            ctx.strokePath()
+            ctx.restoreGState()
+        }
+        for r in marks.light {
+            ctx.saveGState()
+            ctx.addPath(path(r).cgPath)
+            ctx.setFillColor(orange.withAlphaComponent(0.2).cgColor)
+            ctx.fillPath()
+            ctx.addPath(path(r).cgPath)
+            ctx.setStrokeColor(orange.cgColor)
+            ctx.setLineWidth(max(2, th * 0.07))
+            ctx.strokePath()
+            ctx.restoreGState()
+        }
+        for r in marks.strong {
+            ctx.saveGState()
+            ctx.addPath(path(r).cgPath)
+            ctx.setFillColor(orange.withAlphaComponent(0.55).cgColor)
+            ctx.fillPath()
+            ctx.restoreGState()
+        }
+        for r in marks.renewed {
+            ctx.saveGState()
+            ctx.addPath(path(r.insetBy(dx: -th * 0.12, dy: -th * 0.12)).cgPath)
+            ctx.setFillColor(UIColor(red: 22 / 255, green: 163 / 255, blue: 74 / 255, alpha: 0.45).cgColor)
+            ctx.fillPath()
+            ctx.restoreGState()
+        }
+    }
+}
+
 /// The rows of an answer written onto writing lines (each row where its line is).
 fileprivate final class PageCanvasAnswerRows: UIView {
     var rows: [(text: String, origin: CGPoint)] = []
@@ -1147,6 +1290,9 @@ fileprivate final class PageCanvasAnswerField: UIView {
     private let shape = CAShapeLayer()
     /// The rows of text on the lines (instead of the text view, except while typing).
     private let rowsView = PageCanvasAnswerRows(frame: .zero)
+    /// Word outlines and the light while reading, drawn INSIDE the field (under the writing): on the page they would
+    /// lie behind the field and could not be seen.
+    private let marksView = PageCanvasAnswerMarksView(frame: .zero)
 
     init(answerId: UUID, delegate: UITextViewDelegate) {
         self.answerId = answerId
@@ -1181,9 +1327,33 @@ fileprivate final class PageCanvasAnswerField: UIView {
         shape.actions = ["path": still, "bounds": still, "position": still, "fillColor": still, "strokeColor": still,
                          "lineWidth": still, "hidden": still]
         layer.insertSublayer(shape, at: 0)
+        // (in this order: background shape, marks, writing)
+        addSubview(marksView)
         rowsView.isHidden = true
         addSubview(rowsView)
         addSubview(textView)
+    }
+
+    /// The marks in page pixels; drawn where they fall into the field.
+    func setMarks(_ marks: PageCanvasAnswerMarks) {
+        marksView.frame = bounds
+        marksView.th = th
+        marksView.offset = frame.origin
+        // (a field on writing lines: only inside its shape – the printed text before the first line stays free)
+        if lines != nil, let p = shape.path {
+            let mask = (marksView.layer.mask as? CAShapeLayer) ?? CAShapeLayer()
+            mask.actions = ["path": NSNull(), "bounds": NSNull(), "position": NSNull()]
+            mask.frame = marksView.bounds
+            mask.path = p
+            marksView.layer.mask = mask
+        } else if marksView.layer.mask != nil {
+            marksView.layer.mask = nil
+        }
+        if marksView.marks != marks {
+            marksView.marks = marks
+            marksView.setNeedsDisplay()
+        }
+        marksView.updatePulse()
     }
 
     required init?(coder: NSCoder) {
