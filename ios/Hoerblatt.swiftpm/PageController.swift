@@ -623,6 +623,8 @@ enum PageReadState: Equatable {
             pushUndo()
             var changed = page
             let gid = changed.gaps[k].id
+            // (remembered: reading the page again after an update does not bring it back)
+            changed.erasedGaps = (changed.erasedGaps ?? []) + [changed.gaps[k].rect]
             changed.gaps.remove(at: k)
             for n in changed.answers.indices where changed.answers[n].gap == gid {
                 changed.answers[n].gap = nil
@@ -666,6 +668,26 @@ enum PageReadState: Equatable {
         if let k = keyboardAnswer, answerIndex(k) == nil { keyboardAnswer = nil }
         save()
         app.announce("Zurück")
+    }
+
+    /// The child is speaking, typing or in the word lens: the page is not read again just now.
+    var isBusyEditing: Bool {
+        return listeningAnswer != nil || keyboardAnswer != nil || lensWord != nil
+    }
+
+    /// The page read again with a newer recognition (after an update): words, gaps and boxes are new; answers, marks
+    /// and pen strokes stay (`pageCarryOver`). The undo steps go: they hold marks by the old word numbers.
+    func replaceReading(with fresh: Page) {
+        endPageReading()
+        lastBoxTap = nil
+        lastTappedWord = nil
+        if !flash.isEmpty { flash = [] }
+        if !flashWord.isEmpty { flashWord = [] }
+        edgeCache = [:]
+        undoStack = []
+        typingUndoFor = nil
+        page = pageCarryOver(page, into: fresh)
+        save()
     }
 
     /// Writes the page into the Mappe now.

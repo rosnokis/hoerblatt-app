@@ -17,12 +17,21 @@ struct Analysis {
 }
 
 enum Recognizer {
+    /// Raised whenever the recognition or the layout analysis changes what a page gets (words, gaps, boxes, tables).
+    /// Pages read with an older version are read again after the update – answers, marks and pen strokes stay
+    /// (`AppState.startRereading`, `pageCarryOver`). (Changes in Reading.swift alone need no new version: the reading
+    /// order is made anew from the words whenever a page opens.)
+    /// 2: November 2026 (paper edge, round frames).
+    static let version = 2
+
     /// Takes a few seconds. `progress` (0…1, message for the waiting screen) is called on any thread.
     /// `textWords`: the words of a PDF page that has its own text, in pixels of `input` (upright, scale 1, long side
     /// at most 2400): then nothing is turned or read, only the layout is analysed.
     /// `cleanPage`: a page drawn from a PDF (tables may be as tall as the page).
-    static func analyze(_ input: UIImage, textWords: [Word]? = nil, cleanPage: Bool = false,
-                        progress: @escaping (Double, String) -> Void) async -> Analysis {
+    /// `again`: a stored page read once more (its picture is upright already; `known`: Vision's words from the first
+    /// reading, in its pixels – then Vision is not asked again).
+    static func analyze(_ input: UIImage, textWords: [Word]? = nil, cleanPage: Bool = false, again: Bool = false,
+                        known: [Word]? = nil, progress: @escaping (Double, String) -> Void) async -> Analysis {
         progress(0.02, "Das Foto wird vorbereitet …")
         guard let source = rcCGImage(input),
               let base = rcDraw(source, orientation: input.imageOrientation, maxSide: 2400) else {
@@ -35,6 +44,13 @@ enum Recognizer {
         if let given = textWords, base.width == source.width, base.height == source.height {
             tokens = given
             fromText = true
+        } else if again, let known = known, base.width == source.width, base.height == source.height {
+            progress(0.5, "Das Blatt wird neu gelesen …")
+            tokens = known
+        } else if again {
+            // (already upright: not turned again)
+            progress(0.15, "Das Blatt wird gelesen …")
+            tokens = rcRecognize(cg, progress: progress)
         } else {
             // a page photographed sideways is turned upright first
             progress(0.06, "Das Foto wird ausgerichtet …")
@@ -82,6 +98,7 @@ enum Recognizer {
         var page = Page(id: UUID(), created: Date(), title: title, pixelSize: size, textHeight: textHeight,
                         words: words, gaps: gaps, boxes: boxes, answers: [], marks: [], drawing: Data())
         page.visionWords = tokens
+        page.readVersion = Recognizer.version
         progress(1, "Fertig")
         return Analysis(image: UIImage(cgImage: cg, scale: 1, orientation: .up), page: page)
     }

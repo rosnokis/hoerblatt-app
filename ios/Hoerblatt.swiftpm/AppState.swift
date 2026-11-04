@@ -139,6 +139,8 @@ fileprivate let appStatePhotoHint =
     /// Open PDFs of Hefte with pages still to read.
     private var heftDocs: [UUID: PDFDocument] = [:]
     private var heftReading = false
+    /// Pages read before an update are being read again (`startRereading`).
+    private var rereading = false
     /// The child turned to a page not read yet: it is read next and opened.
     private var wantedPage: (heft: UUID, number: Int)? = nil
     /// Hefte and pages that cannot be read ("<heft>/<page>"): not tried again in this run.
@@ -191,9 +193,10 @@ fileprivate let appStatePhotoHint =
             }
             .store(in: &bag)
 
-        // pages of a Heft not read when the app was closed
+        // pages of a Heft not read when the app was closed; then pages read before an update, once more
         Task { @MainActor in
             self.startHeftReading()
+            self.startRereading()
         }
     }
 
@@ -813,6 +816,70 @@ fileprivate let appStatePhotoHint =
             heftProgress = HeftProgress(heft: job.heft, done: now.pages.count, total: now.pageTotal)
         }
         finishWanted(job, page: id)
+    }
+
+    // MARK: - Reading again after an update
+
+    /// Pages read with an older recognition are read again, one after another, open pages first; answers, marks and
+    /// pen strokes stay. Quiet, in the background (from the stored picture and, where kept, Vision's words: no new
+    /// Vision run then). Waits while Hefte are read for the first time.
+    private func startRereading() {
+        if rereading { return }
+        rereading = true
+        Task { @MainActor in
+            var queue: [UUID] = []
+            for info in self.store.pages {
+                if let p = self.store.loadPage(info.id), (p.readVersion ?? 1) < Recognizer.version {
+                    queue.append(info.id)
+                }
+                await Task.yield()
+            }
+            while true {
+                while self.heftReading {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                }
+                let open = self.openControllers.map { $0.id }
+                guard let id = queue.first(where: { open.contains($0) }) ?? queue.first else { break }
+                queue.removeAll(where: { $0 == id })
+                await self.readAgain(id)
+            }
+            self.rereading = false
+        }
+    }
+
+    private func readAgain(_ id: UUID) async {
+        guard let stored = store.loadPage(id), (stored.readVersion ?? 1) < Recognizer.version,
+              let image = store.loadImage(id) else { return }
+        let analysis = await Recognizer.analyze(image, cleanPage: stored.heft != nil, again: true,
+                                                known: stored.visionWords, progress: { _, _ in })
+        var fresh = analysis.page
+        // (a reading that went wrong – other size, nothing read – keeps the old page; it is not tried again)
+        let usable = fresh.pixelSize == stored.pixelSize && (!fresh.words.isEmpty || stored.words.isEmpty)
+        if !usable {
+            fresh = stored
+            fresh.readVersion = Recognizer.version
+        }
+        // the child may have worked on it meanwhile: carried over from the page as it is now
+        if let c = openController(id) {
+            var tries = 0
+            while c.isBusyEditing && tries < 600 {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                tries += 1
+            }
+            if let now = openController(id) {
+                if usable {
+                    now.replaceReading(with: fresh)
+                } else {
+                    var kept = now.page
+                    kept.readVersion = Recognizer.version
+                    now.page = kept
+                    now.save()
+                }
+                return
+            }
+        }
+        guard let now = store.loadPage(id) else { return }
+        store.save(usable ? pageCarryOver(now, into: fresh) : fresh)
     }
 
     /// Self test: pages of a Heft are still being read in the background.

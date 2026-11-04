@@ -1079,3 +1079,103 @@ func answerReplacement(_ old: String, heard: String, sentenceStart: Bool) -> Str
     }
     return lead + core + trail
 }
+
+// MARK: - Reading a page again (after an update)
+
+/// The page read again (`fresh`: new words, gaps, boxes) keeps what was done on the old one: answers go onto the new gap
+/// at the same place (a gap no longer found: the answer stays as a free field where it was), marks onto the word at the
+/// same place (gone with their word otherwise), pen strokes as they are; gaps the teacher erased stay away. Id, title,
+/// date and the place in a Heft stay too.
+func pageCarryOver(_ old: Page, into fresh: Page) -> Page {
+    var p = fresh
+    p.id = old.id
+    p.created = old.created
+    p.title = old.title
+    p.heft = old.heft
+    p.heftPage = old.heftPage
+    p.drawing = old.drawing
+    let th = max(4, p.textHeight.isFinite ? p.textHeight : 20)
+
+    // erased gaps (unless undo brought one back: then it is among the old gaps again)
+    let erased = (old.erasedGaps ?? []).filter { e in
+        !old.gaps.contains { carryOverlap([e], [$0.rect], pad: th * 0.3) > 0.5 }
+    }
+    if !erased.isEmpty {
+        p.gaps.removeAll { g in carryOverlap(erased, [g.rect], pad: th * 0.3) > 0.5 }
+    }
+    p.erasedGaps = erased.isEmpty ? nil : erased
+
+    // answers onto the gap at the same place (each gap takes one answer)
+    let reading = Reading(page: p)
+    var taken = Set<Int>()
+    p.answers = old.answers.map { a in
+        var n = a
+        guard let gid = a.gap, let og = old.gaps.first(where: { $0.id == gid }) else {
+            n.gap = nil
+            return n
+        }
+        let oldRects = [og.rect] + (og.more ?? [])
+        var best = -1
+        var bestScore: CGFloat = 0
+        for (k, g) in p.gaps.enumerated() where !taken.contains(k) && g.kind != .check {
+            let score = carryOverlap(oldRects, [g.rect] + (g.more ?? []), pad: th * 0.3)
+            if score > bestScore {
+                bestScore = score
+                best = k
+            }
+        }
+        if best >= 0 && bestScore > 0.3 {
+            taken.insert(best)
+            n.gap = p.gaps[best].id
+            n.rect = reading.newAnswerRect(forGap: best)
+        } else {
+            n.gap = nil
+        }
+        return n
+    }
+
+    // marks onto the word at the same place (the same text first)
+    var marks: [Mark] = []
+    for m in old.marks {
+        guard m.word >= 0 && m.word < old.words.count else { continue }
+        let ow = old.words[m.word]
+        var best = -1
+        var bestScore: CGFloat = 0
+        for (j, w) in p.words.enumerated() {
+            let o = carryOverlap([ow.rect], [w.rect], pad: 0)
+            // (the same word: a little overlap is enough; another reading of it must lie on it)
+            let same = w.text == ow.text
+            if o <= (same ? 0.2 : 0.5) { continue }
+            let score = o + (same ? 1 : 0)
+            if score > bestScore {
+                bestScore = score
+                best = j
+            }
+        }
+        if best >= 0 {
+            var n = m
+            n.word = best
+            marks.append(n)
+        }
+    }
+    p.marks = marks
+    return p
+}
+
+/// How much two groups of rectangles (each grown by `pad`) lie on each other: the shared area against the smaller
+/// group's area (0 … 1).
+func carryOverlap(_ a: [CGRect], _ b: [CGRect], pad: CGFloat) -> CGFloat {
+    let ga = a.map { $0.insetBy(dx: -pad, dy: -pad) }
+    let gb = b.map { $0.insetBy(dx: -pad, dy: -pad) }
+    var shared: CGFloat = 0
+    for r in ga {
+        for s in gb {
+            let i = r.intersection(s)
+            if !i.isNull && !i.isEmpty { shared += i.width * i.height }
+        }
+    }
+    let areaA = ga.reduce(CGFloat(0)) { $0 + $1.width * $1.height }
+    let areaB = gb.reduce(CGFloat(0)) { $0 + $1.width * $1.height }
+    let smaller = min(areaA, areaB)
+    return smaller > 0 ? min(1, shared / smaller) : 0
+}

@@ -149,8 +149,14 @@ struct Page: Codable, Identifiable {
     /// The Heft (a PDF with several pages) this page belongs to, and its place in it (0 = first page).
     var heft: UUID? = nil
     var heftPage: Int? = nil
-    /// The words as Vision read them, before the layout analysis (self test: replayed on the developer's computer).
+    /// The words as Vision read them, before the layout analysis (self test: replayed on the developer's computer;
+    /// after an update the page is read again from them, without Vision).
     var visionWords: [Word]? = nil
+    /// Version of the recognition that read the page (nil: 1). An older page is read again after an update, keeping
+    /// answers, marks and pen strokes (`Recognizer.version`, `pageCarryOver`).
+    var readVersion: Int? = nil
+    /// Gaps the teacher erased as wrongly recognised: reading the page again does not bring them back.
+    var erasedGaps: [CGRect]? = nil
 }
 
 /// Entry of the Mappe list (the page itself is loaded only when opened).
