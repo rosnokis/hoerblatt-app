@@ -11,10 +11,14 @@ struct ShelfView: View {
     @ObservedObject var app: AppState
     /// nil: all subjects; "" : without a subject.
     @State private var filter: String? = nil
-    @State private var addingSubject = false
-    @State private var subjectText = ""
-    @State private var renaming: String? = nil
-    @State private var renameText = ""
+    /// The name typed for a new subject (a field right in the list: the keyboard did not come up in an alert).
+    @State private var newName = ""
+    /// The subject being renamed, and its new name.
+    @State private var editing: String? = nil
+    @State private var editText = ""
+    /// "Neues Fach …" in a page's tag menu: scroll to the field and put the cursor there.
+    @State private var wantNew = false
+    @FocusState private var focus: ShelfFocus?
     @State private var deleting: ShelfEntry? = nil
     @State private var askPutAwayAll = false
     @State private var message: String? = nil
@@ -24,6 +28,7 @@ struct ShelfView: View {
         let outList = all.filter { app.store.isOut($0.id) }
         let inside = all.filter { !app.store.isOut($0.id) }
         NavigationStack {
+          ScrollViewReader { proxy in
             List {
                 actionsSection(outCount: outList.count)
                 outSection(outList)
@@ -43,6 +48,17 @@ struct ShelfView: View {
                 subjectsSection
             }
             .listStyle(.insetGrouped)
+            .onChange(of: wantNew) { _, on in
+                guard on else { return }
+                wantNew = false
+                withAnimation {
+                    proxy.scrollTo(ShelfFocus.newSubject, anchor: .center)
+                }
+                // (after the menu has gone away, or the keyboard does not come)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    focus = .newSubject
+                }
+            }
             .navigationTitle("Schrank")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -50,30 +66,6 @@ struct ShelfView: View {
                         app.closeShelf()
                     }
                     .font(.headline)
-                }
-            }
-            .alert("Neues Fach", isPresented: $addingSubject) {
-                TextField("z. B. Deutsch", text: $subjectText)
-                Button("Anlegen") {
-                    if !app.store.addSubject(subjectText) {
-                        message = "Dieses Fach gibt es schon (oder der Name ist leer)."
-                    }
-                }
-                Button("Abbrechen", role: .cancel) {
-                }
-            } message: {
-                Text("Der Name ist nur für Lehrkräfte zu sehen.")
-            }
-            .alert("Fach umbenennen", isPresented: renamingShown) {
-                TextField("Name", text: $renameText)
-                Button("Umbenennen") {
-                    if let old = renaming, !app.store.renameSubject(old, to: renameText) {
-                        message = "Diesen Namen gibt es schon (oder er ist leer)."
-                    }
-                    renaming = nil
-                }
-                Button("Abbrechen", role: .cancel) {
-                    renaming = nil
                 }
             }
             .confirmationDialog(deleting.map { "„\($0.title)“ löschen?" } ?? "", isPresented: deletingShown,
@@ -97,6 +89,7 @@ struct ShelfView: View {
             } message: {
                 Text("Das Kind sieht danach nichts mehr in der Mappe, bis wieder etwas ausgegeben wird. Antworten bleiben.")
             }
+          }
         }
         .onAppear {
             app.speaker.stop()
@@ -169,16 +162,36 @@ struct ShelfView: View {
     private var subjectsSection: some View {
         Section {
             ForEach(app.store.shelf.subjects, id: \.self) { s in
-                Button(action: {
-                    renameText = s
-                    renaming = s
-                }) {
-                    HStack {
-                        SwiftUI.Label(s, systemImage: "tag")
-                            .foregroundColor(.primary)
-                        Spacer()
-                        Text(shelfCount(entries.filter { app.store.shelf.subject(of: $0.id) == s }.count))
-                            .foregroundColor(.secondary)
+                if editing == s {
+                    HStack(spacing: 12) {
+                        SwiftUI.Image(systemName: "tag")
+                            .foregroundColor(ShelfStyle.teal)
+                        TextField("Name des Fachs", text: $editText)
+                            .focused($focus, equals: .rename)
+                            .submitLabel(.done)
+                            .onSubmit { commitRename() }
+                        Button("Fertig") {
+                            commitRename()
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                } else {
+                    Button(action: {
+                        editText = s
+                        editing = s
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            focus = .rename
+                        }
+                    }) {
+                        HStack {
+                            SwiftUI.Label(s, systemImage: "tag")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(shelfCount(entries.filter { app.store.shelf.subject(of: $0.id) == s }.count))
+                                .foregroundColor(.secondary)
+                            SwiftUI.Image(systemName: "pencil")
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
             }
@@ -190,16 +203,25 @@ struct ShelfView: View {
             .onMove { from, to in
                 app.store.moveSubjects(from: from, to: to)
             }
-            Button(action: {
-                subjectText = ""
-                addingSubject = true
-            }) {
-                SwiftUI.Label("Neues Fach …", systemImage: "plus.circle")
+            HStack(spacing: 12) {
+                SwiftUI.Image(systemName: "plus.circle")
+                    .foregroundColor(ShelfStyle.teal)
+                TextField("Neues Fach, z. B. Deutsch", text: $newName)
+                    .focused($focus, equals: .newSubject)
+                    .submitLabel(.done)
+                    .onSubmit { addSubject() }
+                Button("Anlegen") {
+                    addSubject()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(ShelfStyle.teal)
+                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+            .id(ShelfFocus.newSubject)
         } header: {
             Text("Fächer")
         } footer: {
-            Text("Für mehrere Lehrkräfte: Jede Seite und jedes Heft kann ein Fach bekommen (Knopf mit dem Etikett). Das Kind sieht keine Fächer. Antippen benennt ein Fach um, nach links wischen löscht es (die Seiten bleiben, nur ohne Fach).")
+            Text("Für mehrere Lehrkräfte: Jede Seite und jedes Heft kann ein Fach bekommen (Knopf mit dem Etikett). Das Kind sieht keine Fächer. Ein Fach antippen benennt es um, nach links wischen löscht es (die Seiten bleiben, nur ohne Fach).")
         }
     }
 
@@ -301,8 +323,7 @@ struct ShelfView: View {
             }
             Divider()
             Button(action: {
-                subjectText = ""
-                addingSubject = true
+                wantNew = true
             }) {
                 SwiftUI.Label("Neues Fach …", systemImage: "plus")
             }
@@ -355,8 +376,28 @@ struct ShelfView: View {
         return result
     }
 
-    private var renamingShown: Binding<Bool> {
-        Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })
+    private func addSubject() {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        if name.isEmpty { return }
+        if app.store.addSubject(name) {
+            message = "Fach angelegt: \(name)"
+            newName = ""
+            focus = nil
+        } else {
+            message = "Das Fach „\(name)“ gibt es schon."
+        }
+    }
+
+    private func commitRename() {
+        guard let old = editing else { return }
+        if !app.store.renameSubject(old, to: editText) {
+            message = "Diesen Namen gibt es schon (oder er ist leer)."
+        } else if filter == old {
+            filter = app.store.shelf.subjects.contains(editText.trimmingCharacters(in: .whitespaces))
+                ? editText.trimmingCharacters(in: .whitespaces) : nil
+        }
+        editing = nil
+        focus = nil
     }
 
     private var deletingShown: Binding<Bool> {
@@ -409,6 +450,11 @@ struct ShelfEntry: Identifiable, Hashable {
     var created: Date
     var pages: Int
     var heft: Bool
+}
+
+/// The text fields of the Schrank.
+fileprivate enum ShelfFocus: Hashable {
+    case newSubject, rename
 }
 
 fileprivate struct ShelfGroup {
