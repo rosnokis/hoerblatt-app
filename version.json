@@ -1,14 +1,256 @@
 {
- "number": "67",
- "date": "4.11.2026, 16:12 Uhr",
+ "number": "68",
+ "date": "4.11.2026, 16:18 Uhr",
  "notes": [
+  "Update-Hinweis zeigt nur die Änderungen seit der installierten Version",
   "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe",
   "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld",
   "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext",
   "Update direkt aus der App: Projektordner wählen, ZIP prüfen, Sicherung, neue Dateien einspielen",
   "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo",
   "Schrank: Fach anlegen und umbenennen im Listenfeld statt Hinweisfenster (Tastatur kam nicht)",
-  "Schrank: Kind sieht nur Ausgegebenes, Weglegen am Tagesende und von Hand, Fächer für Lehrkräfte",
-  "Leeres Blatt heißt Schreibblatt"
+  "Schrank: Kind sieht nur Ausgegebenes, Weglegen am Tagesende und von Hand, Fächer für Lehrkräfte"
+ ],
+ "changes": [
+  {
+   "number": "68",
+   "text": "Update-Hinweis zeigt nur die Änderungen seit der installierten Version"
+  },
+  {
+   "number": "67",
+   "text": "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe"
+  },
+  {
+   "number": "66",
+   "text": "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld"
+  },
+  {
+   "number": "65",
+   "text": "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext"
+  },
+  {
+   "number": "64",
+   "text": "Update direkt aus der App: Projektordner wählen, ZIP prüfen, Sicherung, neue Dateien einspielen"
+  },
+  {
+   "number": "63",
+   "text": "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo"
+  },
+  {
+   "number": "62",
+   "text": "Schrank: Fach anlegen und umbenennen im Listenfeld statt Hinweisfenster (Tastatur kam nicht)"
+  },
+  {
+   "number": "61",
+   "text": "Schrank: Kind sieht nur Ausgegebenes, Weglegen am Tagesende und von Hand, Fächer für Lehrkräfte"
+  },
+  {
+   "number": "60",
+   "text": "Leeres Blatt heißt Schreibblatt"
+  },
+  {
+   "number": "59",
+   "text": "Antworten bearbeiten wie Text: Wort löschen, einfügen, Wortabstand, Markieren/Wort-Lupe; leeres Schreibblatt"
+  },
+  {
+   "number": "58",
+   "text": "Antworten: mehrere neue Wörter leuchten, Satz liest ganzen Satz; Linie hinter Text gehört zum Satz"
+  },
+  {
+   "number": "57",
+   "text": "Antworten: Leuchten im Feld sichtbar, Wort-Umrandungen, beim Neu-Sprechen pulsiert nur das Wort"
+  },
+  {
+   "number": "56",
+   "text": "Versionsnummer in den Einstellungen"
+  },
+  {
+   "number": "55",
+   "text": "Seiten nach einem Update neu lesen, Antworten, Markierungen und Stiftstriche bleiben"
+  },
+  {
+   "number": "54",
+   "text": "Antworten wie Text: Wort antippen, mitleuchten, Wort neu sprechen; Werkzeuge ausblendbar"
+  },
+  {
+   "number": "53",
+   "text": "Fotos: Schreiblinien am Papierrand, runde Rahmen, Antwortmöglichkeiten und Listen"
+  },
+  {
+   "number": "52",
+   "text": "Abgabe: PDF wird auf dem iPad gespeichert, AirDrop nur noch optional"
+  },
+  {
+   "number": "51",
+   "text": "Fertig: AirDrop-Zeichen in den Teilen-Knöpfen"
+  },
+  {
+   "number": "50",
+   "text": "Sprechen: nach einer kurzen Pause bleibt das vorher Gesprochene stehen"
+  },
+  {
+   "number": "49",
+   "text": "Lange Antwort über mehrere Linien füllt das ganze Feld statt winzig auf den Linien"
+  },
+  {
+   "number": "48",
+   "text": "Antwort über mehrere Linien: auf die Linien geschrieben, ein Feld in Stufenform, Antippen nur auf dem Feld"
+  },
+  {
+   "number": "47",
+   "text": "Fertig gibt eine PDF ab: diese Seite, ganzes Heft oder alle Seiten von heute"
+  },
+  {
+   "number": "46",
+   "text": "Schreiblinien über mehrere Zeilen werden ein Antwortfeld"
+  },
+  {
+   "number": "45",
+   "text": "Code-Review: Kamera-Zuschnitt, zwei Seiten beim Vorlesen, Nachbarseitenrest, Dateinamen, Papierkorb, run.sh"
+  },
+  {
+   "number": "44",
+   "text": "Ganze Seite vorlesen (▶ oben links), Doppelseiten trennen, Nachbarseitenreste auslassen"
+  },
+  {
+   "number": "43",
+   "text": "Mitlesen Wort für Wort, Heft immer in der Leiste, kein Foto-Hinweis, Antworten passen in Zellen, Satzenden auf Buchfotos"
+  },
+  {
+   "number": "42",
+   "text": "Ankreuz-Kästchen: keine Sprech-Felder, Antippen sagt Beschriftung und wählt Stift; richtią → richtig"
+  },
+  {
+   "number": "41",
+   "text": "Für Nicht-Leser: Zuhör-Anzeige in jedem Modus, Pling vor dem Mikrofon, leere Mappe angesagt, Foto wählen nur Lehrkraft"
+  },
+  {
+   "number": "40",
+   "text": "Lücke antippen startet sofort das Diktieren (Wort, Satz, Sprechen)"
+  },
+  {
+   "number": "39",
+   "text": "Einfache Kamera: löst selbst aus, großer Knopf, kein Behalten/Sichern"
+  },
+  {
+   "number": "38",
+   "text": "Papierkorb für gelöschte Seiten und Hefte (30 Tage, nur Lehrkraft)"
+  },
+  {
+   "number": "37",
+   "text": "Erster Selbsttest ausgewertet: falsche Lücken in Wörtern, Überschriften nach Farbe, A/B-Aufgaben, Symbol-Beschriftungen"
+  },
+  {
+   "number": "36",
+   "text": "Selbsttest auch für Fotos vorbereitet (offenes Foto / alle Fotos)"
+  },
+  {
+   "number": "35",
+   "text": "Selbsttest: ganzes Heft automatisch prüfen (App) und auswerten (selftest.py)"
+  },
+  {
+   "number": "34",
+   "text": "Platzhalter statt Klassenbezeichnung"
+  },
+  {
+   "number": "33",
+   "text": "Tabellen: Wörter in Zellen einzeln vorlesen, Satzende nach kurzer Zeile"
+  },
+  {
+   "number": "32",
+   "text": "Datenschutz: Klassenangabe aus den Notizen entfernt; Anleitung Zahnrad 1 s"
+  },
+  {
+   "number": "31",
+   "text": "Tabellen mit Live-Text-Wörtern: Zeilenkästen auflösen, lange Linien nicht als Buchstaben; Zahnrad 1 s"
+  },
+  {
+   "number": "30",
+   "text": "Linux-Testaufbau (Swift in Docker); Tabellen- und Satz-Korrekturen aus den Heftseiten"
+  },
+  {
+   "number": "29",
+   "text": "PDF-Seiten wieder mit Vision lesen; Fehlersuche-Datei; Heftseiten-Ansage aus Seitennummer"
+  },
+  {
+   "number": "28",
+   "text": "PDF-Text: Zeichenlage über Auswahl, Zeichen ohne Lage verbinden keine Wörter mehr"
+  },
+  {
+   "number": "27",
+   "text": "Heft: erste Seite sofort, Rest im Hintergrund lesen (gewünschte Seite zuerst)"
+  },
+  {
+   "number": "26",
+   "text": "PDF-Text: Wörter auch an Lagesprüngen trennen (Tabellenzellen ohne Leerzeichen)"
+  },
+  {
+   "number": "25",
+   "text": "PDF-Auswahl: einzelne Datei (Result<URL>); Mikrofon-Erlaubnis über AVAudioApplication"
+  },
+  {
+   "number": "24",
+   "text": "PDF: eigenen Text der PDF nutzen; Tabellen mit dunklem Kopf und seitenhohe Tabellen"
+  },
+  {
+   "number": "23",
+   "text": "Leiste oben: lange drücken löscht eine Seite (mit Rückfrage)"
+  },
+  {
+   "number": "22",
+   "text": "PDF als Heft: einlesen, blättern, Abgabe als Seite oder ganzes Heft"
+  },
+  {
+   "number": "21",
+   "text": "Markieren: Wort-Lupe für Wortteile (Buchstaben-Kacheln statt langsamem Wischen)"
+  },
+  {
+   "number": "20",
+   "text": "Fertig: erst der Lehrkraft zeigen (Daumen), dann Teilen; Bildkarte als Word"
+  },
+  {
+   "number": "19",
+   "text": "Bildkarte: erst der Lehrkraft zeigen, dann abschicken"
+  },
+  {
+   "number": "18",
+   "text": "Bildkarte für das Kind (A4 quer, Symbole der App)"
+  },
+  {
+   "number": "17",
+   "text": "Symbole für Arbeitsblätter (PNG/SVG, drei Varianten)"
+  },
+  {
+   "number": "16",
+   "text": "Native App: Durchsicht aller Dateien, Mikrofon-Wiederholung nach Fehler, Bauplan und Doku nachgezogen"
+  },
+  {
+   "number": "15",
+   "text": "Native App: alle Teile implementiert (noch ungeprüft, Durchsicht folgt)"
+  },
+  {
+   "number": "14",
+   "text": "Native App: Bauplan (ARCHITEKTUR.md) und gemeinsame Datentypen; alte Einzeldateien entfernt (Umbau läuft)"
+  },
+  {
+   "number": "13",
+   "text": "CLAUDE.md: Stand vor der Pause (Swift Playgrounds installiert, Warten auf Rückmeldung)"
+  },
+  {
+   "number": "12",
+   "text": "Erster Schritt native App (Swift Playgrounds): Foto, Apple-Texterkennung, Wort/Satz vorlesen"
+  },
+  {
+   "number": "11",
+   "text": "Werkzeug: öffentliches App-Repo (hoerblatt-app) aus diesem Repo erzeugen"
+  },
+  {
+   "number": "10",
+   "text": "51 iPad-Testfotos im Prüfstand; Foto in den Ecken gedrehter Bilder; Satzende vor Anführungszeichen"
+  },
+  {
+   "number": "9",
+   "text": "Entzerrung verwerfen, wenn der Text danach schief ist (Nachbarseite als Blatt erkannt)"
+  }
  ]
 }

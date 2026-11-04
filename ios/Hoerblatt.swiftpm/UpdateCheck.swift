@@ -15,8 +15,24 @@ import UniformTypeIdentifiers
 struct RemoteVersion: Codable, Equatable {
     var number: String
     var date: String
-    /// What changed lately (the last changes, newest first).
+    /// What changed lately (the last changes, newest first; versions before 68 show these).
     var notes: [String]? = nil
+    /// Every change with the version it came with, newest first.
+    var changes: [RemoteChange]? = nil
+
+    /// What is new compared with the installed version: the changes of the offered version and of all versions
+    /// in between, newest first. (No list with numbers: the latest changes as before.)
+    func newSince(_ installed: Int) -> [RemoteChange] {
+        guard let list = changes else {
+            return (notes ?? []).map { RemoteChange(number: "", text: $0) }
+        }
+        return list.filter { (Int($0.number) ?? 0) > installed }
+    }
+}
+
+struct RemoteChange: Codable, Equatable {
+    var number: String
+    var text: String
 }
 
 @MainActor final class UpdateCheck: ObservableObject {
@@ -281,14 +297,20 @@ struct UpdateRows: View {
                         Text("Veröffentlicht am \(v.date)")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        if let notes = v.notes, !notes.isEmpty {
-                            Text("Zuletzt geändert:")
+                        let news = v.newSince(Int(BuildInfo.number) ?? 0)
+                        if !news.isEmpty {
+                            Text("Neu seit Version \(BuildInfo.number):")
                                 .font(.caption.weight(.semibold))
                                 .padding(.top, 2)
-                            ForEach(Array(notes.prefix(6).enumerated()), id: \.offset) { _, n in
-                                Text("• " + n)
+                            ForEach(Array(news.prefix(15).enumerated()), id: \.offset) { _, c in
+                                Text((c.number.isEmpty ? "• " : "\(c.number) · ") + c.text)
                                     .font(.callout)
                                     .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if news.count > 15 {
+                                Text("… und \(news.count - 15) weitere Änderungen")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     }
