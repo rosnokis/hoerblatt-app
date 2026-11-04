@@ -7,7 +7,8 @@ import CoreImage
 
 // Taking the photo: the document camera (finds the sheet, pulls it straight, takes the picture itself), the photo
 // library for tests, the short picture guide before the camera, and the check afterwards (too dark, shaken).
-// The child does this alone and cannot read: big symbols, the words are spoken by AppState, not here.
+// Usually the teacher takes the photo, sometimes the child, who cannot read: big symbols, the words are spoken by
+// AppState, not here. (The normal camera is SimpleCamera.swift; the document camera here is a setting.)
 
 // MARK: - Camera and photo library
 

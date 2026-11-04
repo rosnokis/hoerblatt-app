@@ -5,6 +5,8 @@ import PDFKit
 // The text a PDF made on a computer carries itself (e.g. a worksheet from Worksheet Crafter or Word): every word
 // exactly, with its place on the page, also white writing on a dark table header. A scanned PDF has no such text;
 // its pages are read like photos.
+// Switched off (`appStateUsePDFText`): on the iPad PDFKit gave wrong places; PDF pages are read with Vision like
+// photos. Kept for the diagnosis file (Fehlersuche), which shows what PDFKit makes of a page.
 
 enum PDFText {
     /// The words of a page in pixels of a picture of the page drawn upright with `scale` pixels per PDF point

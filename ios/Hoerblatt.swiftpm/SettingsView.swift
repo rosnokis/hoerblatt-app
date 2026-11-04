@@ -3,7 +3,8 @@ import UIKit
 import AVFoundation
 
 // Help and settings for teachers (opens only after pressing the gear for 1 s).
-// Everything is kept on this device (AppSettings in UserDefaults, the Mappe in the app's documents).
+// Everything is kept on this device (AppSettings in UserDefaults, the Mappe in the app's documents); the only network
+// access is the version check (UpdateCheck.swift, reads one file, can be switched off).
 
 struct SettingsView: View {
     @ObservedObject var app: AppState
@@ -398,15 +399,17 @@ struct SettingsView: View {
     private var helpSection: some View {
         Section {
             SettingsStepRow(number: "1", symbol: "camera.fill", color: SettingsStyle.teal, title: "Foto",
-                            text: "Das Kind fotografiert das Blatt. Vorher zeigt ein kurzer Hinweis, wie es geht (abschaltbar). Ist das Foto zu dunkel, verwackelt oder kaum lesbar, fragt das Hörblatt: „Nochmal“ (Kamera) oder „Weiter“ (Pfeil). Die Schrift wird auf dem iPad erkannt.")
+                            text: "Die Kamera des Hörblatts umrandet das Blatt und löst von selbst aus, sobald das iPad still darüber gehalten wird (oder mit dem großen runden Knopf). Ist das Foto zu dunkel, verwackelt oder kaum lesbar, fragt das Hörblatt: „Nochmal“ (Kamera) oder „Weiter“ (Pfeil). Die Schrift wird auf dem iPad erkannt. Ein kurzer Foto-Hinweis vorher und Apples Dokument-Kamera lassen sich oben unter „Blatt und Foto“ einschalten.")
             SettingsStepRow(number: "2", symbol: "hand.tap.fill", color: SettingsStyle.orange, title: "Wort und Satz",
                             text: "Wort antippen: Nur dieses Wort wird vorgelesen. Zweiter Knopf: der ganze Satz, auch über Zeilen hinweg. Wörter in gedruckten Kästen: der ganze Kasten. Lücken sind lila; im Satz steht für eine leere Lücke ein kurzer Ton, eine ausgefüllte wird mitgelesen. Eine leere Lücke antippen öffnet sofort das Antwortfeld und das Hörblatt hört zu (auch bei Wort und Satz); leere Tabellenzellen sagen vorher ihre Spaltenüberschrift. Eine ausgefüllte Lücke wird vorgelesen.")
             SettingsStepRow(number: "3", symbol: "mic.fill", color: SettingsStyle.lila, title: "Sprechen",
-                            text: "Eine Lücke oder eine beliebige Stelle antippen: Es öffnet sich ein Antwortfeld, das Hörblatt hört zu. Der lila Lautsprecher liest die Antwort vor (jedes Wort leuchtet mit), das Mikrofon nimmt sie neu auf, das Häkchen schließt das Feld. Mit „Wort“ ein Wort der Antwort antippen: nur dieses Wort wird vorgelesen. Ein falsch erkanntes Wort korrigieren: den Finger kurz auf dem Wort lassen, nach dem „Pling“ das Wort neu sprechen – nur dieses Wort wird ersetzt.")
+                            text: "Eine Lücke oder eine beliebige Stelle antippen: Es öffnet sich ein Antwortfeld, das Hörblatt hört zu. Der lila Lautsprecher liest die Antwort vor (jedes Wort leuchtet mit), das Mikrofon nimmt sie neu auf, das Häkchen schließt das Feld. Gesprochene Antworten verhalten sich wie gedruckter Text: Mit „Wort“ liest ein angetipptes Wort nur dieses Wort, mit „Satz“ den ganzen Satz; Markieren und Wort-Lupe gehen auch darin. Korrigieren mit „Sprechen“: auf ein Wort tippen und neu sprechen – nur dieses Wort wird ersetzt; zwischen zwei Wörter oder ans Ende tippen (roter Strich) – das Gesprochene wird dort eingefügt. In jedem Werkzeug geht auch: Finger kurz auf dem Wort lassen, nach dem „Pling“ neu sprechen. Der Radiergummi auf einem Wort löscht nur dieses Wort, nie die ganze Antwort.")
             SettingsStepRow(number: "4", symbol: "highlighter", color: SettingsStyle.amber, title: "Markieren",
                             text: "Farbe wählen (gelb, grün, blau, orange). Wort antippen oder waagerecht über Wörter wischen. Für einen Wortteil den Finger kurz auf dem Wort liegen lassen: Die Wort-Lupe zeigt das Wort groß in Buchstaben, Wischen über die Buchstaben markiert genau diese. Die Seite verschiebt man dabei mit zwei Fingern.")
             SettingsStepRow(number: nil, symbol: "pencil.tip", color: SettingsStyle.slate, title: "Stift",
-                            text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Radiergummi: Antworten, Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nimmt den letzten Schritt zurück.")
+                            text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Radiergummi: Wörter in Antworten (einzeln), Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nimmt den letzten Schritt zurück.")
+            SettingsStepRow(number: nil, symbol: "square.and.pencil", color: SettingsStyle.lila, title: "Schreibblatt",
+                            text: "In der Mappe „Schreibblatt“: eine leere weiße Seite ohne Linien zum freien Schreiben. Das Kind tippt mit „Sprechen“ darauf und spricht; der Text läuft von oben nach unten weiter. Einfügen, Löschen, Markieren, Stift und Abgeben wie bei jedem Blatt.")
             SettingsStepRow(number: "5", symbol: "checkmark.square.fill", color: SettingsStyle.blue, title: "Fertig",
                             text: "Das Blatt mit allen Antworten, Markierungen und Stiftstrichen. Das Kind zeigt es zuerst der Lehrkraft und tippt auf den Daumen. Dann tippt es auf „Abgeben“: Die PDF wird im Abgabe-Ordner auf diesem iPad gespeichert (neue Datei mit Datum und Uhrzeit; auf einer Heftseite das ganze Heft). Darunter, wenn eingeschaltet, kleine AirDrop-Knöpfe: diese Seite, das ganze Heft oder „Alle von heute“ (alle heute fotografierten Seiten in einer PDF).")
             SettingsStepRow(number: nil, symbol: "folder.fill", color: SettingsStyle.teal, title: "Mappe und zwei Seiten",

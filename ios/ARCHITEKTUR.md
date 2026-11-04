@@ -1,9 +1,31 @@
 # Hörblatt – native iPad-App (Swift Playgrounds)
 
-Verbindlicher Bauplan. Alle Dateien liegen flach in `ios/Hoerblatt.swiftpm/` (ein Modul `AppModule`, kein `public` nötig).
-**Es gibt keinen Compiler in der Entwicklungsumgebung.** Der Code wird erst auf dem iPad in Swift Playgrounds übersetzt.
-Deshalb gilt: nur gut bekannte, stabile APIs (iOS 17), keine Experimente, keine neuen iOS-26-APIs, keine Makros
-(`#Preview`, `@Observable`), keine Drittbibliotheken. Lieber schlicht und eindeutig als elegant.
+Bauplan. Alle Dateien liegen flach in `ios/Hoerblatt.swiftpm/` (ein Modul `AppModule`, kein `public` nötig).
+**Die UIKit/SwiftUI-Teile werden erst auf dem iPad in Swift Playgrounds übersetzt.** Nur die reine Logik
+(Model, LayoutAnalysis, Reading, Hearing, ZipRead) lässt sich unter Linux übersetzen und testen (`tools/linuxtest`,
+Docker `swift:6.0-noble`). Deshalb gilt: nur gut bekannte, stabile APIs (iOS 17), keine Experimente, keine neuen
+iOS-26-APIs, keine Makros (`#Preview`, `@Observable`), keine Drittbibliotheken. Lieber schlicht und eindeutig als elegant.
+
+## Dateien im Überblick (Stand Version 64, November 2026)
+| Datei | Aufgabe |
+|---|---|
+| `HoerblattApp.swift`, `ContentView.swift` | Einstieg, Hauptbildschirm (Kopfzeile, Seite(n), Antwort-Leiste, Werkzeuge, ▶ Seite vorlesen, Heft-Blätterleiste) |
+| `AppState.swift` | Zustand und Abläufe: Werkzeug, Foto → Seite, PDF → Heft (Lesen im Hintergrund), Neu-Lesen nach Update, Schreibblatt, Schrank-Aktionen, Blätter nacheinander öffnen |
+| `Model.swift` | gemeinsame Typen: `Word`, `Gap`, `PrintedBox`, `Answer` (+ `AnswerMark`), `Mark`, `Page`, `PageInfo`, `Heft`, `Shelf`, `AppSettings` … |
+| `Store.swift` | `PageStore`: Mappe auf dem Gerät, Hefte, Papierkorb (30 Tage), Schrank (`schrank.json`) |
+| `Recognizer.swift`, `LayoutAnalysis.swift` | Foto/PDF-Seite → Wörter (Vision), Lücken, Kästen, Tabellen; `Recognizer.version` |
+| `Reading.swift`, `Hearing.swift` | Lesereihenfolge, Sätze, Treffer, Doppelseiten; Antwort-Hilfen (Wörter löschen/einfügen/ersetzen, Markierungen nachführen); was ein Tipp vorliest |
+| `PageController.swift`, `PageCanvas.swift`, `WordLens.swift` | eine offene Seite: Tippen, Sprechen, Markieren, Wort-Lupe (auch in Antworten), Radierer, Zurück; Darstellung (UIKit, PencilKit) |
+| `Speech.swift` | Vorlesen mit Mitleuchten, Lückenton, „Pling“, Zuhören (Teile nach Sprechpausen) |
+| `SimpleCamera.swift`, `Capture.swift` | eigene einfache Kamera (löst selbst aus); Apples Dokument-Kamera (Einstellung), Foto-Auswahl, Foto-Prüfung |
+| `Export.swift`, `Handin.swift` | Fertig: Bild/PDF, „Abgeben“ in den Abgabe-Ordner, AirDrop als Zusatz |
+| `Library.swift`, `Shelf.swift` | Mappe und Leiste (nur Ausgegebenes); Schrank für Lehrkräfte (Ausgeben/Weglegen, Fächer, PDF öffnen) |
+| `SettingsView.swift` | Hilfe und Einstellungen (Zahnrad 1 s), Papierkorb, Werkzeuge ausblenden, Fehlersuche |
+| `UpdateCheck.swift`, `ZipRead.swift`, `BuildInfo.swift` | Versionsnummer; Suche nach neuer Version und Update in den Projektordner |
+| `Diagnosis.swift`, `SelfTest.swift`, `PDFText.swift` | Fehlersuche-Datei, Selbsttest-ZIP; PDF-eigener Text (abgeschaltet, nur Diagnose) |
+
+Die Schnittstellen in den folgenden Abschnitten sind der ursprüngliche Bauplan (Oktober 2026). Sie sind seitdem
+gewachsen; maßgeblich ist der Code, Einzelheiten jeder Runde stehen in `CLAUDE.md`.
 
 ## Rahmen
 - `Package.swift`: swift-tools-version 5.9 → Swift-5-Sprachmodus. `platforms: [.iOS("17.0")]`. Fähigkeiten: Kamera,
@@ -257,7 +279,7 @@ Start der App: zuletzt geöffnete Seite(n) wieder öffnen (UserDefaults), sonst 
 ### ContentView.swift — Hauptbildschirm, HoerblattApp.swift
 - Kopfzeile: Mappe-Knopf (`folder.fill`), Seitenleiste mit Vorschaubildern der letzten Seiten (ein Tipp öffnet,
   `PageStrip` aus Library.swift), Zwei-Seiten-Schalter (`rectangle.split.2x1`, nur im Querformat), Hilfe/Einstellungen
-  (`gearshape`, öffnet erst nach 2 s langem Drücken – Lehrkräfte).
+  (`gearshape`, öffnet erst nach 1 s langem Drücken – Lehrkräfte; blauer Punkt bei neuer Version).
 - Mitte: eine `PageCanvas`, oder zwei nebeneinander (Querformat + `twoPages`). Ohne Seite: großer Kamera-Knopf.
 - Unten `ToolTray`: 1 Foto (teal, `camera.fill`), 2 Wort (orange, `hand.tap.fill`) + Satz (orange, `text.alignleft`),
   3 Sprechen (lila, `mic.fill`), 4 Markieren (amber, `highlighter`) mit 4 Farbpunkten wenn aktiv, Stift (slate,
@@ -276,14 +298,18 @@ struct PageStrip: View { @ObservedObject var app: AppState }        // waagerech
 ```
 - Raster mit Vorschaubild + Titel + Datum; Tipp öffnet (in der aktiven Hälfte) und schließt das Sheet.
   Langes Drücken → `app.askDelete` (Rückfrage mit Bild der Seite, großem roten Papierkorb und grünem Zurück-Pfeil,
-  Frage wird gesprochen: „Diese Seite löschen?“). Erste Kachel: „Neue Seite“ (Kamera) und „Foto wählen“ (Fotos).
+  Frage wird gesprochen: „Diese Seite löschen?“). Erste Kacheln: „Neue Seite“ (Kamera) und „Schreibblatt“.
+  Mappe und Leiste zeigen nur, was heute ausgegeben ist; oben rechts der Schrank-Knopf (1 s, `ShelfKnob`).
+  „PDF öffnen“ und „Foto wählen“ (Fotos-App) sind im Schrank (`Shelf.swift`), nur für Lehrkräfte.
 - Seiten, die gerade offen sind, haben einen farbigen Rand (links/rechts).
 
 ### SettingsView.swift — Hilfe und Einstellungen (Lehrkräfte)
 `struct SettingsView: View { @ObservedObject var app: AppState }` – Form: Sprechtempo (0,5–1,3), Ansagen,
 Wort-Umrandungen, Kästen zusammen vorlesen, Lücken markieren, Mikrofon-Knopf, Lückenton (4, mit Vorhören),
-Foto-Hinweis; Mappe: alle Seiten löschen (mit Rückfrage); Hilfe-Text (Ablauf, AirDrop-Abgabe, Datenschutz:
+Foto-Hinweis; Mappe: alle Seiten löschen (mit Rückfrage); Hilfe-Text (Ablauf, Abgabe, Datenschutz:
 alles bleibt auf dem Gerät, gesprochene Antworten erkennt Apple ggf. auf Servern wie beim Diktat); Stimmen-Hinweis.
+Inzwischen dazu: Installierte Version + Update (`UpdateRows`), Werkzeuge zeigen, Abgabe-Ordner, Antworten
+(Wortabstand), Papierkorb, Fehlersuche/Selbsttest.
 
 ### Hefte (PDF)
 `Heft {id, title, created, pages: [UUID], lastPage}` in `Documents/Mappe/hefte.json` (`PageStore.hefte`, `addHeft`,
@@ -300,10 +326,11 @@ für „Ganzes Heft“ in der Fertig-Ansicht (`AppState.finishHeft/finishHeftPDF
 enum Exporter { @MainActor static func render(_ c: PageController) -> UIImage }   // Bild + Markierungen + Antworten + Stift
 struct FinishView: View { @ObservedObject var app: AppState; let image: UIImage }
 ```
-Fertig-Ansicht: großes Bild, großer blauer Teilen-Knopf (`ShareLink(item: Image(uiImage:), preview: …)`) → AirDrop,
-Zurück-Knopf; gesprochen: „Fertig. Tippe auf Teilen und dann auf AirDrop.“
-Vorher (Einstellung `showTeacherFirst`, Standard an): gelber Daumen-Knopf „Gezeigt“ – das Kind zeigt das Bild der
-Lehrkraft, tippt auf den Daumen, erst dann erscheint „Teilen“ (auch im Kontextmenü des Bildes).
+Fertig-Ansicht: großes Bild, Zurück-Knopf. Zuerst (Einstellung `showTeacherFirst`, Standard an) gelber Daumen-Knopf
+„Gezeigt“ – das Kind zeigt das Bild der Lehrkraft. Dann großer blauer Knopf „Abgeben“: die PDF (diese Seite; auf einer
+Heftseite das ganze Heft) wird über `HandinFolder` (Handin.swift) im Abgabe-Ordner gespeichert, danach grün
+„Abgegeben“. Darunter, wenn `settings.airDrop`, kleine AirDrop-Knöpfe (`ShareLink`): diese Seite, ganzes Heft,
+„Alle von heute“.
 
 ## Prüfregeln für alle Dateien
 - Jede verwendete Funktion/Eigenschaft eines anderen Moduls steht genau so in diesem Bauplan.

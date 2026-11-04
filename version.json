@@ -1,14 +1,14 @@
 {
- "number": "64",
- "date": "4.11.2026, 15:55 Uhr",
+ "number": "65",
+ "date": "4.11.2026, 16:04 Uhr",
  "notes": [
+  "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext",
   "Update direkt aus der App: Projektordner wählen, ZIP prüfen, Sicherung, neue Dateien einspielen",
   "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo",
   "Schrank: Fach anlegen und umbenennen im Listenfeld statt Hinweisfenster (Tastatur kam nicht)",
   "Schrank: Kind sieht nur Ausgegebenes, Weglegen am Tagesende und von Hand, Fächer für Lehrkräfte",
   "Leeres Blatt heißt Schreibblatt",
   "Antworten bearbeiten wie Text: Wort löschen, einfügen, Wortabstand, Markieren/Wort-Lupe; leeres Schreibblatt",
-  "Antworten: mehrere neue Wörter leuchten, Satz liest ganzen Satz; Linie hinter Text gehört zum Satz",
-  "Antworten: Leuchten im Feld sichtbar, Wort-Umrandungen, beim Neu-Sprechen pulsiert nur das Wort"
+  "Antworten: mehrere neue Wörter leuchten, Satz liest ganzen Satz; Linie hinter Text gehört zum Satz"
  ]
 }

@@ -3,8 +3,9 @@ import UIKit
 import PencilKit
 
 // Fertig: one picture of the page with everything the child did (marks, answers, pen), in page pixels.
-// It goes to the teacher by AirDrop as a PDF (teacher's decision, November 2026): this page, the whole Heft, or all
-// pages photographed today.
+// Handed in as a PDF saved on this iPad ("Abgeben", Handin.swift; teacher's decision, November 2026); a page of a
+// Heft hands in the whole Heft. Small AirDrop buttons as an option: this page, the whole Heft, or all pages
+// photographed today.
 
 enum Exporter {
     /// Photo → marks (multiplied, so the print stays dark) → answer fields → pen strokes.

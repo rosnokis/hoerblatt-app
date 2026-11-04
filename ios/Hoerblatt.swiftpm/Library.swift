@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // The Mappe: every photographed page stays with all answers, so the child can switch between pages,
-// e.g. a book page and the worksheet about it. LibraryView is the sheet with all pages,
+// e.g. a book page and the worksheet about it. LibraryView is the sheet with the pages handed out,
 // PageStrip the row of recent pages in the header (one tap switches).
 // Both show only what is handed out today (the Schrank, Shelf.swift, holds the rest; only teachers open it).
 
@@ -156,7 +156,7 @@ struct PageStrip: View {
 
 // MARK: - Tiles
 
-/// "Neue Seite" (camera) and "Foto wählen" (photos): the first tiles of the Mappe.
+/// "Neue Seite" (camera) and "Schreibblatt": the first tiles of the Mappe.
 fileprivate struct LibraryActionTile: View {
     let symbol: String
     let title: String
