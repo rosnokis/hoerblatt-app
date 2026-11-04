@@ -1295,8 +1295,13 @@ fileprivate final class LAEngine {
             var li = -1, found = false, h = mh, bd = Double.infinity
             for w in words {
                 let wh = w.y1 - w.y0
-                if s.y < w.y1 - wh * 0.4 || s.y > w.y1 + wh * 0.9 { continue }
+                // (on the baseline or below; Live Text's boxes reach far below the baseline, so a dotted line right
+                // on the baseline – "Ich vermute, dass ……" – lies in the lower half of the box)
+                if s.y < w.y0 + wh * 0.5 || s.y > w.y1 + wh * 0.9 { continue }
                 let d = max(s.x0 - w.x1, w.x0 - s.x1, 0)
+                // (that high up only beside the word – the long line after "dass" –, not a line through or under it,
+                // nor a short stroke next to a word read in pieces)
+                if s.y < w.y1 - wh * 0.4 && (d <= 0 || len < mh * 5) { continue }
                 if d < wh * 4 && d < bd {
                     bd = d
                     li = w.li

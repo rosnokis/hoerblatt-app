@@ -21,8 +21,9 @@ enum Recognizer {
     /// Pages read with an older version are read again after the update – answers, marks and pen strokes stay
     /// (`AppState.startRereading`, `pageCarryOver`). (Changes in Reading.swift alone need no new version: the reading
     /// order is made anew from the words whenever a page opens.)
-    /// 2: November 2026 (paper edge, round frames).
-    static let version = 2
+    /// 2: November 2026 (paper edge, round frames). 3: a long line right after a word on its baseline belongs to its
+    /// line of text ("Ich vermute, dass ……").
+    static let version = 3
 
     /// Takes a few seconds. `progress` (0…1, message for the waiting screen) is called on any thread.
     /// `textWords`: the words of a PDF page that has its own text, in pixels of `input` (upright, scale 1, long side

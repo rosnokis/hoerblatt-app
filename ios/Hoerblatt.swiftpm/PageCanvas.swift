@@ -453,10 +453,10 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             let active = c.activeAnswer == ans.id
             let editable = c.keyboardAnswer == ans.id
             // (one word spoken anew: only that word pulses, not the whole field)
-            let respeak = active ? c.respeakWordRect : nil
+            let respeak = active ? c.respeakRects : []
             f.update(answer: ans, room: answerRoom(ans, in: c.page), lines: c.page.answerLines(ans), textHeight: th,
                      editable: editable, active: active,
-                     listening: anyListening && active && c.isListening(to: ans.id) && respeak == nil,
+                     listening: anyListening && active && c.isListening(to: ans.id) && respeak.isEmpty,
                      erasing: mode == .radieren)
             var marks = PageCanvasAnswerMarks()
             if outlines && !editable {
@@ -465,7 +465,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             if !editable {
                 marks.light = c.flash
                 marks.strong = c.flashWord
-                if let r = c.renewedWordRect { marks.renewed = [r] }
+                marks.renewed = c.renewedRects
                 marks.respeak = respeak
             }
             f.setMarks(marks)
@@ -1143,7 +1143,7 @@ fileprivate struct PageCanvasAnswerMarks: Equatable {
     var light: [CGRect] = []
     var strong: [CGRect] = []
     var renewed: [CGRect] = []
-    var respeak: CGRect? = nil
+    var respeak: [CGRect] = []
 }
 
 fileprivate final class PageCanvasAnswerMarksView: UIView {
@@ -1175,18 +1175,22 @@ fileprivate final class PageCanvasAnswerMarksView: UIView {
         return r.offsetBy(dx: -offset.x, dy: -offset.y)
     }
 
-    /// The word being spoken anew pulses red.
+    /// The word(s) being spoken anew pulse red.
     func updatePulse() {
-        guard let r = marks.respeak else {
+        if marks.respeak.isEmpty {
             if !pulse.isHidden {
                 pulse.removeAnimation(forKey: "hoerblattRespeak")
                 pulse.isHidden = true
             }
             return
         }
-        let box = local(r).insetBy(dx: -th * 0.12, dy: -th * 0.12)
+        let path = UIBezierPath()
+        for r in marks.respeak {
+            let box = local(r).insetBy(dx: -th * 0.12, dy: -th * 0.12)
+            path.append(UIBezierPath(roundedRect: box, cornerRadius: th * 0.2))
+        }
         pulse.frame = bounds
-        pulse.path = UIBezierPath(roundedRect: box, cornerRadius: th * 0.2).cgPath
+        pulse.path = path.cgPath
         pulse.lineWidth = max(2, th * 0.08)
         if pulse.isHidden {
             pulse.isHidden = false
