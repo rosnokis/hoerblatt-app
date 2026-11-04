@@ -22,6 +22,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                versionSection
                 readingSection
                 pageSection
                 toolsSection
@@ -334,6 +335,27 @@ struct SettingsView: View {
     }
 
     // MARK: - Help
+
+    /// Which version is installed (to compare with the developer's message after an update).
+    @MainActor
+    private var versionSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                Image(systemName: "number.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(SettingsStyle.teal)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Version \(BuildInfo.number)")
+                        .font(.headline)
+                    Text(BuildInfo.date + " · Erkennung \(Recognizer.version)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        } header: {
+            Text("Installierte Version")
+        }
+    }
 
     /// Each tool on or off (the child works on paper; the iPad mostly reads). "Wort" always stays.
     @MainActor
