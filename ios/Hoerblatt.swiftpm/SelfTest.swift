@@ -114,7 +114,7 @@ enum SelfTestScope {
             "format": "hoerblatt-selbsttest-1",
             "created": ISO8601DateFormatter().string(from: Date()),
             "device": ["system": UIDevice.current.systemVersion, "model": UIDevice.current.model] as [String: String],
-            "voice": speechVoiceReport(),
+            "voice": speechVoiceReport(preferred: app.settings.voiceId),
             "pages": pages
         ]
         if let h = heftInfo {

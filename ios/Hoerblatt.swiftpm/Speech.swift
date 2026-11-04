@@ -55,6 +55,10 @@ import Combine
     private var renewSynth = false
     private var voice: AVSpeechSynthesisVoice?
     private var voicePicked = Date.distantPast
+    /// The voice the teacher chose (`AppSettings.voiceId`; nil: the best German voice).
+    var voiceId: String? = nil {
+        didSet { if voiceId != oldValue { voice = nil } }
+    }
     private var tonePlayer: AVAudioPlayer?
     private var cuePlayer: AVAudioPlayer?
     private var toneLength: Double = 0.7
@@ -76,7 +80,7 @@ import Combine
     override init() {
         super.init()
         synth.delegate = self
-        voice = speechGermanVoice()
+        voice = speechGermanVoice(preferred: nil)
         voicePicked = Date()
         makeTone()
     }
@@ -241,7 +245,7 @@ import Combine
     /// Looked up again now and then: a better voice may have been downloaded meanwhile.
     private func germanVoice() -> AVSpeechSynthesisVoice? {
         if voice == nil || Date().timeIntervalSince(voicePicked) > 600 {
-            voice = speechGermanVoice()
+            voice = speechGermanVoice(preferred: voiceId)
             voicePicked = Date()
         }
         return voice
@@ -347,8 +351,10 @@ fileprivate final class SpeechUtteranceRef: @unchecked Sendable {
     }
 }
 
-/// German voice: premium, then enhanced, then the system's default German voice.
-fileprivate func speechGermanVoice() -> AVSpeechSynthesisVoice? {
+/// The voice that speaks: the one the teacher chose (if it is still on the iPad), else the best German voice –
+/// premium, then enhanced, then the system's default German voice.
+func speechGermanVoice(preferred: String?) -> AVSpeechSynthesisVoice? {
+    if let id = preferred, let v = AVSpeechSynthesisVoice(identifier: id) { return v }
     let german = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "de-DE" }
     if let v = german.first(where: { $0.quality == .premium }) { return v }
     if let v = german.first(where: { $0.quality == .enhanced }) { return v }
@@ -356,8 +362,24 @@ fileprivate func speechGermanVoice() -> AVSpeechSynthesisVoice? {
     return AVSpeechSynthesisVoice.speechVoices().first(where: { $0.language.hasPrefix("de") })
 }
 
+/// All German voices on the iPad (also Austria/Switzerland): best quality first, then by name.
+func speechGermanVoices() -> [AVSpeechSynthesisVoice] {
+    func rank(_ v: AVSpeechSynthesisVoice) -> Int {
+        switch v.quality {
+        case .premium: return 0
+        case .enhanced: return 1
+        default: return 2
+        }
+    }
+    return AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("de") }.sorted {
+        if rank($0) != rank($1) { return rank($0) < rank($1) }
+        if ($0.language == "de-DE") != ($1.language == "de-DE") { return $0.language == "de-DE" }
+        return $0.name.localizedCompare($1.name) == .orderedAscending
+    }
+}
+
 /// For the self test: the voice that speaks, and which German voices the iPad has.
-func speechVoiceReport() -> [String: Any] {
+func speechVoiceReport(preferred: String? = nil) -> [String: Any] {
     func quality(_ v: AVSpeechSynthesisVoice) -> String {
         switch v.quality {
         case .premium: return "premium"
@@ -366,7 +388,7 @@ func speechVoiceReport() -> [String: Any] {
         }
     }
     var out: [String: Any] = [:]
-    if let v = speechGermanVoice() {
+    if let v = speechGermanVoice(preferred: preferred) {
         out["used"] = ["name": v.name, "id": v.identifier, "language": v.language, "quality": quality(v)]
     }
     out["german"] = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("de") }.map {

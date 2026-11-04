@@ -57,6 +57,7 @@ fileprivate let appStatePhotoHint =
             settings.save()
             speaker.rate = settings.rate
             speaker.tone = settings.tone
+            speaker.voiceId = settings.voiceId
             AnswerStyle.wordSpacing = CGFloat(settings.answerWordSpacing)
             // a tool the teacher has just hidden is left (for "Wort", which always stays)
             if let t = mode.tool, !settings.shows(t) { changeMode(.wort) }
@@ -165,6 +166,7 @@ fileprivate let appStatePhotoHint =
         updates = UpdateCheck()
         speaker.rate = settings.rate
         speaker.tone = settings.tone
+        speaker.voiceId = settings.voiceId
         AnswerStyle.wordSpacing = CGFloat(settings.answerWordSpacing)
 
         // the page(s) open when the app was last used

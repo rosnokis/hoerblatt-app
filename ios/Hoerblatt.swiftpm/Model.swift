@@ -391,6 +391,8 @@ struct AppSettings: Codable, Equatable {
     var answerWordSpacing: Double = 2
     /// Look for a newer version in the public app repository (reads one small file, sends nothing; `UpdateCheck`).
     var updateCheck: Bool = true
+    /// The voice that reads (`AVSpeechSynthesisVoice.identifier`); nil: the best German voice of the iPad.
+    var voiceId: String? = nil
 
     func shows(_ tool: ToolKey) -> Bool {
         return !hiddenTools.contains(tool.rawValue)
@@ -419,7 +421,7 @@ struct AppSettings: Codable, Equatable {
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case rate, announce, outlines, boxesTogether, markGaps, mic, tone, markColor, penColor, showTeacherFirst
-        case appleCamera, airDrop, hiddenTools, answerWordSpacing, updateCheck
+        case appleCamera, airDrop, hiddenTools, answerWordSpacing, updateCheck, voiceId
         // (a new key: the guide was on everywhere before; the teacher wants it off – the camera explains itself)
         case photoHelp = "photoGuide"
     }
@@ -444,6 +446,7 @@ extension AppSettings {
         hiddenTools = try c.decodeIfPresent([String].self, forKey: .hiddenTools) ?? hiddenTools
         answerWordSpacing = try c.decodeIfPresent(Double.self, forKey: .answerWordSpacing) ?? answerWordSpacing
         updateCheck = try c.decodeIfPresent(Bool.self, forKey: .updateCheck) ?? updateCheck
+        voiceId = try c.decodeIfPresent(String.self, forKey: .voiceId) ?? voiceId
     }
 }
 

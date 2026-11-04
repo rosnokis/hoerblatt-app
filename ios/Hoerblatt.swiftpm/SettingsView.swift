@@ -11,6 +11,8 @@ struct SettingsView: View {
     @State private var askDeleteAll = false
     /// Read once when the sheet appears (listing the voices takes a moment).
     @State private var voiceInfo = ""
+    /// The German voices of the iPad (looked up when the settings open, and with "Liste neu laden").
+    @State private var voices: [SettingsVoice] = []
     /// The file of the "Fehlersuche" button, once made.
     @State private var diagnosisURL: URL? = nil
     /// Selbsttest: its progress while it runs, and the package once made.
@@ -49,7 +51,8 @@ struct SettingsView: View {
             }
         }
         .onAppear {
-            voiceInfo = settingsVoiceDescription()
+            voiceInfo = settingsVoiceDescription(app.settings.voiceId)
+            voices = settingsVoices()
             app.store.purgeOldTrash()
         }
     }
@@ -457,7 +460,36 @@ struct SettingsView: View {
                     .foregroundColor(SettingsStyle.teal)
                 Text(voiceInfo.isEmpty ? "Stimme wird gesucht …" : voiceInfo)
             }
-            Text("Das Hörblatt nimmt die beste deutsche Stimme des iPads. Eine natürlicher klingende Stimme laden: iPad-Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch, dort z. B. eine Stimme mit „(Premium)“ oder „(Erweitert)“ laden. Danach das Hörblatt neu starten.")
+            Picker(selection: $app.settings.voiceId) {
+                Text("Automatisch: die beste deutsche Stimme").tag(String?.none)
+                ForEach(voices) { v in
+                    Text(v.label).tag(String?.some(v.id))
+                }
+            } label: {
+                SwiftUI.Label("Stimme wählen", systemImage: "person.crop.circle")
+            }
+            .pickerStyle(.navigationLink)
+            .onChange(of: app.settings.voiceId) { _, id in
+                voiceInfo = settingsVoiceDescription(id)
+                app.say("Hallo! So klinge ich, wenn ich dir vorlese.")
+            }
+            Button(action: {
+                app.say("Hallo! So klinge ich, wenn ich dir vorlese.")
+            }) {
+                SwiftUI.Label("Probe hören", systemImage: "speaker.wave.2.fill")
+            }
+            Button(action: {
+                voices = settingsVoices()
+                voiceInfo = settingsVoiceDescription(app.settings.voiceId)
+            }) {
+                SwiftUI.Label("Liste neu laden", systemImage: "arrow.clockwise")
+            }
+            if !voices.contains(where: { $0.male }) {
+                Text("Auf diesem iPad ist noch keine männliche deutsche Stimme geladen.")
+                    .font(.callout)
+                    .foregroundColor(.orange)
+            }
+            Text("Weitere Stimmen laden (auch männliche): iPad-Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch. Dort eine Stimme antippen und laden – am natürlichsten klingen die mit „(Premium)“ oder „(Erweitert)“. Danach hier „Liste neu laden“ tippen.")
                 .font(.callout)
         } header: {
             Text("Stimme")
@@ -552,25 +584,47 @@ fileprivate func settingsPageCount(_ n: Int) -> String {
 }
 
 /// The voice the speaker picks (same order: premium, enhanced, the system's German voice).
-fileprivate func settingsVoiceDescription() -> String {
-    let german = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == "de-DE" }
-    var best: AVSpeechSynthesisVoice? = german.first(where: { $0.quality == .premium })
-    if best == nil {
-        best = german.first(where: { $0.quality == .enhanced })
-    }
-    if best == nil {
-        best = AVSpeechSynthesisVoice(language: "de-DE")
-    }
-    guard let v = best else { return "Keine deutsche Stimme gefunden" }
-    var kind = "einfache Qualität"
-    if v.quality == .premium {
-        kind = "Premium"
-    } else if v.quality == .enhanced {
-        kind = "Erweitert"
-    }
-    let count = german.count
+fileprivate func settingsVoiceDescription(_ chosen: String?) -> String {
+    // (the same choice as the speaker makes: the chosen voice if it is still there, else the best one)
+    guard let v = speechGermanVoice(preferred: chosen) else { return "Keine deutsche Stimme gefunden" }
+    let count = speechGermanVoices().count
     let installed = count == 1 ? "1 deutsche Stimme" : "\(count) deutsche Stimmen"
-    return "Jetzt: \(v.name) (\(kind)) · \(installed) auf dem iPad"
+    var line = "Jetzt: \(settingsVoiceLabel(v)) · \(installed) auf dem iPad"
+    if let id = chosen, v.identifier != id {
+        line += " · die gewählte Stimme fehlt, deshalb automatisch"
+    }
+    return line
+}
+
+/// One voice in the list.
+fileprivate struct SettingsVoice: Identifiable {
+    var id: String
+    var label: String
+    var male: Bool
+}
+
+fileprivate func settingsVoices() -> [SettingsVoice] {
+    return speechGermanVoices().map {
+        SettingsVoice(id: $0.identifier, label: settingsVoiceLabel($0), male: $0.gender == .male)
+    }
+}
+
+/// "Markus · männlich · Premium" (country added outside Germany).
+fileprivate func settingsVoiceLabel(_ v: AVSpeechSynthesisVoice) -> String {
+    var parts = [v.name]
+    switch v.gender {
+    case .male: parts.append("männlich")
+    case .female: parts.append("weiblich")
+    default: break
+    }
+    switch v.quality {
+    case .premium: parts.append("Premium")
+    case .enhanced: parts.append("Erweitert")
+    default: parts.append("einfach")
+    }
+    if v.language == "de-AT" { parts.append("Österreich") }
+    if v.language == "de-CH" { parts.append("Schweiz") }
+    return parts.joined(separator: " · ")
 }
 
 // MARK: - Papierkorb texts
