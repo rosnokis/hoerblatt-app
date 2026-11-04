@@ -1179,3 +1179,189 @@ func carryOverlap(_ a: [CGRect], _ b: [CGRect], pad: CGFloat) -> CGFloat {
     let smaller = min(areaA, areaB)
     return smaller > 0 ? min(1, shared / smaller) : 0
 }
+
+// MARK: - Editing an answer word by word (eraser, speaking in between)
+
+/// The answer without one of its words (and the space next to it): the eraser takes single words, never the whole text.
+func answerRemovingWord(_ text: String, range: NSRange) -> String {
+    let ns = text as NSString
+    guard range.location >= 0, range.length > 0, range.location + range.length <= ns.length else { return text }
+    var start = range.location
+    var end = range.location + range.length
+    func isSpace(_ i: Int) -> Bool {
+        guard i >= 0 && i < ns.length, let u = UnicodeScalar(ns.character(at: i)) else { return false }
+        return CharacterSet.whitespacesAndNewlines.contains(u)
+    }
+    // the spaces after it go with it; at the end of the text, the spaces before it
+    if isSpace(end) {
+        while isSpace(end) { end += 1 }
+    } else {
+        while isSpace(start - 1) { start -= 1 }
+    }
+    return ns.replacingCharacters(in: NSRange(location: start, length: end - start), with: "")
+}
+
+/// Words spoken in between: put into the text at `location` (UTF-16) with a space on each side where needed. The
+/// recogniser's full stop goes (it stays at the very end of the text); at the start of a sentence a capital.
+/// Returns the new text and where the inserted words stand in it.
+func answerInserting(_ text: String, at location: Int, heard: String) -> (text: String, range: NSRange)? {
+    let ns = text as NSString
+    let loc = max(0, min(ns.length, location))
+    let before = ns.substring(to: loc)
+    let after = ns.substring(from: loc)
+    var core = heard.trimmingCharacters(in: .whitespacesAndNewlines)
+    let atEnd = after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    if !atEnd {
+        while let last = core.last, ".!?,;:".contains(last) { core.removeLast() }
+    }
+    if core.isEmpty { return nil }
+    let beforeTrim = before.trimmingCharacters(in: .whitespacesAndNewlines)
+    let sentenceStart = beforeTrim.isEmpty || ".!?".contains(beforeTrim.last ?? " ")
+    if sentenceStart, let f = core.first, f.isLetter {
+        core = String(f).uppercased() + String(core.dropFirst())
+    }
+    var pre = before
+    if let last = pre.last, !last.isWhitespace { pre += " " }
+    var post = after
+    if let first = post.first, !first.isWhitespace { post = " " + post }
+    let start = (pre as NSString).length
+    return (text: pre + core + post, range: NSRange(location: start, length: (core as NSString).length))
+}
+
+/// Where the finger put the cursor between the words of an answer (Sprechen: speak in there): the place in the text
+/// (UTF-16) and a thin upright bar to show it. Below the last row: at the end; above the first: at the start.
+func answerInsertionPoint(_ words: [AnswerWord], textLength: Int, at p: CGPoint,
+                          textHeight th: CGFloat) -> (location: Int, caret: CGRect?) {
+    guard let firstWord = words.first, let lastWord = words.last else { return (textLength, nil) }
+    // rows: words one after another on about the same height
+    var rows: [[AnswerWord]] = []
+    for w in words {
+        if let last = rows.last?.last, abs(last.rect.midY - w.rect.midY) < max(last.rect.height, th) * 0.5 {
+            rows[rows.count - 1].append(w)
+        } else {
+            rows.append([w])
+        }
+    }
+    func caret(_ x: CGFloat, _ row: [AnswerWord]) -> CGRect {
+        let y0 = row.map { $0.rect.minY }.min() ?? 0
+        let y1 = row.map { $0.rect.maxY }.max() ?? 0
+        let w = max(3, th * 0.12)
+        return CGRect(x: x - w / 2, y: y0, width: w, height: max(1, y1 - y0))
+    }
+    let pad = th * 0.3
+    guard let row = rows.first(where: { r in
+        let y0 = (r.map { $0.rect.minY }.min() ?? 0) - pad
+        let y1 = (r.map { $0.rect.maxY }.max() ?? 0) + pad
+        return p.y >= y0 && p.y <= y1
+    }) else {
+        if p.y < firstWord.rect.minY {
+            return (firstWord.range.location, caret(firstWord.rect.minX - th * 0.15, rows[0]))
+        }
+        return (textLength, caret(lastWord.rect.maxX + th * 0.15, rows[rows.count - 1]))
+    }
+    guard let first = row.first else { return (textLength, nil) }
+    if p.x <= first.rect.midX {
+        return (first.range.location, caret(first.rect.minX - th * 0.15, row))
+    }
+    let left = row.last(where: { $0.rect.midX < p.x }) ?? first
+    let end = left.range.location + left.range.length
+    // (the gap after the last word of a row is the start of the next row's first word, in the text)
+    return (end, caret(left.rect.maxX + th * 0.15, row))
+}
+
+// MARK: - Marks on an answer
+
+/// The marks of an answer after its text changed: a mark stays where its text still stands, else moves to the
+/// nearest place with the same text, else goes.
+func answerMarksFixed(_ marks: [AnswerMark]?, in text: String) -> [AnswerMark]? {
+    guard let marks = marks, !marks.isEmpty else { return nil }
+    let ns = text as NSString
+    var out: [AnswerMark] = []
+    for m in marks where m.length > 0 && !m.text.isEmpty {
+        if m.location >= 0, m.location + m.length <= ns.length,
+           ns.substring(with: NSRange(location: m.location, length: m.length)) == m.text {
+            out.append(m)
+            continue
+        }
+        // the same letters elsewhere: the nearest place
+        var best: Int? = nil
+        var search = NSRange(location: 0, length: ns.length)
+        while search.length > 0 {
+            let r = ns.range(of: m.text, options: [], range: search)
+            if r.location == NSNotFound { break }
+            if best == nil || abs(r.location - m.location) < abs(best! - m.location) { best = r.location }
+            let next = r.location + 1
+            search = NSRange(location: next, length: ns.length - next)
+        }
+        if let b = best {
+            var n = m
+            n.location = b
+            out.append(n)
+        }
+    }
+    return out.isEmpty ? nil : out
+}
+
+/// The letters of an answer's word (as the word lens shows them: without punctuation at its edges), each as its
+/// UTF-16 stretch in the answer's text.
+func answerLetterRanges(_ text: String, word: NSRange) -> [NSRange] {
+    let ns = text as NSString
+    guard word.location >= 0, word.location + word.length <= ns.length, word.length > 0 else { return [] }
+    let token = ns.substring(with: word)
+    let chars = Array(token)
+    guard let first = chars.firstIndex(where: { $0.isLetter || $0.isNumber }),
+          let last = chars.lastIndex(where: { $0.isLetter || $0.isNumber }) else { return [] }
+    var out: [NSRange] = []
+    var offset = word.location
+    for (k, ch) in chars.enumerated() {
+        let len = (String(ch) as NSString).length
+        if k >= first && k <= last { out.append(NSRange(location: offset, length: len)) }
+        offset += len
+    }
+    return out
+}
+
+/// The colour of each letter of an answer's word from the answer's marks (a later mark covers an earlier one).
+func answerLetterColors(_ marks: [AnswerMark]?, letters: [NSRange]) -> [MarkColor?] {
+    var out = [MarkColor?](repeating: nil, count: letters.count)
+    for m in marks ?? [] {
+        for (k, l) in letters.enumerated() where l.location >= m.location && l.location + l.length <= m.location + m.length {
+            out[k] = m.color
+        }
+    }
+    return out
+}
+
+/// The answer's marks with one word's letters coloured anew: the word's old marks go, one mark per run of letters
+/// with the same colour.
+func answerMarksSetting(_ marks: [AnswerMark]?, text: String, letters: [NSRange],
+                        colors: [MarkColor?]) -> [AnswerMark]? {
+    guard let firstL = letters.first, let lastL = letters.last, colors.count == letters.count else { return marks }
+    let start = firstL.location
+    let end = lastL.location + lastL.length
+    let ns = text as NSString
+    var out = (marks ?? []).filter { $0.location + $0.length <= start || $0.location >= end }
+    var k = 0
+    while k < letters.count {
+        guard let c = colors[k] else {
+            k += 1
+            continue
+        }
+        var j = k
+        while j + 1 < letters.count && colors[j + 1] == c { j += 1 }
+        let loc = letters[k].location
+        let len = letters[j].location + letters[j].length - loc
+        out.append(AnswerMark(location: loc, length: len, text: ns.substring(with: NSRange(location: loc, length: len)),
+                              color: c))
+        k = j + 1
+    }
+    return out.isEmpty ? nil : out
+}
+
+/// A word of an answer that ends a sentence: . ! ? at its end, maybe before closing quotes.
+func readingAnswerEndsSentence(_ t: String) -> Bool {
+    var cs = Array(t)
+    while let last = cs.last, "\"“”»«‘’)".contains(last) { cs.removeLast() }
+    guard let last = cs.last else { return false }
+    return ".!?".contains(last)
+}

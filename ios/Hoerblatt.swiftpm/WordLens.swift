@@ -140,7 +140,162 @@ struct WordLensHost: View {
            !WordLetters.letters(controller.page.words[i].text).isEmpty {
             WordLensView(app: app, controller: controller, word: i)
                 .id(i)
+        } else if app.mode == .markieren, let t = controller.lensAnswer, controller.lensAnswerLetters() != nil {
+            AnswerLensView(app: app, controller: controller)
+                .id("\(t.id)-\(t.range.location)")
         }
+    }
+}
+
+/// The word lens on a word of the child's own answer: the word in the answer's writing, the letter tiles, and below:
+/// colours, eraser, hear again, done (as for a printed word).
+struct AnswerLensView: View {
+    @ObservedObject var app: AppState
+    @ObservedObject var controller: PageController
+    @State private var dragFrom: Int? = nil
+    @State private var dragTo: Int? = nil
+
+    var body: some View {
+        let word = controller.lensAnswerLetters()
+        let letters = word?.letters ?? []
+        let colors = preview(word?.colors ?? [])
+        ZStack {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+                .onTapGesture { controller.closeLens() }
+            VStack(spacing: 22) {
+                if !letters.isEmpty && colors.count == letters.count {
+                    // the word as written in the answer, with its marks
+                    HStack(spacing: 0) {
+                        ForEach(0..<letters.count, id: \.self) { k in
+                            Text(letters[k])
+                                .font(.system(size: 64, weight: .semibold, design: .rounded))
+                                .foregroundColor(Color(red: 0.11, green: 0.25, blue: 0.69))
+                                .padding(.vertical, 4)
+                                .background(colors[k].map { Color(uiColor: $0.fill) } ?? Color.clear)
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(red: 237 / 255, green: 233 / 255, blue: 254 / 255)))
+                    .accessibilityHidden(true)
+                    tiles(letters, colors: colors)
+                }
+                buttons
+            }
+            .padding(24)
+            .frame(maxWidth: 900)
+            .background(RoundedRectangle(cornerRadius: 28).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: 28).stroke(LensStyle.amber, lineWidth: 4))
+            .padding(24)
+        }
+    }
+
+    private func tiles(_ letters: [String], colors: [MarkColor?]) -> some View {
+        GeometryReader { g in
+            let n = letters.count
+            let gap: CGFloat = 8
+            let tile = max(20, min(96, (g.size.width - gap * CGFloat(n - 1)) / CGFloat(n)))
+            let rowWidth = tile * CGFloat(n) + gap * CGFloat(n - 1)
+            let x0 = (g.size.width - rowWidth) / 2
+            let letterAt: (CGFloat) -> Int = { x in
+                max(0, min(n - 1, Int(((x - x0 + gap / 2) / (tile + gap)).rounded(.down))))
+            }
+            HStack(spacing: gap) {
+                ForEach(0..<n, id: \.self) { k in
+                    Text(letters[k])
+                        .font(.system(size: min(64, tile * 0.72), weight: .semibold, design: .rounded))
+                        .foregroundColor(LensStyle.ink)
+                        .frame(width: tile, height: 112)
+                        .background(RoundedRectangle(cornerRadius: 14)
+                            .fill(colors[k].map { Color(uiColor: $0.swatch) } ?? Color.white))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(LensStyle.ink.opacity(0.3), lineWidth: 2))
+                }
+            }
+            .frame(width: g.size.width, height: g.size.height)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { v in
+                        if dragFrom == nil { dragFrom = letterAt(v.startLocation.x) }
+                        dragTo = letterAt(v.location.x)
+                    }
+                    .onEnded { v in
+                        let a = dragFrom ?? letterAt(v.startLocation.x)
+                        let b = letterAt(v.location.x)
+                        dragFrom = nil
+                        dragTo = nil
+                        controller.markAnswerLetters(from: a, to: b)
+                    }
+            )
+        }
+        .frame(height: 112)
+        .accessibilityLabel(Text("Buchstaben zum Markieren"))
+    }
+
+    private var buttons: some View {
+        HStack(spacing: 16) {
+            ForEach(MarkColor.allCases) { c in
+                Button(action: {
+                    app.settings.markColor = c
+                    app.announce(c.title)
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(uiColor: c.swatch))
+                        Circle()
+                            .stroke(app.settings.markColor == c ? LensStyle.ink : Color.black.opacity(0.15),
+                                    lineWidth: app.settings.markColor == c ? 4 : 1.5)
+                        if app.settings.markColor == c {
+                            SwiftUI.Image(systemName: "checkmark")
+                                .font(.system(size: 22, weight: .heavy))
+                                .foregroundColor(.white)
+                                .shadow(color: Color.black.opacity(0.5), radius: 1, x: 0, y: 1)
+                        }
+                    }
+                    .frame(width: 56, height: 56)
+                }
+                .buttonStyle(LensPressStyle())
+                .accessibilityLabel(Text(c.title))
+            }
+            Spacer(minLength: 8)
+            lensButton("speaker.wave.2.fill", LensStyle.orange, "Wort nochmal hören") {
+                controller.hearLensAnswer()
+            }
+            lensButton("eraser.fill", LensStyle.grey, "Markierung im Wort löschen") {
+                controller.clearAnswerLetters()
+            }
+            lensButton("checkmark", LensStyle.green, "Fertig") {
+                controller.closeLens()
+            }
+        }
+    }
+
+    private func lensButton(_ symbol: String, _ color: Color, _ caption: String,
+                            _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            SwiftUI.Image(systemName: symbol)
+                .font(.system(size: 30, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 72, height: 72)
+                .background(Circle().fill(color))
+        }
+        .buttonStyle(LensPressStyle())
+        .accessibilityLabel(Text(caption))
+    }
+
+    /// The letters' colours with the finger's swipe already applied (same rule as `markAnswerLetters`).
+    private func preview(_ colors: [MarkColor?]) -> [MarkColor?] {
+        guard let a = dragFrom, let b = dragTo, !colors.isEmpty else { return colors }
+        let lo = max(0, min(a, b))
+        let hi = min(colors.count - 1, max(a, b))
+        guard lo <= hi else { return colors }
+        let c = app.settings.markColor
+        let all = (lo...hi).allSatisfy { colors[$0] == c }
+        var out = colors
+        for k in lo...hi { out[k] = all ? nil : c }
+        return out
     }
 }
 

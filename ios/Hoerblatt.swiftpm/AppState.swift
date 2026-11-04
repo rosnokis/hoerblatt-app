@@ -57,6 +57,7 @@ fileprivate let appStatePhotoHint =
             settings.save()
             speaker.rate = settings.rate
             speaker.tone = settings.tone
+            AnswerStyle.wordSpacing = CGFloat(settings.answerWordSpacing)
             // a tool the teacher has just hidden is left (for "Wort", which always stays)
             if let t = mode.tool, !settings.shows(t) { changeMode(.wort) }
             if !settings.shows(.seite) { for c in openControllers { c.endPageReading() } }
@@ -156,6 +157,7 @@ fileprivate let appStatePhotoHint =
         handin = HandinFolder()
         speaker.rate = settings.rate
         speaker.tone = settings.tone
+        AnswerStyle.wordSpacing = CGFloat(settings.answerWordSpacing)
 
         // the page(s) open when the app was last used
         let defaults = UserDefaults.standard
@@ -606,7 +608,7 @@ fileprivate let appStatePhotoHint =
             appStateHideKeyboard()
         }
         if m != .markieren {
-            for c in openControllers where c.lensWord != nil { c.lensWord = nil }
+            for c in openControllers where c.lensWord != nil || c.lensAnswer != nil { c.closeLens() }
         }
         if mode != m { mode = m }
     }
@@ -818,6 +820,35 @@ fileprivate let appStatePhotoHint =
         finishWanted(job, page: id)
     }
 
+    // MARK: - Empty sheet
+
+    /// An empty sheet to write on (teacher: no lines): a white page with one text from top to bottom – speaking
+    /// adds to it or puts words in between, the pen draws, the eraser takes words. Handed in like any page.
+    func newBlankSheet() {
+        stopAllListening()
+        let size = CGSize(width: 1696, height: 2400)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+        }
+        let th: CGFloat = 56
+        let margin: CGFloat = 110
+        let writing = Answer(id: UUID(), rect: CGRect(x: margin, y: margin, width: size.width - 2 * margin,
+                                                      height: size.height - 2 * margin), gap: nil, text: "")
+        var page = Page(id: UUID(), created: Date(), title: "Schreibblatt", pixelSize: size, textHeight: th,
+                        words: [], gaps: [], boxes: [], answers: [writing], marks: [], drawing: Data())
+        page.blank = true
+        page.readVersion = Recognizer.version
+        store.add(page: page, image: image)
+        put(PageController(page: page, image: image, app: self), on: currentSide)
+        // (straight to speaking, unless the teacher hid it)
+        setModeQuietly(.sprechen)
+        say(settings.shows(.sprechen) ? "Ein leeres Blatt. Tippe darauf und sprich." : "Ein leeres Blatt.")
+    }
+
     // MARK: - Reading again after an update
 
     /// Pages read with an older recognition are read again, one after another, open pages first; answers, marks and
@@ -829,7 +860,8 @@ fileprivate let appStatePhotoHint =
         Task { @MainActor in
             var queue: [UUID] = []
             for info in self.store.pages {
-                if let p = self.store.loadPage(info.id), (p.readVersion ?? 1) < Recognizer.version {
+                // (an empty sheet has nothing to read)
+                if let p = self.store.loadPage(info.id), (p.readVersion ?? 1) < Recognizer.version, p.blank != true {
                     queue.append(info.id)
                 }
                 await Task.yield()
@@ -848,7 +880,7 @@ fileprivate let appStatePhotoHint =
     }
 
     private func readAgain(_ id: UUID) async {
-        guard let stored = store.loadPage(id), (stored.readVersion ?? 1) < Recognizer.version,
+        guard let stored = store.loadPage(id), (stored.readVersion ?? 1) < Recognizer.version, stored.blank != true,
               let image = store.loadImage(id) else { return }
         let analysis = await Recognizer.analyze(image, cleanPage: stored.heft != nil, again: true,
                                                 known: stored.visionWords, progress: { _, _ in })

@@ -85,6 +85,7 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     private var fields: [UUID: PageCanvasAnswerField] = [:]
     /// Word places of each answer (for the outlines), with the answer's state they belong to.
     private var answerWordCache: [UUID: (key: String, rects: [CGRect])] = [:]
+    private var answerPaintCache: [UUID: (key: String, paint: [(rect: CGRect, color: MarkColor)])] = [:]
     private var fieldOrder: [UUID] = []
 
     /// The controller's drawing as last seen, and the bytes this view last sent or loaded:
@@ -457,10 +458,15 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
             f.update(answer: ans, room: answerRoom(ans, in: c.page), lines: c.page.answerLines(ans), textHeight: th,
                      editable: editable, active: active,
                      listening: anyListening && active && c.isListening(to: ans.id) && respeak.isEmpty,
-                     erasing: mode == .radieren)
+                     erasing: mode == .radieren, plain: c.page.blank == true)
             var marks = PageCanvasAnswerMarks()
             if outlines && !editable {
                 marks.outlines = answerWordRects(ans, c, textHeight: th).map { $0.insetBy(dx: -wordPad, dy: -wordPad) }
+            }
+            if !editable, ans.marks?.isEmpty == false {
+                let paint = answerMarkPaintCached(ans, c, textHeight: th)
+                marks.paintRects = paint.map { $0.rect }
+                marks.paintColors = paint.map { $0.color.fill }
             }
             if !editable {
                 marks.light = c.flash
@@ -472,6 +478,9 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
         }
         for id in Array(answerWordCache.keys) where !keep.contains(id) {
             answerWordCache[id] = nil
+        }
+        for id in Array(answerPaintCache.keys) where !keep.contains(id) {
+            answerPaintCache[id] = nil
         }
         focusPendingField()
     }
@@ -754,8 +763,8 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     @objc private func handleLensPress(_ g: UILongPressGestureRecognizer) {
         guard g.state == .began, let c = controller else { return }
         let p = g.location(in: contentView)
-        if answerHit(p, c) != nil { return }
         endMarkSwipe()
+        // (also on a word of an answer: the child's own words behave as printed ones)
         c.openLens(at: p)
     }
 
@@ -826,9 +835,20 @@ final class PageCanvasHostView: UIView, PKCanvasViewDelegate, UIGestureRecognize
     // MARK: - Hits
 
     /// The answer field under the finger (topmost), as it is shown.
+    /// Where the marker colour of an answer lies; kept until the answer changes.
+    private func answerMarkPaintCached(_ a: Answer, _ c: PageController,
+                                       textHeight th: CGFloat) -> [(rect: CGRect, color: MarkColor)] {
+        let key = "\(a.text)|\(a.rect)|\(a.gap?.uuidString ?? "-")|\(th)|\(AnswerStyle.wordSpacing)|\(a.marks ?? [])"
+        if let cached = answerPaintCache[a.id], cached.key == key { return cached.paint }
+        let paint = answerMarkPaint(a, in: c.page, textHeight: th)
+        answerPaintCache[a.id] = (key: key, paint: paint)
+        return paint
+    }
+
     /// Where the words of an answer stand (laid out as the field shows them); kept until the answer changes.
     private func answerWordRects(_ a: Answer, _ c: PageController, textHeight th: CGFloat) -> [CGRect] {
-        let key = "\(a.text)|\(a.rect)|\(a.gap?.uuidString ?? "-")|\(th)|\(c.page.answerLines(a)?.count ?? 0)"
+        let key = "\(a.text)|\(a.rect)|\(a.gap?.uuidString ?? "-")|\(th)|\(c.page.answerLines(a)?.count ?? 0)|"
+            + "\(AnswerStyle.wordSpacing)"
         if let cached = answerWordCache[a.id], cached.key == key { return cached.rects }
         let rects = c.answerWordList(a).map { $0.rect }
         answerWordCache[a.id] = (key: key, rects: rects)
@@ -1144,6 +1164,9 @@ fileprivate struct PageCanvasAnswerMarks: Equatable {
     var strong: [CGRect] = []
     var renewed: [CGRect] = []
     var respeak: [CGRect] = []
+    /// Marker colour on words and letters of the answer.
+    var paintRects: [CGRect] = []
+    var paintColors: [UIColor] = []
 }
 
 fileprivate final class PageCanvasAnswerMarksView: UIView {
@@ -1211,6 +1234,18 @@ fileprivate final class PageCanvasAnswerMarksView: UIView {
         func path(_ r: CGRect) -> UIBezierPath {
             return UIBezierPath(roundedRect: local(r), cornerRadius: radius)
         }
+        // marker colour first, as on paper (under everything else)
+        if !marks.paintRects.isEmpty {
+            ctx.saveGState()
+            ctx.setBlendMode(.multiply)
+            for (k, r) in marks.paintRects.enumerated() where k < marks.paintColors.count {
+                ctx.addPath(UIBezierPath(roundedRect: local(r).insetBy(dx: -th * 0.04, dy: -th * 0.04),
+                                         cornerRadius: th * 0.12).cgPath)
+                ctx.setFillColor(marks.paintColors[k].cgColor)
+                ctx.fillPath()
+            }
+            ctx.restoreGState()
+        }
         // word outlines: where one word ends and the next begins
         if !marks.outlines.isEmpty {
             ctx.saveGState()
@@ -1269,9 +1304,8 @@ fileprivate final class PageCanvasAnswerRows: UIView {
     }
 
     override func draw(_ rect: CGRect) {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: PageCanvasPalette.answerInk]
         for row in rows {
-            (row.text as NSString).draw(at: row.origin, withAttributes: attributes)
+            answerAttributed(row.text, font: font, color: PageCanvasPalette.answerInk).draw(at: row.origin)
         }
     }
 }
@@ -1288,6 +1322,10 @@ fileprivate final class PageCanvasAnswerField: UIView {
     private var th: CGFloat = 20
     private var fontSize: CGFloat = 0
     private var pulsing = false
+    /// What the text view shows (text, size, word spacing), so it is set again only when one of them changes.
+    private var shownKey: String? = nil
+    /// The writing of an empty sheet: no field drawn, the text from the top.
+    private var plain = false
     /// An answer over several writing lines: its lines (written onto them, the field shaped like them).
     private var lines: [CGRect]? = nil
     /// The field shaped like the lines (instead of the view's own background and border).
@@ -1369,8 +1407,9 @@ fileprivate final class PageCanvasAnswerField: UIView {
     }
 
     func update(answer: Answer, room: CGFloat?, lines newLines: [CGRect]?, textHeight: CGFloat, editable newEditable: Bool,
-                active: Bool, listening: Bool, erasing: Bool) {
+                active: Bool, listening: Bool, erasing: Bool, plain newPlain: Bool = false) {
         th = max(4, textHeight)
+        plain = newPlain
         answerRect = answer.rect
         lines = newLines
         if newLines == nil {
@@ -1378,9 +1417,20 @@ fileprivate final class PageCanvasAnswerField: UIView {
             setFontSize(answerFontSize(answer.text, width: answer.rect.width, limit: room, textHeight: th,
                                        font: PageCanvasAnswerField.answerFont))
         }
-        // (not while the keyboard composes a word, and the cursor stays where it is when nothing changed)
-        if textView.text != answer.text && textView.markedTextRange == nil {
-            textView.text = answer.text
+        if newEditable {
+            // (not while the keyboard composes a word, and the cursor stays where it is when nothing changed)
+            if textView.text != answer.text && textView.markedTextRange == nil {
+                textView.text = answer.text
+            }
+            shownKey = nil
+        } else {
+            // shown, not typed: the spaces widened as the teacher set them (`AnswerStyle.wordSpacing`)
+            let key = "\(answer.text)|\(fontSize)|\(AnswerStyle.wordSpacing)"
+            if key != shownKey {
+                textView.attributedText = answerAttributed(answer.text, font: PageCanvasAnswerField.answerFont(max(1, fontSize)),
+                                                           color: PageCanvasPalette.answerInk)
+                shownKey = key
+            }
         }
         if newEditable != editable {
             editable = newEditable
@@ -1395,7 +1445,11 @@ fileprivate final class PageCanvasAnswerField: UIView {
         let fill = listening ? PageCanvasPalette.answerListening : PageCanvasPalette.answerBackground
         let stroke = erasing ? PageCanvasPalette.slate : PageCanvasPalette.purple
         layer.cornerRadius = th * 0.3
-        if lines == nil {
+        if lines == nil && newPlain {
+            // the writing of an empty sheet: no field drawn, only while listening a light colour
+            layer.borderWidth = 0
+            backgroundColor = listening ? fill : .clear
+        } else if lines == nil {
             layer.borderWidth = active ? line * 2 : line
             layer.borderColor = stroke.cgColor
             backgroundColor = fill
@@ -1440,7 +1494,8 @@ fileprivate final class PageCanvasAnswerField: UIView {
         let height = max(answerRect.height, th * 1.5, textHeight + 2 * padY)
         let newFrame = CGRect(x: answerRect.minX, y: answerRect.minY, width: width, height: height)
         if frame != newFrame { frame = newFrame }
-        let textFrame = CGRect(x: padX, y: max(padY, (height - textHeight) / 2), width: innerWidth, height: textHeight)
+        let textFrame = CGRect(x: padX, y: plain ? padY : max(padY, (height - textHeight) / 2), width: innerWidth,
+                               height: textHeight)
         if textView.frame != textFrame { textView.frame = textFrame }
         layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: min(layer.cornerRadius, height / 2)).cgPath
     }

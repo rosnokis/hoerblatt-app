@@ -50,6 +50,8 @@ enum PageReadState: Equatable {
     @Published var keyboardAnswer: UUID? = nil
     /// Word shown big in the word lens (Markieren: finger held on a word), to mark single letters.
     @Published var lensWord: Int? = nil
+    /// A word of an answer shown big in the word lens (Markieren: finger held on a word of an answer).
+    @Published var lensAnswer: AnswerLensTarget? = nil
     /// The page's id (it never changes for one controller).
     let id: UUID
 
@@ -266,13 +268,16 @@ enum PageReadState: Equatable {
                 }
             } else if !micOK {
                 keyboardAnswer = id
+            } else if let p = p {
+                // on a word: speak it anew; between words: speak more in there
+                speakAt(id, p)
             }
         case .radieren:
-            pushUndo()
-            deleteAnswer(id)
-            save()
-            app.announce("Gelöscht")
-        case .markieren, .stift:
+            eraseAnswerWord(id, at: p)
+        case .markieren:
+            // the word of the answer under the finger, as a printed word
+            if let p = p { markAnswerWord(id, at: p) }
+        case .stift:
             break
         }
     }
@@ -346,6 +351,30 @@ enum PageReadState: Equatable {
             say(reading.hearGap(k, wholeSentence: true))
             return
         }
+        // Satz in a free field (an empty sheet holds a whole text): the sentence around the word, up to . ! ?
+        if whole, let p = p {
+            let words = answerWordList(a)
+            if let k = answerWordIndex(words, at: p, textHeight: reading.textSize) {
+                let ns = a.text as NSString
+                func ends(_ i: Int) -> Bool {
+                    let t = ns.substring(with: words[i].range)
+                    return readingAnswerEndsSentence(t)
+                }
+                var s = k
+                while s > 0 && !ends(s - 1) { s -= 1 }
+                var e = k
+                while e < words.count - 1 && !ends(e) { e += 1 }
+                let start = words[s].range.location
+                let end = words[e].range.location + words[e].range.length
+                let said = ns.substring(with: NSRange(location: start, length: end - start))
+                let lit = words[s...e].map { w in
+                    SpokenWord(start: w.range.location - start, length: w.range.length, rects: [w.rect])
+                }
+                if listeningAnswer != nil { stopMyListening() }
+                speak(parts: [SpeechPart.text(said)], rects: words[s...e].map { $0.rect }, words: [lit])
+                return
+            }
+        }
         if !whole, let p = p {
             let words = answerWordList(a)
             if let k = answerWordIndex(words, at: p, textHeight: reading.textSize) {
@@ -376,9 +405,30 @@ enum PageReadState: Equatable {
     /// Finger held on a word of an answer: that word is spoken anew (pling, listen) and replaces the old one; then the
     /// new word is read. (The child mumbles a little: "Er Ritter durch den Wald" – only "Ritter" is said again.)
     func respeakWord(_ id: UUID, at p: CGPoint) {
-        guard let app = app, let a = answer(id) else { return }
+        guard let a = answer(id) else { return }
         let words = answerWordList(a)
         guard let k = answerWordIndex(words, at: p, textHeight: reading.textSize) else { return }
+        speakInto(id, range: words[k].range, mark: [words[k].rect])
+    }
+
+    /// Sprechen on a written answer: a word under the finger is spoken anew; between two words (or after the last)
+    /// new words go in there – a red bar shows the place.
+    private func speakAt(_ id: UUID, _ p: CGPoint) {
+        guard let a = answer(id) else { return }
+        let th = reading.textSize
+        let words = answerWordList(a)
+        if let w = words.first(where: { $0.rect.insetBy(dx: -th * 0.05, dy: -th * 0.2).contains(p) }) {
+            speakInto(id, range: w.range, mark: [w.rect])
+            return
+        }
+        let point = answerInsertionPoint(words, textLength: (a.text as NSString).length, at: p, textHeight: th)
+        speakInto(id, range: NSRange(location: point.location, length: 0), mark: point.caret.map { [$0] } ?? [])
+    }
+
+    /// Listens and puts what is heard into the answer: `range` with a length replaces that word ("Ritter" → "ritt"),
+    /// an empty `range` inserts there. One undo step; the place pulses red meanwhile (not the whole field).
+    private func speakInto(_ id: UUID, range: NSRange, mark: [CGRect]) {
+        guard let app = app, let a = answer(id) else { return }
         endPageReading()
         stopListening()
         app.speaker.stop()
@@ -390,7 +440,8 @@ enum PageReadState: Equatable {
         }
         keyboardAnswer = nil
         let old = a.text as NSString
-        let range = words[k].range
+        guard range.location >= 0, range.location + range.length <= old.length else { return }
+        let original = a.text
         let before = old.substring(to: range.location)
         let after = old.substring(from: range.location + range.length)
         let oldWord = old.substring(with: range)
@@ -403,27 +454,60 @@ enum PageReadState: Equatable {
         let gen = listenGeneration
         listeningAnswer = id
         PageControllerMic.owner = ObjectIdentifier(self)
-        respeakRects = [words[k].rect]
+        respeakRects = mark
         renewedRects = []
-        var newWord = ""
+        var newRange = NSRange(location: range.location, length: 0)
+        var newWords = ""
         app.speaker.playListenCue(then: { [weak self] in
             guard let me = self, let app = me.app, me.listenGeneration == gen, me.listeningAnswer == id else { return }
             app.listener.start(onText: { [weak self] text in
                 guard let me = self, me.listenGeneration == gen else { return }
-                let w = answerReplacement(oldWord, heard: text, sentenceStart: sentenceStart)
-                if w.isEmpty { return }
-                newWord = w
-                me.setAnswerText(id, before + w + after)
+                if range.length > 0 {
+                    let w = answerReplacement(oldWord, heard: text, sentenceStart: sentenceStart)
+                    if w.isEmpty { return }
+                    newWords = w
+                    newRange = NSRange(location: range.location, length: (w as NSString).length)
+                    me.setAnswerText(id, before + w + after)
+                } else {
+                    guard let put = answerInserting(original, at: range.location, heard: text) else { return }
+                    newWords = (put.text as NSString).substring(with: put.range)
+                    newRange = put.range
+                    me.setAnswerText(id, put.text)
+                }
                 // (the red mark follows the new word(s) as they are heard)
                 if let now = me.answer(id) {
-                    let lit = me.answerWordsSpanning(in: now, from: range.location, length: (w as NSString).length)
+                    let lit = me.answerWordsSpanning(in: now, from: newRange.location, length: newRange.length)
                     if !lit.isEmpty { me.respeakRects = lit.map { $0.rect } }
                 }
             }, onEnd: { [weak self] in
                 guard let me = self, me.listenGeneration == gen else { return }
-                me.respeakFinished(id, word: newWord, at: range.location)
+                me.respeakFinished(id, word: newWords, at: newRange.location)
             })
         })
+    }
+
+    /// Radiergummi on an answer: only the word under the finger goes (never the whole text with one tap – teacher:
+    /// it must be safe). Where there is no word, nothing happens.
+    private func eraseAnswerWord(_ id: UUID, at p: CGPoint?) {
+        guard let app = app, let a = answer(id) else { return }
+        let th = reading.textSize
+        let words = answerWordList(a)
+        guard let p = p,
+              let w = words.first(where: { $0.rect.insetBy(dx: -th * 0.1, dy: -th * 0.2).contains(p) }) else {
+            app.say(words.isEmpty ? "Das Feld ist leer." : "Tippe genau auf ein Wort.")
+            return
+        }
+        let gone = Reading.cleanWord((a.text as NSString).substring(with: w.range))
+        pushUndo()
+        typingUndoFor = id
+        setAnswerText(id, answerRemovingWord(a.text, range: w.range))
+        typingUndoFor = nil
+        // (an answer left empty goes, unless it is the writing of an empty sheet)
+        if let now = answer(id), pageControllerTrim(now.text).isEmpty, page.blank != true {
+            deleteAnswer(id)
+        }
+        save()
+        app.say(gone.isEmpty ? "Gelöscht" : gone + " ist gelöscht.")
     }
 
     private func respeakFinished(_ id: UUID, word: String, at location: Int) {
@@ -439,7 +523,7 @@ enum PageReadState: Equatable {
             return
         }
         if word.isEmpty {
-            app.say("Ich habe nichts gehört. Halte den Finger auf das Wort und sprich.")
+            app.say("Ich habe nichts gehört. Versuch es noch einmal.")
             return
         }
         // the new word(s) – one spoken word may come back as several – green for a moment, and read
@@ -467,6 +551,8 @@ enum PageReadState: Equatable {
             typingUndoFor = id
         }
         page.answers[i].text = text
+        // (marks on the answer stay on their letters, wherever these went)
+        page.answers[i].marks = answerMarksFixed(page.answers[i].marks, in: text)
         scheduleSave()
     }
 
@@ -483,6 +569,10 @@ enum PageReadState: Equatable {
     /// A tap marks the whole word in the chosen colour; tapping it again (same colour) takes the mark off.
     func markTap(at p: CGPoint) {
         leaveAnswer()
+        if let ai = reading.answerAt(p), ai < page.answers.count {
+            markAnswerWord(page.answers[ai].id, at: p)
+            return
+        }
         guard let wid = reading.wordAt(p, loose: true), let i = wordIndex(wid) else { return }
         pushUndo()
         toggleWholeMark(i)
@@ -494,6 +584,10 @@ enum PageReadState: Equatable {
     func markStroke(_ points: [CGPoint]) {
         guard let start = points.first else { return }
         leaveAnswer()
+        if let ai = reading.answerAt(start), ai < page.answers.count {
+            markAnswerStroke(page.answers[ai].id, points)
+            return
+        }
         let r = reading
         let color = markColor
         let i0: Int? = r.wordAt(start, loose: true).flatMap { self.wordIndex($0) }
@@ -559,6 +653,10 @@ enum PageReadState: Equatable {
     /// Finger held still on a word: the word opens big, letter by letter, and is read.
     func openLens(at p: CGPoint) {
         leaveAnswer()
+        if let ai = reading.answerAt(p), ai < page.answers.count {
+            openAnswerLens(page.answers[ai].id, at: p)
+            return
+        }
         guard let wid = reading.wordAt(p, loose: true), let i = wordIndex(wid) else { return }
         guard letterEdges(i).count >= 2 else { return }
         lensWord = i
@@ -573,6 +671,111 @@ enum PageReadState: Equatable {
 
     func closeLens() {
         lensWord = nil
+        lensAnswer = nil
+    }
+
+    // MARK: - Marker and word lens on answers (the child's own words behave as printed ones)
+
+    /// A tap marks the whole word of the answer (tapped again in the same colour: the mark goes).
+    private func markAnswerWord(_ id: UUID, at p: CGPoint) {
+        guard let a = answer(id) else { return }
+        let words = answerWordList(a)
+        guard let k = answerWordIndex(words, at: p, textHeight: reading.textSize) else { return }
+        let letters = answerLetterRanges(a.text, word: words[k].range)
+        guard !letters.isEmpty else { return }
+        let colors = answerLetterColors(a.marks, letters: letters)
+        let color = markColor
+        let all = colors.allSatisfy { $0 == color }
+        pushUndo()
+        setAnswerMarks(id, answerMarksSetting(a.marks, text: a.text, letters: letters,
+                                              colors: Array(repeating: all ? nil : color, count: letters.count)))
+        save()
+    }
+
+    /// A swipe over words of an answer marks them all (or takes the marks off when it starts on a marked word).
+    private func markAnswerStroke(_ id: UUID, _ points: [CGPoint]) {
+        guard let a = answer(id), let start = points.first else { return }
+        let th = reading.textSize
+        let words = answerWordList(a)
+        var hit: [Int] = []
+        for p in points {
+            if let k = answerWordIndex(words, at: p, textHeight: th), !hit.contains(k) { hit.append(k) }
+        }
+        guard let first = answerWordIndex(words, at: start, textHeight: th) ?? hit.first else { return }
+        let firstLetters = answerLetterRanges(a.text, word: words[first].range)
+        let adding = !answerLetterColors(a.marks, letters: firstLetters).contains { $0 != nil }
+        var marks = a.marks
+        for k in hit {
+            let letters = answerLetterRanges(a.text, word: words[k].range)
+            if letters.isEmpty { continue }
+            marks = answerMarksSetting(marks, text: a.text, letters: letters,
+                                       colors: Array(repeating: adding ? markColor : nil, count: letters.count))
+        }
+        pushUndo()
+        setAnswerMarks(id, marks)
+        save()
+    }
+
+    private func setAnswerMarks(_ id: UUID, _ marks: [AnswerMark]?) {
+        guard let i = answerIndex(id) else { return }
+        page.answers[i].marks = marks
+    }
+
+    /// Finger held on a word of an answer: the word lens shows it letter by letter.
+    private func openAnswerLens(_ id: UUID, at p: CGPoint) {
+        guard let a = answer(id) else { return }
+        let words = answerWordList(a)
+        guard let k = answerWordIndex(words, at: p, textHeight: reading.textSize),
+              !answerLetterRanges(a.text, word: words[k].range).isEmpty else { return }
+        lensAnswer = AnswerLensTarget(id: id, range: words[k].range)
+        hearLensAnswer()
+    }
+
+    /// The letters of the word in the answer lens and their colours.
+    func lensAnswerLetters() -> (letters: [String], colors: [MarkColor?])? {
+        guard let t = lensAnswer, let a = answer(t.id) else { return nil }
+        let ranges = answerLetterRanges(a.text, word: t.range)
+        if ranges.isEmpty { return nil }
+        let ns = a.text as NSString
+        return (letters: ranges.map { ns.substring(with: $0) }, colors: answerLetterColors(a.marks, letters: ranges))
+    }
+
+    func hearLensAnswer() {
+        guard let t = lensAnswer, let a = answer(t.id) else { return }
+        let ns = a.text as NSString
+        guard t.range.location + t.range.length <= ns.length else { return }
+        let rect = answerWordList(a).first(where: { $0.range == t.range })?.rect
+        speak(Reading.cleanWord(ns.substring(with: t.range)), rects: rect.map { [$0] } ?? [])
+    }
+
+    /// Word lens on an answer word: letters a…b get the chosen colour, or lose it when all of them have it already.
+    func markAnswerLetters(from a0: Int, to b0: Int) {
+        guard let t = lensAnswer, let a = answer(t.id) else { return }
+        let ranges = answerLetterRanges(a.text, word: t.range)
+        var colors = answerLetterColors(a.marks, letters: ranges)
+        let n = colors.count
+        guard n > 0 else { return }
+        let lo = max(0, min(a0, b0))
+        let hi = min(n - 1, max(a0, b0))
+        guard lo <= hi else { return }
+        let color = markColor
+        let all = (lo...hi).allSatisfy { colors[$0] == color }
+        for k in lo...hi { colors[k] = all ? nil : color }
+        pushUndo()
+        setAnswerMarks(t.id, answerMarksSetting(a.marks, text: a.text, letters: ranges, colors: colors))
+        save()
+    }
+
+    /// Word lens on an answer word: all its marks go.
+    func clearAnswerLetters() {
+        guard let t = lensAnswer, let a = answer(t.id) else { return }
+        let ranges = answerLetterRanges(a.text, word: t.range)
+        guard answerLetterColors(a.marks, letters: ranges).contains(where: { $0 != nil }) else { return }
+        pushUndo()
+        setAnswerMarks(t.id, answerMarksSetting(a.marks, text: a.text, letters: ranges,
+                                                colors: Array(repeating: nil, count: ranges.count)))
+        save()
+        app?.announce("Gelöscht")
     }
 
     /// x positions (page pixels) of the edges between the letters of `WordLetters.letters` (one more than letters).
@@ -635,11 +838,8 @@ enum PageReadState: Equatable {
         leaveAnswer()
         let r = reading
         if let ai = r.answerAt(p), ai < page.answers.count {
-            let aid = page.answers[ai].id
-            pushUndo()
-            deleteAnswer(aid)
-            save()
-            app.announce("Gelöscht")
+            // (a word of it, never the whole answer)
+            eraseAnswerWord(page.answers[ai].id, at: p)
             return
         }
         if let mi = r.markAt(p), mi < page.marks.count {
@@ -702,7 +902,7 @@ enum PageReadState: Equatable {
 
     /// The child is speaking, typing or in the word lens: the page is not read again just now.
     var isBusyEditing: Bool {
-        return listeningAnswer != nil || keyboardAnswer != nil || lensWord != nil
+        return listeningAnswer != nil || keyboardAnswer != nil || lensWord != nil || lensAnswer != nil
     }
 
     /// The page read again with a newer recognition (after an update): words, gaps and boxes are new; answers, marks
@@ -787,7 +987,8 @@ enum PageReadState: Equatable {
         if listeningAnswer == id { stopMyListening() }
         if keyboardAnswer == id { keyboardAnswer = nil }
         if typingUndoFor == id { typingUndoFor = nil }
-        if let a = answer(id), pageControllerTrim(a.text).isEmpty {
+        // (the writing of an empty sheet stays, even empty)
+        if let a = answer(id), pageControllerTrim(a.text).isEmpty, page.blank != true {
             page.answers.removeAll(where: { $0.id == id })
             save()
         }

@@ -69,6 +69,24 @@ struct Answer: Codable, Identifiable, Hashable {
     /// The gap it answers, if any.
     var gap: UUID?
     var text: String
+    /// Marker colour on words or letters of the answer (as on printed words).
+    var marks: [AnswerMark]? = nil
+}
+
+/// A word of an answer shown in the word lens.
+struct AnswerLensTarget: Equatable {
+    var id: UUID
+    var range: NSRange
+}
+
+/// A marked stretch of an answer's text. The marked text itself is kept too: when the answer changes (a word put in
+/// or taken out), the mark finds its letters again (`answerMarksFixed`).
+struct AnswerMark: Codable, Hashable {
+    /// UTF-16 place and length in the answer's text.
+    var location: Int
+    var length: Int
+    var text: String
+    var color: MarkColor
 }
 
 enum MarkColor: String, Codable, CaseIterable, Identifiable {
@@ -157,6 +175,8 @@ struct Page: Codable, Identifiable {
     var readVersion: Int? = nil
     /// Gaps the teacher erased as wrongly recognised: reading the page again does not bring them back.
     var erasedGaps: [CGRect]? = nil
+    /// An empty sheet to write on (no photo, no lines): one text from top to bottom (`AppState.newBlankSheet`).
+    var blank: Bool? = nil
 }
 
 /// Entry of the Mappe list (the page itself is loaded only when opened).
@@ -337,6 +357,8 @@ struct AppSettings: Codable, Equatable {
     var airDrop: Bool = true
     /// Tools the teacher has hidden (`ToolKey` names; the child works on paper, the iPad mostly reads).
     var hiddenTools: [String] = []
+    /// Room between the words of a spoken answer (× a normal space; slider in the settings).
+    var answerWordSpacing: Double = 2
 
     func shows(_ tool: ToolKey) -> Bool {
         return !hiddenTools.contains(tool.rawValue)
@@ -365,7 +387,7 @@ struct AppSettings: Codable, Equatable {
 extension AppSettings {
     enum CodingKeys: String, CodingKey {
         case rate, announce, outlines, boxesTogether, markGaps, mic, tone, markColor, penColor, showTeacherFirst
-        case appleCamera, airDrop, hiddenTools
+        case appleCamera, airDrop, hiddenTools, answerWordSpacing
         // (a new key: the guide was on everywhere before; the teacher wants it off – the camera explains itself)
         case photoHelp = "photoGuide"
     }
@@ -388,6 +410,7 @@ extension AppSettings {
         appleCamera = try c.decodeIfPresent(Bool.self, forKey: .appleCamera) ?? appleCamera
         airDrop = try c.decodeIfPresent(Bool.self, forKey: .airDrop) ?? airDrop
         hiddenTools = try c.decodeIfPresent([String].self, forKey: .hiddenTools) ?? hiddenTools
+        answerWordSpacing = try c.decodeIfPresent(Double.self, forKey: .answerWordSpacing) ?? answerWordSpacing
     }
 }
 

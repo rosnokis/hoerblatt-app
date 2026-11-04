@@ -47,9 +47,12 @@ enum Exporter {
 
             for a in page.answers {
                 if let lines = page.answerLines(a) {
-                    exportDrawLinedAnswer(a, lines: lines, textHeight: th, in: cg)
+                    exportDrawLinedAnswer(a, lines: lines, textHeight: th,
+                                          marks: answerMarkPaint(a, in: page, textHeight: th), in: cg)
                 } else {
-                    exportDrawAnswer(a, textHeight: th, limit: answerRoom(a, in: page), in: cg)
+                    exportDrawAnswer(a, textHeight: th, limit: answerRoom(a, in: page),
+                                     marks: answerMarkPaint(a, in: page, textHeight: th), plain: page.blank == true,
+                                     in: cg)
                 }
             }
 
@@ -446,7 +449,9 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 }
 
 /// One answer field: width as stored (at least two letters), grows downwards with the text (as on the screen).
-@MainActor fileprivate func exportDrawAnswer(_ a: Answer, textHeight th: CGFloat, limit: CGFloat?, in cg: CGContext) {
+@MainActor fileprivate func exportDrawAnswer(_ a: Answer, textHeight th: CGFloat, limit: CGFloat?,
+                                             marks: [(rect: CGRect, color: MarkColor)], plain: Bool = false,
+                                             in cg: CGContext) {
     let text = a.text.trimmingCharacters(in: .whitespacesAndNewlines)
     if text.isEmpty { return }
     let r = a.rect
@@ -461,12 +466,8 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 
     let paragraph = NSMutableParagraphStyle()
     paragraph.lineBreakMode = .byWordWrapping
-    let attributes: [NSAttributedString.Key: Any] = [
-        .font: exportAnswerFont(fontSize),
-        .foregroundColor: ExportPalette.answerInk,
-        .paragraphStyle: paragraph
-    ]
-    let writing = NSAttributedString(string: text, attributes: attributes)
+    let writing = answerAttributed(text, font: exportAnswerFont(fontSize), color: ExportPalette.answerInk,
+                                   paragraph: paragraph)
     let measured = writing.boundingRect(with: CGSize(width: innerWidth, height: CGFloat.greatestFiniteMagnitude),
                                         options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
     let textHeight = max(ceil(measured.height), fontSize * 1.25)
@@ -476,23 +477,29 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
     let line = max(2, th * 0.06)
     let radius = min(th * 0.3, height / 2)
     let path = UIBezierPath(roundedRect: field.insetBy(dx: line / 2, dy: line / 2), cornerRadius: radius)
-    cg.saveGState()
-    cg.setFillColor(ExportPalette.answerBackground.cgColor)
-    cg.addPath(path.cgPath)
-    cg.fillPath()
-    cg.setStrokeColor(ExportPalette.purple.cgColor)
-    cg.setLineWidth(line)
-    cg.addPath(path.cgPath)
-    cg.strokePath()
-    cg.restoreGState()
+    // (the writing of an empty sheet: no field drawn)
+    if !plain {
+        cg.saveGState()
+        cg.setFillColor(ExportPalette.answerBackground.cgColor)
+        cg.addPath(path.cgPath)
+        cg.fillPath()
+        cg.setStrokeColor(ExportPalette.purple.cgColor)
+        cg.setLineWidth(line)
+        cg.addPath(path.cgPath)
+        cg.strokePath()
+        cg.restoreGState()
+    }
 
-    let textRect = CGRect(x: field.minX + padX, y: field.minY + max(padY, (height - textHeight) / 2),
+    exportDrawMarks(marks, textHeight: th, in: cg)
+    // (in the middle of its field; the writing of an empty sheet from the top)
+    let textRect = CGRect(x: field.minX + padX, y: field.minY + (plain ? padY : max(padY, (height - textHeight) / 2)),
                           width: innerWidth, height: textHeight)
     writing.draw(with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
 }
 
 /// An answer over several writing lines: one field shaped like the lines, each row of text on its line.
-@MainActor fileprivate func exportDrawLinedAnswer(_ a: Answer, lines: [CGRect], textHeight th: CGFloat, in cg: CGContext) {
+@MainActor fileprivate func exportDrawLinedAnswer(_ a: Answer, lines: [CGRect], textHeight th: CGFloat,
+                                                  marks: [(rect: CGRect, color: MarkColor)], in cg: CGContext) {
     let text = a.text.trimmingCharacters(in: .whitespacesAndNewlines)
     if text.isEmpty { return }
     let layout = answerLineLayout(text, lines: lines, textHeight: th, font: exportAnswerFont)
@@ -507,10 +514,10 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
     cg.addPath(path.cgPath)
     cg.strokePath()
     cg.restoreGState()
+    exportDrawMarks(marks, textHeight: th, in: cg)
     let font = exportAnswerFont(layout.fontSize)
-    let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ExportPalette.answerInk]
     for row in layout.rows {
-        (row.text as NSString).draw(at: row.origin, withAttributes: attributes)
+        answerAttributed(row.text, font: font, color: ExportPalette.answerInk).draw(at: row.origin)
     }
 }
 
@@ -615,7 +622,7 @@ struct AnswerLineLayout {
 /// Words into rows, row `i` at most `width(i)` wide (a word longer than its row stands alone).
 @MainActor fileprivate func answerWrap(_ words: [String], font: UIFont, width: (Int) -> CGFloat) -> [String] {
     let attributes: [NSAttributedString.Key: Any] = [.font: font]
-    let space = (" " as NSString).size(withAttributes: attributes).width
+    let space = (" " as NSString).size(withAttributes: attributes).width + answerSpaceExtra(font)
     var rows: [String] = []
     var current = ""
     var used: CGFloat = 0
@@ -638,6 +645,97 @@ struct AnswerLineLayout {
     return rows
 }
 
+/// How the answers are written (set from the settings by AppState).
+@MainActor enum AnswerStyle {
+    /// Room between the words of an answer, as a multiple of a normal space (teacher's slider: the child must see
+    /// where a word ends, and tap between two words to put one in).
+    static var wordSpacing: CGFloat = 2
+}
+
+/// Extra room after each space of an answer written in this font.
+@MainActor func answerSpaceExtra(_ font: UIFont) -> CGFloat {
+    let space = (" " as NSString).size(withAttributes: [.font: font]).width
+    return max(0, (AnswerStyle.wordSpacing - 1) * space)
+}
+
+/// The answer's text with its font (and colour), its spaces widened (`AnswerStyle.wordSpacing`). Field, rows on lines,
+/// word places and the finished picture all use it, so they agree.
+@MainActor func answerAttributed(_ text: String, font: UIFont, color: UIColor? = nil,
+                                 paragraph: NSParagraphStyle? = nil) -> NSAttributedString {
+    var attributes: [NSAttributedString.Key: Any] = [.font: font]
+    if let c = color { attributes[.foregroundColor] = c }
+    if let p = paragraph { attributes[.paragraphStyle] = p }
+    let out = NSMutableAttributedString(string: text, attributes: attributes)
+    let extra = answerSpaceExtra(font)
+    if extra > 0 {
+        let ns = text as NSString
+        var from = 0
+        while from < ns.length {
+            let r = ns.rangeOfCharacter(from: .whitespaces, options: [], range: NSRange(location: from, length: ns.length - from))
+            if r.location == NSNotFound { break }
+            out.addAttribute(.kern, value: extra, range: r)
+            from = r.location + max(1, r.length)
+        }
+    }
+    return out
+}
+
+/// Marker colour under the writing of an answer (as on printed words).
+@MainActor fileprivate func exportDrawMarks(_ marks: [(rect: CGRect, color: MarkColor)], textHeight th: CGFloat,
+                                            in cg: CGContext) {
+    if marks.isEmpty { return }
+    cg.saveGState()
+    cg.setBlendMode(.multiply)
+    for m in marks {
+        let path = UIBezierPath(roundedRect: m.rect.insetBy(dx: -th * 0.04, dy: -th * 0.04), cornerRadius: th * 0.12)
+        cg.setFillColor(m.color.fill.cgColor)
+        cg.addPath(path.cgPath)
+        cg.fillPath()
+    }
+    cg.restoreGState()
+}
+
+/// Where stretches of an answer's text stand on the page (one rect per word they touch), as the field lays them out.
+@MainActor func answerRangeRects(_ a: Answer, in page: Page, textHeight th: CGFloat, ranges: [NSRange]) -> [[CGRect]] {
+    let words = answerWords(a, in: page, textHeight: th)
+    let ns = a.text as NSString
+    let size: CGFloat
+    if let lines = page.answerLines(a) {
+        size = answerLineLayout(a.text, lines: lines, textHeight: th, font: answerUIFont).fontSize
+    } else {
+        size = answerFontSize(a.text, width: a.rect.width, limit: answerRoom(a, in: page), textHeight: th,
+                              font: answerUIFont)
+    }
+    let attributes: [NSAttributedString.Key: Any] = [.font: answerUIFont(size)]
+    return ranges.map { r in
+        var out: [CGRect] = []
+        for w in words {
+            let s = max(r.location, w.range.location)
+            let e = min(r.location + r.length, w.range.location + w.range.length)
+            if e <= s { continue }
+            // (within a word there are no spaces: its letters are as wide as the font makes them)
+            let pre = ns.substring(with: NSRange(location: w.range.location, length: s - w.range.location))
+            let mid = ns.substring(with: NSRange(location: s, length: e - s))
+            let x0 = (pre as NSString).size(withAttributes: attributes).width
+            let width = (mid as NSString).size(withAttributes: attributes).width
+            out.append(CGRect(x: w.rect.minX + x0, y: w.rect.minY, width: max(1, width), height: w.rect.height))
+        }
+        return out
+    }
+}
+
+/// The marker colour on an answer: where each mark stands and its colour.
+@MainActor func answerMarkPaint(_ a: Answer, in page: Page, textHeight th: CGFloat) -> [(rect: CGRect, color: MarkColor)] {
+    guard let marks = a.marks, !marks.isEmpty else { return [] }
+    let rects = answerRangeRects(a, in: page, textHeight: th,
+                                 ranges: marks.map { NSRange(location: $0.location, length: $0.length) })
+    var out: [(rect: CGRect, color: MarkColor)] = []
+    for (k, m) in marks.enumerated() where k < rects.count {
+        for r in rects[k] { out.append((rect: r, color: m.color)) }
+    }
+    return out
+}
+
 /// The answers' writing (rounded, semibold), as the field and the finished picture show it.
 @MainActor func answerUIFont(_ size: CGFloat) -> UIFont {
     let base = UIFont.systemFont(ofSize: size, weight: .semibold)
@@ -656,7 +754,7 @@ struct AnswerLineLayout {
         let layout = answerLineLayout(a.text, lines: lines, textHeight: th, font: answerUIFont)
         let font = answerUIFont(layout.fontSize)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        let space = (" " as NSString).size(withAttributes: attributes).width
+        let space = (" " as NSString).size(withAttributes: attributes).width + answerSpaceExtra(font)
         var out: [AnswerWord] = []
         var k = 0
         for row in layout.rows {
@@ -679,7 +777,7 @@ struct AnswerLineLayout {
     let padX = th * 0.15
     let padY = th * 0.06
     let inner = max(1, max(a.rect.width, th * 2) - 2 * padX)
-    let storage = NSTextStorage(string: a.text, attributes: [.font: answerUIFont(fontSize)])
+    let storage = NSTextStorage(attributedString: answerAttributed(a.text, font: answerUIFont(fontSize)))
     let manager = NSLayoutManager()
     let container = NSTextContainer(size: CGSize(width: inner, height: CGFloat.greatestFiniteMagnitude))
     container.lineFragmentPadding = 0
@@ -690,7 +788,7 @@ struct AnswerLineLayout {
     let textHeight = max(ceil(used.height), fontSize * 1.25)
     let height = max(a.rect.height, th * 1.5, textHeight + 2 * padY)
     let x0 = a.rect.minX + padX
-    let y0 = a.rect.minY + max(padY, (height - textHeight) / 2)
+    let y0 = a.rect.minY + (page.blank == true ? padY : max(padY, (height - textHeight) / 2))
     return ranges.map { r in
         let glyphs = manager.glyphRange(forCharacterRange: r, actualCharacterRange: nil)
         let b = manager.boundingRect(forGlyphRange: glyphs, in: container)
@@ -734,9 +832,9 @@ func answerBandsPath(_ bands: [CGRect]) -> UIBezierPath {
     let smallest = base * 0.5
     var size = base
     while true {
-        let measured = (trimmed as NSString).boundingRect(
+        let measured = answerAttributed(trimmed, font: font(size)).boundingRect(
             with: CGSize(width: inner, height: CGFloat.greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font(size)], context: nil)
+            options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil)
         let needed = max(ceil(measured.height), size * 1.25) + 2 * padY
         if needed <= room || size <= smallest { return size }
         size = max(smallest, size * 0.9)

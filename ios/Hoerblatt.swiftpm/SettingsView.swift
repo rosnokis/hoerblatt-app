@@ -132,6 +132,23 @@ struct SettingsView: View {
     @MainActor
     private var answerSection: some View {
         Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Abstand zwischen den Wörtern")
+                    Spacer()
+                    Text(String(format: "%.1f×", app.settings.answerWordSpacing))
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
+                Slider(value: $app.settings.answerWordSpacing, in: 1...4, step: 0.25)
+                // (a sample, written as the answers are)
+                SettingsSpacingSample(spacing: app.settings.answerWordSpacing)
+                    .frame(height: 36)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color(red: 237 / 255, green: 233 / 255, blue: 254 / 255)))
+                    .accessibilityHidden(true)
+            }
             Toggle("Mikrofon-Knopf", isOn: $app.settings.mic)
             if app.settings.mic && app.listener.blocked {
                 HStack(alignment: .top, spacing: 10) {
@@ -145,7 +162,7 @@ struct SettingsView: View {
         } header: {
             Text("Antworten")
         } footer: {
-            Text("An: Das Hörblatt hört nach dem Antippen einer Lücke selbst zu. Aus: Die Antwort kommt über die Tastatur, mit ihrer Diktier-Taste (Mikrofon unten auf der Tastatur).")
+            Text("Abstand: Wie weit die gesprochenen Wörter auseinanderstehen – das Kind sieht, wo ein Wort aufhört, und kann zwischen zwei Wörter tippen, um dort etwas einzufügen. Mikrofon-Knopf an: Das Hörblatt hört nach dem Antippen einer Lücke selbst zu. Aus: Die Antwort kommt über die Tastatur, mit ihrer Diktier-Taste (Mikrofon unten auf der Tastatur).")
         }
     }
 
@@ -441,6 +458,28 @@ struct SettingsView: View {
 }
 
 // MARK: - Helpers
+
+/// A sample answer written with the chosen room between the words (as on the page).
+fileprivate struct SettingsSpacingSample: UIViewRepresentable {
+    let spacing: Double
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.numberOfLines = 1
+        label.adjustsFontSizeToFitWidth = true
+        label.minimumScaleFactor = 0.5
+        return label
+    }
+
+    func updateUIView(_ label: UILabel, context: Context) {
+        // (the sample follows the slider at once, before the settings reach AnswerStyle)
+        let saved = AnswerStyle.wordSpacing
+        AnswerStyle.wordSpacing = CGFloat(spacing)
+        label.attributedText = answerAttributed("Der Prinz ritt durch den Wald.", font: answerUIFont(22),
+                                                color: UIColor(red: 0.11, green: 0.25, blue: 0.69, alpha: 1))
+        AnswerStyle.wordSpacing = saved
+    }
+}
 
 /// One step of the picture card: number and symbol in the card's colour, then what it does.
 fileprivate struct SettingsStepRow: View {

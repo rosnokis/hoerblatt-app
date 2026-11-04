@@ -30,6 +30,11 @@ struct LibraryView: View {
                         app.showLibrary = false
                         app.choosePDF()
                     }
+                    // an empty sheet to write on: speaking, the pen; no lines
+                    LibraryActionTile(symbol: "square.and.pencil", title: "Leeres Blatt", filled: false) {
+                        app.showLibrary = false
+                        app.newBlankSheet()
+                    }
                     ForEach(books) { heft in
                         LibraryPageTile(app: app, info: PageInfo(id: heft.id, title: libraryHeftTitle(heft),
                                                                  created: heft.created))
