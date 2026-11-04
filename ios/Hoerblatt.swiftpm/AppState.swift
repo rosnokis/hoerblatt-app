@@ -125,6 +125,9 @@ fileprivate let appStatePhotoHint =
     /// Abgabe: the folder the finished PDFs are saved into.
     let handin: HandinFolder
 
+    /// Is there a newer version in the app repository? (`AppSettings.updateCheck`)
+    let updates: UpdateCheck
+
     private var bag = Set<AnyCancellable>()
     /// Set while this class itself opens or closes a sheet (no re-planning then).
     private var settingSheets = false
@@ -159,6 +162,7 @@ fileprivate let appStatePhotoHint =
         speaker = Speaker()
         listener = Listener()
         handin = HandinFolder()
+        updates = UpdateCheck()
         speaker.rate = settings.rate
         speaker.tone = settings.tone
         AnswerStyle.wordSpacing = CGFloat(settings.answerWordSpacing)
@@ -208,6 +212,21 @@ fileprivate let appStatePhotoHint =
                 }
             }
             .store(in: &bag)
+        // a newer version in the app repository (a dot on the gear; at most once an hour)
+        updates.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &bag)
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let me = self, me.settings.updateCheck else { return }
+                    me.updates.check()
+                }
+            }
+            .store(in: &bag)
+        if settings.updateCheck { updates.check() }
 
         // pages of a Heft not read when the app was closed; then pages read before an update, once more
         Task { @MainActor in

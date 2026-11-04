@@ -369,8 +369,11 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            UpdateRows(updates: app.updates, enabled: $app.settings.updateCheck)
         } header: {
             Text("Installierte Version")
+        } footer: {
+            Text("Die Suche liest nur eine kleine Datei mit der neuesten Versionsnummer von GitHub; vom iPad wird nichts gesendet. Gibt es eine neue Version, zeigt das Zahnrad einen blauen Punkt.")
         }
     }
 
@@ -434,7 +437,7 @@ struct SettingsView: View {
     @MainActor
     private var privacySection: some View {
         Section {
-            Text("Fotos, Antworten, Markierungen und Stiftstriche bleiben auf diesem iPad (ohne iCloud-Sicherung). Die Texterkennung läuft auf dem Gerät; es wird nichts hochgeladen. Abgegebene PDFs liegen in dem Ordner, den Sie gewählt haben – ist das ein Cloud-Ordner, auch dort.")
+            Text("Fotos, Antworten, Markierungen und Stiftstriche bleiben auf diesem iPad (ohne iCloud-Sicherung). Die Texterkennung läuft auf dem Gerät; es wird nichts hochgeladen. Abgegebene PDFs liegen in dem Ordner, den Sie gewählt haben – ist das ein Cloud-Ordner, auch dort. Ins Internet geht die App nur für die Suche nach einer neuen Version (oben, abschaltbar): Sie liest eine Datei von GitHub und sendet nichts.")
                 .font(.callout)
             Text("Ausnahme: Gesprochene Antworten erkennt Apple wie beim Tastatur-Diktat. Kann das iPad die Sprache nicht selbst erkennen, geschieht das gegebenenfalls auf Servern von Apple.")
                 .font(.callout)

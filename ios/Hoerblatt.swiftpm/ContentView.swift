@@ -359,6 +359,17 @@ fileprivate struct CVSettingsKnob: View {
                 .font(.system(size: 26, weight: .semibold))
                 .foregroundColor(CVStyle.slate)
         }
+        // a newer version is there (small, so the child is not drawn to it)
+        .overlay(alignment: .topTrailing) {
+            if app.settings.updateCheck && app.updates.newer != nil {
+                Circle()
+                    .fill(Color(red: 37.0 / 255, green: 99.0 / 255, blue: 235.0 / 255))
+                    .frame(width: 12, height: 12)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .offset(x: -2, y: 2)
+                    .allowsHitTesting(false)
+            }
+        }
         .frame(width: 56, height: 56)
         .contentShape(Circle())
         .gesture(
