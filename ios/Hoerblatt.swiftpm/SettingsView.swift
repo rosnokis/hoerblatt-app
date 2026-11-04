@@ -254,7 +254,7 @@ struct SettingsView: View {
                 SwiftUI.Label("Alle Seiten löschen", systemImage: "trash")
             }
             .disabled(app.store.pages.isEmpty)
-            .confirmationDialog("Alle Seiten der Mappe löschen?", isPresented: $askDeleteAll, titleVisibility: .visible) {
+            .confirmationDialog("Alle Seiten löschen – auch die im Schrank?", isPresented: $askDeleteAll, titleVisibility: .visible) {
                 Button("Alle Seiten löschen", role: .destructive) {
                     app.store.deleteAll()
                 }
@@ -266,7 +266,7 @@ struct SettingsView: View {
         } header: {
             Text("Mappe")
         } footer: {
-            Text("Jede fotografierte Seite bleibt mit allen Antworten in der Mappe. Eine einzelne Seite löscht man in der Mappe: lange auf die Seite drücken, dann auf den roten Papierkorb. Gelöschtes kommt in den Papierkorb (unten). „Foto aus der Fotos-App wählen“ liest ein vorhandenes Foto (z. B. ein Tafelbild) wie ein neues; das Kind sieht diesen Knopf nicht. Was das Kind sieht, regelt der Schrank (in der Mappe den Schrank-Knopf 1 Sekunde drücken).")
+            Text("Jede Seite bleibt mit allen Antworten gespeichert – beim Kind in der Mappe (heute ausgegeben) oder im Schrank. Eine einzelne Seite löscht man in der Mappe (lange auf die Seite drücken, dann auf den roten Papierkorb) oder im Schrank (nach links wischen). Gelöschtes kommt in den Papierkorb (unten). „Foto aus der Fotos-App wählen“ liest ein vorhandenes Foto (z. B. ein Tafelbild) wie ein neues; das Kind sieht diesen Knopf nicht. Was das Kind sieht, regelt der Schrank (in der Mappe den Schrank-Knopf 1 Sekunde drücken).")
         }
     }
 
@@ -326,7 +326,7 @@ struct SettingsView: View {
         } header: {
             Text("Papierkorb")
         } footer: {
-            Text("Gelöschte Seiten und Hefte bleiben \(PageStore.trashDays) Tage hier und werden danach automatisch endgültig gelöscht. Zurückholen bringt sie mit allen Antworten in die Mappe. Nur hier in den Einstellungen sichtbar.")
+            Text("Gelöschte Seiten und Hefte bleiben \(PageStore.trashDays) Tage hier und werden danach automatisch endgültig gelöscht. Zurückholen legt sie mit allen Antworten in den Schrank (von dort ausgeben). Nur hier in den Einstellungen sichtbar.")
         }
         .confirmationDialog("Endgültig löschen?", isPresented: Binding(get: { purgeItem != nil },
                                                                      set: { if !$0 { purgeItem = nil } }),
@@ -374,7 +374,7 @@ struct SettingsView: View {
         } header: {
             Text("Installierte Version")
         } footer: {
-            Text("Die Suche liest nur eine kleine Datei mit der neuesten Versionsnummer von GitHub; vom iPad wird nichts gesendet. Gibt es eine neue Version, zeigt das Zahnrad einen blauen Punkt.")
+            Text("Die Suche liest nur eine kleine Datei mit der neuesten Versionsnummer von GitHub, „Jetzt aktualisieren“ lädt das Projekt von dort; vom iPad wird nichts gesendet. Gibt es eine neue Version, zeigt das Zahnrad einen blauen Punkt. Der Projektordner ist der Ordner in der Dateien-App, in dem „Hoerblatt.swiftpm“ liegt (auch weiter unten, z. B. in „hoerblatt-app-main › ios“).")
         }
     }
 
@@ -546,9 +546,9 @@ fileprivate func settingsPercent(_ rate: Double) -> String {
 }
 
 fileprivate func settingsPageCount(_ n: Int) -> String {
-    if n == 0 { return "Die Mappe ist leer" }
-    if n == 1 { return "1 Seite in der Mappe" }
-    return "\(n) Seiten in der Mappe"
+    if n == 0 { return "Keine Seiten gespeichert" }
+    if n == 1 { return "1 Seite gespeichert (Mappe und Schrank)" }
+    return "\(n) Seiten gespeichert (Mappe und Schrank)"
 }
 
 /// The voice the speaker picks (same order: premium, enhanced, the system's German voice).

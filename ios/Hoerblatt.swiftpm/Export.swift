@@ -453,8 +453,9 @@ fileprivate func exportTextHeight(_ page: Page) -> CGFloat {
 @MainActor fileprivate func exportDrawAnswer(_ a: Answer, textHeight th: CGFloat, limit: CGFloat?,
                                              marks: [(rect: CGRect, color: MarkColor)], plain: Bool = false,
                                              in cg: CGContext) {
-    let text = a.text.trimmingCharacters(in: .whitespacesAndNewlines)
-    if text.isEmpty { return }
+    // (the text exactly as the field shows it: the marks' places are counted in it)
+    let text = a.text
+    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return }
     let r = a.rect
     guard r.minX.isFinite, r.minY.isFinite, r.width.isFinite, r.height.isFinite else { return }
 

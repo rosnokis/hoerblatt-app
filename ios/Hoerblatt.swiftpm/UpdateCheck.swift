@@ -221,18 +221,23 @@ fileprivate func updateWrite(_ files: [String: Data], into project: URL) throws 
     let fm = FileManager.default
     let backup = project.deletingLastPathComponent().appendingPathComponent(UpdateCheck.backupName, isDirectory: true)
     var failure: NSError? = nil
-    var ok = true
-    NSFileCoordinator().coordinate(readingItemAt: project, options: [], writingItemAt: backup, options: .forReplacing,
-                                   error: &failure) { from, to in
-        do {
-            if fm.fileExists(atPath: to.path) { try fm.removeItem(at: to) }
-            try fm.copyItem(at: from, to: to)
-        } catch {
-            ok = false
+    // (this version is there already, e.g. "Jetzt aktualisieren" tapped twice: the backup of the version before stays)
+    let installedInfo = try? Data(contentsOf: project.appendingPathComponent("BuildInfo.swift"))
+    let already = installedInfo != nil && installedInfo == files["BuildInfo.swift"]
+    if !already {
+        var ok = true
+        NSFileCoordinator().coordinate(readingItemAt: project, options: [], writingItemAt: backup, options: .forReplacing,
+                                       error: &failure) { from, to in
+            do {
+                if fm.fileExists(atPath: to.path) { try fm.removeItem(at: to) }
+                try fm.copyItem(at: from, to: to)
+            } catch {
+                ok = false
+            }
         }
+        // (without a backup nothing is overwritten)
+        if !ok || failure != nil { throw UpdateError.write }
     }
-    // (without a backup nothing is overwritten)
-    if !ok || failure != nil { throw UpdateError.write }
     for (path, data) in files {
         guard zipSafePath(path) else { continue }
         let target = project.appendingPathComponent(path)
@@ -288,7 +293,8 @@ struct UpdateRows: View {
                         }
                     }
                     .padding(.vertical, 4)
-                    if updates.folderName != nil {
+                    // (once it is in, the button goes: the next step is closing and opening the project)
+                    if updates.folderName != nil && updates.installed?.ok != true {
                         Button(action: {
                             updates.install()
                         }) {
