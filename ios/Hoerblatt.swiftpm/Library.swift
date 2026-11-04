@@ -31,7 +31,7 @@ struct LibraryView: View {
                         app.choosePDF()
                     }
                     // an empty sheet to write on: speaking, the pen; no lines
-                    LibraryActionTile(symbol: "square.and.pencil", title: "Leeres Blatt", filled: false) {
+                    LibraryActionTile(symbol: "square.and.pencil", title: "Schreibblatt", filled: false) {
                         app.showLibrary = false
                         app.newBlankSheet()
                     }

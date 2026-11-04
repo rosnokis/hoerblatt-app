@@ -846,7 +846,7 @@ fileprivate let appStatePhotoHint =
         put(PageController(page: page, image: image, app: self), on: currentSide)
         // (straight to speaking, unless the teacher hid it)
         setModeQuietly(.sprechen)
-        say(settings.shows(.sprechen) ? "Ein leeres Blatt. Tippe darauf und sprich." : "Ein leeres Blatt.")
+        say(settings.shows(.sprechen) ? "Ein Schreibblatt. Tippe darauf und sprich." : "Ein Schreibblatt.")
     }
 
     // MARK: - Reading again after an update
