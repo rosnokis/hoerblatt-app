@@ -394,7 +394,7 @@ struct SettingsView: View {
         } header: {
             Text("Werkzeuge zeigen")
         } footer: {
-            Text("Ausgeschaltete Werkzeuge verschwinden aus der Leiste unten (▶ oben links auf der Seite). „Wort vorlesen“ bleibt immer. Ohne „Sprechen“ startet das Antippen einer Lücke kein Mikrofon mehr, die Lücke wird nur vorgelesen; ohne „Stift“ sagen Ankreuz-Kästchen nur ihre Beschriftung.")
+            Text("Ausgeschaltete Werkzeuge verschwinden aus der Leiste unten (▶ oben links auf der Seite). „Wort vorlesen“ bleibt immer. Ohne „Sprechen“ startet das Antippen einer Lücke kein Mikrofon mehr, die Lücke wird nur vorgelesen. „Zurück und Vorwärts“ blendet beide Pfeile aus.")
         }
     }
 
@@ -410,7 +410,7 @@ struct SettingsView: View {
             SettingsStepRow(number: "4", symbol: "highlighter", color: SettingsStyle.amber, title: "Markieren",
                             text: "Farbe wählen (gelb, grün, blau, orange). Wort antippen oder waagerecht über Wörter wischen. Für einen Wortteil den Finger kurz auf dem Wort liegen lassen: Die Wort-Lupe zeigt das Wort groß in Buchstaben, Wischen über die Buchstaben markiert genau diese. Die Seite verschiebt man dabei mit zwei Fingern.")
             SettingsStepRow(number: nil, symbol: "pencil.tip", color: SettingsStyle.slate, title: "Stift",
-                            text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Radiergummi: Wörter in Antworten (einzeln), Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nimmt den letzten Schritt zurück.")
+                            text: "Freihand zum Verbinden, Ankreuzen, Einkreisen und Durchstreichen, in Blau, Rot oder Schwarz. Ankreuz-Kästchen ☐ gehen auch ohne Stift: ein Tipp setzt ein Kreuz (in der Stiftfarbe), ein zweiter nimmt es weg; das Hörblatt sagt z. B. „richtig – angekreuzt“. Radiergummi: Wörter in Antworten (einzeln), Markierungen, Stiftstriche und falsch erkannte Lücken. Der Pfeil nach links nimmt den letzten Schritt zurück, der Pfeil nach rechts („Vorwärts“) holt ihn wieder, wenn einmal zu oft zurückgenommen wurde.")
             SettingsStepRow(number: nil, symbol: "square.and.pencil", color: SettingsStyle.lila, title: "Schreibblatt",
                             text: "In der Mappe „Schreibblatt“: eine leere weiße Seite ohne Linien zum freien Schreiben. Das Kind tippt mit „Sprechen“ darauf und spricht; der Text läuft von oben nach unten weiter. Einfügen, Löschen, Markieren, Stift und Abgeben wie bei jedem Blatt.")
             SettingsStepRow(number: "5", symbol: "checkmark.square.fill", color: SettingsStyle.blue, title: "Fertig",

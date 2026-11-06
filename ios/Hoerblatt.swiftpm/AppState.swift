@@ -293,6 +293,15 @@ fileprivate let appStatePhotoHint =
         c.undo()
     }
 
+    /// "Vorwärts": the last step taken back with "Zurück" comes again.
+    func redo() {
+        guard let c = active else {
+            announce("Nichts zum Wiederholen")
+            return
+        }
+        c.redo()
+    }
+
     // MARK: - Pages
 
     /// Opens a page of the Mappe in the active half; a Heft opens at the page last worked on.

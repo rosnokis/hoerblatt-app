@@ -33,7 +33,7 @@ abschaltbar). Gibt es eine, zeigt das Zahnrad einen blauen Punkt.
 Zeigt Swift Playgrounds rote Fehlermeldungen: Screenshot an die Entwicklung schicken.
 
 ### Bedienung kurz
-- Unten: 1 Foto · 2 Wort (daneben Satz) · 3 Sprechen · 4 Markieren · Stift · Radiergummi · Zurück · 5 Fertig
+- Unten: 1 Foto · 2 Wort (daneben Satz) · 3 Sprechen · 4 Markieren · Stift · Radiergummi · Zurück/Vorwärts · 5 Fertig
   (Nummern und Farben wie auf der Bildkarte; einzelne Werkzeuge lassen sich ausblenden).
 - Oben: Mappe (Ordner), die Seiten von heute, im Querformat „zwei Seiten“, Zahnrad (1 s drücken) für Lehrkräfte.
 - Mappe: zeigt nur, was heute ausgegeben ist; „Schreibblatt“ für freies Schreiben ohne Linien.
@@ -42,6 +42,7 @@ Zeigt Swift Playgrounds rote Fehlermeldungen: Screenshot an die Entwicklung schi
 - Fertig: das Kind zeigt das Blatt der Lehrkraft (Daumen) und tippt auf „Abgeben“ – die PDF wird im Abgabe-Ordner
   auf dem iPad gespeichert. AirDrop als Zusatz.
 - Gesprochene Antworten lassen sich wie gedruckter Text vorlesen, markieren und Wort für Wort korrigieren.
+- Ankreuz-Kästchen ☐: ein Tipp setzt ein Kreuz, ein zweiter nimmt es weg.
 
 ## Web-Version (Notlösung)
 

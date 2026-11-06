@@ -354,7 +354,7 @@ enum ToolKey: String, Codable, CaseIterable, Identifiable {
         case .markieren: return "4 Markieren"
         case .stift: return "Stift"
         case .radieren: return "Radiergummi"
-        case .zurueck: return "Zurück"
+        case .zurueck: return "Zurück und Vorwärts"
         case .fertig: return "5 Fertig"
         }
     }

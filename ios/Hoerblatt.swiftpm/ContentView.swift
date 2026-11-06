@@ -566,6 +566,11 @@ fileprivate struct CVToolTray: View {
                                              filled: false, caption: "Zurück") {
                                     app.undo()
                                 }
+                                // (pressed "Zurück" once too often: the step comes again)
+                                CVToolButton(symbol: "arrow.uturn.forward", color: CVStyle.slate, number: nil,
+                                             filled: false, caption: "Vorwärts") {
+                                    app.redo()
+                                }
                             }
                         }
                     }

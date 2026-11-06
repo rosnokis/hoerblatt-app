@@ -1,17 +1,25 @@
 {
- "number": "68",
- "date": "4.11.2026, 16:18 Uhr",
+ "number": "70",
+ "date": "6.11.2026, 15:08 Uhr",
  "notes": [
+  "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen",
+  "To-do: Weglegen direkt in der Mappe",
   "Update-Hinweis zeigt nur die Änderungen seit der installierten Version",
   "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe",
   "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld",
   "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext",
   "Update direkt aus der App: Projektordner wählen, ZIP prüfen, Sicherung, neue Dateien einspielen",
-  "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo",
-  "Schrank: Fach anlegen und umbenennen im Listenfeld statt Hinweisfenster (Tastatur kam nicht)",
-  "Schrank: Kind sieht nur Ausgegebenes, Weglegen am Tagesende und von Hand, Fächer für Lehrkräfte"
+  "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo"
  ],
  "changes": [
+  {
+   "number": "70",
+   "text": "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen"
+  },
+  {
+   "number": "69",
+   "text": "To-do: Weglegen direkt in der Mappe"
+  },
   {
    "number": "68",
    "text": "Update-Hinweis zeigt nur die Änderungen seit der installierten Version"
@@ -243,14 +251,6 @@
   {
    "number": "11",
    "text": "Werkzeug: öffentliches App-Repo (hoerblatt-app) aus diesem Repo erzeugen"
-  },
-  {
-   "number": "10",
-   "text": "51 iPad-Testfotos im Prüfstand; Foto in den Ecken gedrehter Bilder; Satzende vor Anführungszeichen"
-  },
-  {
-   "number": "9",
-   "text": "Entzerrung verwerfen, wenn der Text danach schief ist (Nachbarseite als Blatt erkannt)"
   }
  ]
 }

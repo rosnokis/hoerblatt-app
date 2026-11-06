@@ -66,6 +66,8 @@ enum PageReadState: Equatable {
     private weak var app: AppState?
     private var readingCache: Reading? = nil
     private var undoStack: [PageControllerSnapshot] = []
+    /// Steps taken back with "Zurück", for "Vorwärts" (gone as soon as something new is done).
+    private var redoStack: [PageControllerSnapshot] = []
     /// A second tap on the same word in a box within 8 s reads only that word.
     private var lastBoxTap: (word: Int, time: Date)? = nil
     private var flashToken = 0
@@ -197,18 +199,42 @@ enum PageReadState: Equatable {
         save()
     }
 
-    /// A check box ☐: its label ("richtig"), then the pen is picked to cross it (teacher's wish).
+    /// A check box ☐: one tap crosses it, the next takes the cross away (teacher, November 2026: crossing with the pen
+    /// was too fiddly). The cross is two pen strokes in the pen colour, so eraser, undo and the PDF treat it like ink;
+    /// a tap on a box that holds strokes (the child's own or the cross) takes them away. Spoken: "richtig – angekreuzt".
     private func checkBoxTapped(_ k: Int) {
         guard let app = app, k >= 0, k < page.gaps.count else { return }
         stopListening()
+        endPageReading()
         let label = pageControllerTrim(page.gaps[k].head ?? "")
-        // (the pen hidden by the teacher: the child crosses on the paper; only the label is read)
-        if !app.settings.shows(.stift) {
-            if !label.isEmpty { app.say(label) }
-            return
+        let th = max(4, page.textHeight)
+        // (in a table cell the gap is the whole cell: the small square itself is found in the picture)
+        let square = pageControllerCheckSquare(image, cell: page.gaps[k].rect, textHeight: th)
+        var drawing = PKDrawing()
+        if !page.drawing.isEmpty, let d = try? PKDrawing(data: page.drawing) { drawing = d }
+        let zone = square.insetBy(dx: -square.width * 0.25, dy: -square.height * 0.25)
+        let inside = Set(drawing.strokes.indices.filter { i in
+            let b = drawing.strokes[i].renderBounds
+            return zone.contains(CGPoint(x: b.midX, y: b.midY)) && b.width < zone.width * 1.5 && b.height < zone.height * 1.5
+        })
+        let crossed: Bool
+        if inside.isEmpty {
+            let m = min(square.width, square.height) * 0.15
+            let r = square.insetBy(dx: m, dy: m)
+            let ink = PKInk(.pen, color: app.settings.penColor.ink)
+            let width = min(25, max(3, th * 0.14))
+            drawing.strokes.append(pageControllerLine(CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.maxY), ink, width))
+            drawing.strokes.append(pageControllerLine(CGPoint(x: r.maxX, y: r.minY), CGPoint(x: r.minX, y: r.maxY), ink, width))
+            crossed = true
+        } else {
+            drawing.strokes = drawing.strokes.enumerated().filter { !inside.contains($0.offset) }.map { $0.element }
+            crossed = false
         }
-        app.setModeQuietly(.stift)
-        app.say(label.isEmpty ? "Kreuze mit dem Stift an." : label + ". Kreuze mit dem Stift an.")
+        pushUndo()
+        page.drawing = drawing.strokes.isEmpty ? Data() : drawing.dataRepresentation()
+        save()
+        let what = crossed ? "angekreuzt" : "weg"
+        app.say(label.isEmpty ? (crossed ? "Angekreuzt." : "Kreuz weg.") : label + " – " + what + ".")
     }
 
     /// A gap gets its answer field (or keeps the one it has) and the Hörblatt listens at once – in every tool that
@@ -887,6 +913,33 @@ enum PageReadState: Equatable {
             app.announce("Nichts zum Zurücknehmen")
             return
         }
+        // (what is taken back can come again with "Vorwärts")
+        redoStack.append(now)
+        if redoStack.count > 60 { redoStack.removeFirst(redoStack.count - 60) }
+        restore(s)
+        app.announce("Zurück")
+    }
+
+    /// "Vorwärts": a step taken back with "Zurück" comes again (pressed "Zurück" once too often).
+    func redo() {
+        guard let app = app else { return }
+        stopListening()
+        let now = snapshot(keepEmpty: true)
+        while let last = redoStack.last, last == now {
+            redoStack.removeLast()
+        }
+        guard let s = redoStack.popLast() else {
+            app.announce("Nichts zum Wiederholen")
+            return
+        }
+        undoStack.append(now)
+        if undoStack.count > 60 { undoStack.removeFirst(undoStack.count - 60) }
+        restore(s)
+        app.announce("Vorwärts")
+    }
+
+    /// Answers, marks, gaps and pen strokes as in an undo step.
+    private func restore(_ s: PageControllerSnapshot) {
         typingUndoFor = nil
         var restored = page
         restored.answers = s.answers
@@ -897,7 +950,6 @@ enum PageReadState: Equatable {
         if let a = activeAnswer, answerIndex(a) == nil { activeAnswer = nil }
         if let k = keyboardAnswer, answerIndex(k) == nil { keyboardAnswer = nil }
         save()
-        app.announce("Zurück")
     }
 
     /// The child is speaking, typing or in the word lens: the page is not read again just now.
@@ -915,6 +967,7 @@ enum PageReadState: Equatable {
         if !flashWord.isEmpty { flashWord = [] }
         edgeCache = [:]
         undoStack = []
+        redoStack = []
         typingUndoFor = nil
         page = pageCarryOver(page, into: fresh)
         save()
@@ -1187,6 +1240,8 @@ enum PageReadState: Equatable {
 
     /// Empty fields are left out: undo never brings one back (one undo takes a spoken answer away).
     private func pushUndo() {
+        // (something new is done: the steps taken back cannot come again)
+        redoStack = []
         undoStack.append(snapshot(keepEmpty: false))
         if undoStack.count > 60 {
             undoStack.removeFirst(undoStack.count - 60)
@@ -1225,6 +1280,62 @@ enum PageReadState: Equatable {
 }
 
 // MARK: - Helpers (no actor state)
+
+/// The small square ☐ in a check field: the ink's bounds inside the field (a table cell is much bigger than its box);
+/// if none is found, a square of one text height in the middle of the field.
+@MainActor fileprivate func pageControllerCheckSquare(_ image: UIImage, cell: CGRect, textHeight th: CGFloat) -> CGRect {
+    let side = min(th, cell.width, cell.height)
+    let fallback = CGRect(x: cell.midX - side / 2, y: cell.midY - side / 2, width: side, height: side)
+    let m = th * 0.25
+    let area = cell.insetBy(dx: m, dy: m).integral
+    guard area.width > 4, area.height > 4, let cg = image.cgImage,
+          let part = cg.cropping(to: area.intersection(CGRect(x: 0, y: 0, width: cg.width, height: cg.height))) else {
+        return fallback
+    }
+    let w = part.width, h = part.height
+    var gray = [UInt8](repeating: 255, count: w * h)
+    let made: Bool = gray.withUnsafeMutableBytes { raw -> Bool in
+        guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return false }
+        ctx.draw(part, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return true
+    }
+    guard made else { return fallback }
+    // paper: the bright end of the field; ink: clearly darker
+    let sorted = gray.sorted()
+    let paper = Int(sorted[min(sorted.count - 1, sorted.count * 9 / 10)])
+    let limit = UInt8(max(0, paper - 60))
+    var x0 = w, x1 = -1, y0 = h, y1 = -1
+    for y in 0..<h {
+        for x in 0..<w where gray[y * w + x] < limit {
+            if x < x0 { x0 = x }
+            if x > x1 { x1 = x }
+            if y < y0 { y0 = y }
+            if y > y1 { y1 = y }
+        }
+    }
+    guard x1 >= x0, y1 >= y0 else { return fallback }
+    let found = CGRect(x: area.minX + CGFloat(x0), y: area.minY + CGFloat(y0),
+                       width: CGFloat(x1 - x0 + 1), height: CGFloat(y1 - y0 + 1))
+    // (only a box-like shape counts: not a long line or a speck)
+    let lo = min(found.width, found.height), hi = max(found.width, found.height)
+    guard lo > th * 0.3, hi < th * 1.8, hi < lo * 1.5 else { return fallback }
+    return found
+}
+
+/// A straight pen stroke from a to b (for the cross in a check box).
+@MainActor fileprivate func pageControllerLine(_ a: CGPoint, _ b: CGPoint, _ ink: PKInk, _ width: CGFloat) -> PKStroke {
+    var points: [PKStrokePoint] = []
+    let steps = 10
+    for i in 0...steps {
+        let t = CGFloat(i) / CGFloat(steps)
+        let p = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+        points.append(PKStrokePoint(location: p, timeOffset: TimeInterval(t) * 0.15, size: CGSize(width: width, height: width),
+                                    opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2))
+    }
+    return PKStroke(ink: ink, path: PKStrokePath(controlPoints: points, creationDate: Date()))
+}
 
 fileprivate func pageControllerTrim(_ s: String) -> String {
     return s.trimmingCharacters(in: .whitespacesAndNewlines)
