@@ -1,17 +1,25 @@
 {
- "number": "70",
- "date": "6.11.2026, 15:08 Uhr",
+ "number": "72",
+ "date": "9.11.2026, 10:03 Uhr",
  "notes": [
+  "Satzzeichen beim Sprechen: automatisch und gesprochen (Punkt, Fragezeichen …)",
+  "To-do: Schriftart wählbar, Worksheet-Crafter-Blätter lesen",
   "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen",
   "To-do: Weglegen direkt in der Mappe",
   "Update-Hinweis zeigt nur die Änderungen seit der installierten Version",
   "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe",
   "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld",
-  "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext",
-  "Update direkt aus der App: Projektordner wählen, ZIP prüfen, Sicherung, neue Dateien einspielen",
-  "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo"
+  "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext"
  ],
  "changes": [
+  {
+   "number": "72",
+   "text": "Satzzeichen beim Sprechen: automatisch und gesprochen (Punkt, Fragezeichen …)"
+  },
+  {
+   "number": "71",
+   "text": "To-do: Schriftart wählbar, Worksheet-Crafter-Blätter lesen"
+  },
   {
    "number": "70",
    "text": "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen"
@@ -243,14 +251,6 @@
   {
    "number": "13",
    "text": "CLAUDE.md: Stand vor der Pause (Swift Playgrounds installiert, Warten auf Rückmeldung)"
-  },
-  {
-   "number": "12",
-   "text": "Erster Schritt native App (Swift Playgrounds): Foto, Apple-Texterkennung, Wort/Satz vorlesen"
-  },
-  {
-   "number": "11",
-   "text": "Werkzeug: öffentliches App-Repo (hoerblatt-app) aus diesem Repo erzeugen"
   }
  ]
 }

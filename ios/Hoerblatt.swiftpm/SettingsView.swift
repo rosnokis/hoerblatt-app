@@ -166,7 +166,7 @@ struct SettingsView: View {
         } header: {
             Text("Antworten")
         } footer: {
-            Text("Abstand: Wie weit die gesprochenen Wörter auseinanderstehen – das Kind sieht, wo ein Wort aufhört, und kann zwischen zwei Wörter tippen, um dort etwas einzufügen. Mikrofon-Knopf an: Das Hörblatt hört nach dem Antippen einer Lücke selbst zu. Aus: Die Antwort kommt über die Tastatur, mit ihrer Diktier-Taste (Mikrofon unten auf der Tastatur).")
+            Text("Abstand: Wie weit die gesprochenen Wörter auseinanderstehen – das Kind sieht, wo ein Wort aufhört, und kann zwischen zwei Wörter tippen, um dort etwas einzufügen. Satzzeichen setzt die Erkennung meist selbst; sonst am Ende „Punkt“, „Fragezeichen“, „Ausrufezeichen“, „Komma“ oder „Doppelpunkt“ sagen – oder zwischen zwei Wörter tippen und nur „Punkt“ sagen. Mikrofon-Knopf an: Das Hörblatt hört nach dem Antippen einer Lücke selbst zu. Aus: Die Antwort kommt über die Tastatur, mit ihrer Diktier-Taste (Mikrofon unten auf der Tastatur).")
         }
     }
 

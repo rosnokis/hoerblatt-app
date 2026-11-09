@@ -1201,6 +1201,23 @@ func answerRemovingWord(_ text: String, range: NSRange) -> String {
     return ns.replacingCharacters(in: NSRange(location: start, length: end - start), with: "")
 }
 
+/// A punctuation mark spoken at the end ("… heißt du Fragezeichen") becomes the mark: "… heißt du?". A mark the
+/// recogniser set before it is replaced. Only the last word counts ("Der Punkt ist rot" stays).
+func spokenPunctuation(_ text: String) -> String {
+    let marks: [String: String] = ["punkt": ".", "fragezeichen": "?", "ausrufezeichen": "!", "komma": ",",
+                                   "doppelpunkt": ":"]
+    let stops: Set<Character> = [".", "!", "?", ",", ";", ":"]
+    var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    while let last = t.last, stops.contains(last) { t.removeLast() }
+    let cut = t.lastIndex(where: { $0.isWhitespace })
+    let lastWord = cut.map { String(t[t.index(after: $0)...]) } ?? t
+    guard let mark = marks[lastWord.lowercased()] else { return text }
+    var before = cut.map { String(t[..<$0]) } ?? ""
+    before = before.trimmingCharacters(in: .whitespacesAndNewlines)
+    while let last = before.last, stops.contains(last) { before.removeLast() }
+    return before + mark
+}
+
 /// Words spoken in between: put into the text at `location` (UTF-16) with a space on each side where needed. The
 /// recogniser's full stop goes (it stays at the very end of the text); at the start of a sentence a capital.
 /// Returns the new text and where the inserted words stand in it.
@@ -1211,6 +1228,17 @@ func answerInserting(_ text: String, at location: Int, heard: String) -> (text: 
     let after = ns.substring(from: loc)
     var core = heard.trimmingCharacters(in: .whitespacesAndNewlines)
     let atEnd = after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    // only a punctuation mark (spoken "Punkt"): straight after the word before, replacing a mark there
+    if !core.isEmpty, core.allSatisfy({ ".!?,;:".contains($0) }) {
+        var pre = before
+        while let last = pre.last, last.isWhitespace || ".!?,;:".contains(last) { pre.removeLast() }
+        if pre.isEmpty { return nil }
+        var post = after
+        while let first = post.first, ".!?,;:".contains(first) { post.removeFirst() }
+        if let first = post.first, !first.isWhitespace { post = " " + post }
+        let start = (pre as NSString).length
+        return (text: pre + core + post, range: NSRange(location: start, length: (core as NSString).length))
+    }
     if !atEnd {
         while let last = core.last, ".!?,;:".contains(last) { core.removeLast() }
     }

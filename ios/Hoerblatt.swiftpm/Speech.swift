@@ -569,6 +569,8 @@ fileprivate func speechWAV(length: Double, _ value: (Double) -> Double) -> Data 
         let newRequest = SFSpeechAudioBufferRecognitionRequest()
         newRequest.shouldReportPartialResults = true
         newRequest.taskHint = .dictation
+        // Apple sets full stops, question marks and commas by itself (from the melody of the sentence)
+        newRequest.addsPunctuation = true
         if rec.supportsOnDeviceRecognition {
             newRequest.requiresOnDeviceRecognition = true
         }
@@ -615,7 +617,7 @@ fileprivate func speechWAV(length: Double, _ value: (Double) -> Double) -> Data 
                 }
                 segment = clean
                 segmentEnded = segmentEnd
-                let all = listenerJoin(committed, segment)
+                let all = spokenPunctuation(listenerJoin(committed, segment))
                 if all != heardText {
                     heardText = all
                     lastChange = Date()
