@@ -549,7 +549,25 @@ fileprivate let appStatePhotoHint =
         }
         pendingDelete = info
         let what = store.heft(info.id) != nil ? "Dieses Heft" : "Diese Seite"
-        say(what + " löschen? Tippe auf den roten Papierkorb. Oder tippe auf den grünen Pfeil, dann bleibt sie.")
+        if store.isPageOut(info.id) {
+            say("Weglegen: Tippe auf den blauen Schrank. Löschen: Tippe auf den roten Papierkorb. "
+                + "Oder tippe auf den grünen Pfeil, dann bleibt alles.")
+        } else {
+            say(what + " löschen? Tippe auf den roten Papierkorb. Oder tippe auf den grünen Pfeil, dann bleibt sie.")
+        }
+    }
+
+    /// The long-press card's blue button: the page or Heft goes back into the Schrank (nothing is deleted).
+    func putAwayPending() {
+        guard let info = pendingDelete else { return }
+        pendingDelete = nil
+        // (an open page of it closes by itself: the store's change drops pages no longer handed out)
+        store.putAway(store.shelfId(info.id))
+        announce("Weggelegt")
+        if reopenLibrary {
+            reopenLibrary = false
+            presentSoon(.library)
+        }
     }
 
     func confirmDelete(_ yes: Bool) {

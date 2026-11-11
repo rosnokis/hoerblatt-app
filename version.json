@@ -1,17 +1,21 @@
 {
- "number": "72",
- "date": "9.11.2026, 10:03 Uhr",
+ "number": "73",
+ "date": "11.11.2026, 07:19 Uhr",
  "notes": [
+  "Mappe ohne Ansage; lange drücken in der Mappe: auch Weglegen in den Schrank",
   "Satzzeichen beim Sprechen: automatisch und gesprochen (Punkt, Fragezeichen …)",
   "To-do: Schriftart wählbar, Worksheet-Crafter-Blätter lesen",
   "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen",
   "To-do: Weglegen direkt in der Mappe",
   "Update-Hinweis zeigt nur die Änderungen seit der installierten Version",
   "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe",
-  "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld",
-  "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext"
+  "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld"
  ],
  "changes": [
+  {
+   "number": "73",
+   "text": "Mappe ohne Ansage; lange drücken in der Mappe: auch Weglegen in den Schrank"
+  },
   {
    "number": "72",
    "text": "Satzzeichen beim Sprechen: automatisch und gesprochen (Punkt, Fragezeichen …)"
@@ -247,10 +251,6 @@
   {
    "number": "14",
    "text": "Native App: Bauplan (ARCHITEKTUR.md) und gemeinsame Datentypen; alte Einzeldateien entfernt (Umbau läuft)"
-  },
-  {
-   "number": "13",
-   "text": "CLAUDE.md: Stand vor der Pause (Swift Playgrounds installiert, Warten auf Rückmeldung)"
   }
  ]
 }

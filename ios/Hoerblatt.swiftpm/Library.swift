@@ -49,10 +49,6 @@ struct LibraryView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)
-                        .onAppear {
-                            // (the child cannot read it)
-                            app.say("Die Mappe ist leer. Tippe auf die Kamera und mach ein Foto von einem Blatt.")
-                        }
                 }
             }
         }

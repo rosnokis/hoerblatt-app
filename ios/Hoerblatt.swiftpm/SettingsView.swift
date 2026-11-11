@@ -269,7 +269,7 @@ struct SettingsView: View {
         } header: {
             Text("Mappe")
         } footer: {
-            Text("Jede Seite bleibt mit allen Antworten gespeichert – beim Kind in der Mappe (heute ausgegeben) oder im Schrank. Eine einzelne Seite löscht man in der Mappe (lange auf die Seite drücken, dann auf den roten Papierkorb) oder im Schrank (nach links wischen). Gelöschtes kommt in den Papierkorb (unten). „Foto aus der Fotos-App wählen“ liest ein vorhandenes Foto (z. B. ein Tafelbild) wie ein neues; das Kind sieht diesen Knopf nicht. Was das Kind sieht, regelt der Schrank (in der Mappe den Schrank-Knopf 1 Sekunde drücken).")
+            Text("Jede Seite bleibt mit allen Antworten gespeichert – beim Kind in der Mappe (heute ausgegeben) oder im Schrank. Eine einzelne Seite löscht man in der Mappe (lange auf die Seite drücken, dann auf den roten Papierkorb; der blaue Schrank daneben legt sie nur weg, zurück in den Schrank) oder im Schrank (nach links wischen). Gelöschtes kommt in den Papierkorb (unten). „Foto aus der Fotos-App wählen“ liest ein vorhandenes Foto (z. B. ein Tafelbild) wie ein neues; das Kind sieht diesen Knopf nicht. Was das Kind sieht, regelt der Schrank (in der Mappe den Schrank-Knopf 1 Sekunde drücken).")
         }
     }
 

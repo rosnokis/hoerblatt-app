@@ -233,7 +233,6 @@ fileprivate struct CVSidePlaceholder: View {
     var body: some View {
         Button(action: {
             app.activate(side)
-            app.announce("Mappe")
             app.showLibrary = true
         }) {
             VStack(spacing: 18) {
@@ -286,7 +285,6 @@ fileprivate struct CVEmptyState: View {
             // (always: the teacher reaches the Schrank through the Mappe, also when nothing is handed out)
             Group {
                 Button(action: {
-                    app.announce("Mappe")
                     app.showLibrary = true
                 }) {
                     HStack(spacing: 12) {
@@ -319,7 +317,6 @@ fileprivate struct CVHeader: View {
     var body: some View {
         HStack(spacing: 12) {
             CVSquareButton(symbol: "folder.fill", color: CVStyle.teal, filled: true, caption: "Mappe") {
-                app.announce("Mappe")
                 app.showLibrary = true
             }
             PageStrip(app: app)
@@ -639,7 +636,8 @@ fileprivate struct CVDeleteCard: View {
                 .ignoresSafeArea()
             VStack(spacing: 18) {
                 picture
-                Text(app.store.heft(info.id) != nil ? "Dieses Heft löschen?" : "Diese Seite löschen?")
+                Text(app.store.isPageOut(info.id) ? "Weglegen oder löschen?"
+                     : (app.store.heft(info.id) != nil ? "Dieses Heft löschen?" : "Diese Seite löschen?"))
                     .font(.title2.weight(.bold))
                     .foregroundColor(CVStyle.ink)
                     .multilineTextAlignment(.center)
@@ -649,10 +647,17 @@ fileprivate struct CVDeleteCard: View {
                         .foregroundColor(CVStyle.slate)
                         .multilineTextAlignment(.center)
                 }
-                HStack(spacing: 56) {
+                HStack(spacing: app.store.isPageOut(info.id) ? 36 : 56) {
                     CVRoundButton(symbol: "arrow.uturn.backward", color: CVStyle.green, caption: "Nein, behalten",
                                   size: 104) {
                         app.confirmDelete(false)
+                    }
+                    if app.store.isPageOut(info.id) {
+                        // back into the Schrank: nothing is lost, the teacher hands it out again
+                        CVRoundButton(symbol: UIImage(systemName: "cabinet.fill") != nil ? "cabinet.fill" : "archivebox.fill",
+                                      color: CVStyle.blue, caption: "Weglegen, in den Schrank", size: 104) {
+                            app.putAwayPending()
+                        }
                     }
                     CVRoundButton(symbol: "trash.fill", color: CVStyle.red, caption: "Ja, löschen", size: 104) {
                         app.confirmDelete(true)
