@@ -1,17 +1,21 @@
 {
- "number": "73",
- "date": "11.11.2026, 07:19 Uhr",
+ "number": "74",
+ "date": "14.11.2026, 08:47 Uhr",
  "notes": [
+  "Werkzeugleiste passt auf kleinere iPads; AirDrop bei Fertig abgesetzt",
   "Mappe ohne Ansage; lange drücken in der Mappe: auch Weglegen in den Schrank",
   "Satzzeichen beim Sprechen: automatisch und gesprochen (Punkt, Fragezeichen …)",
   "To-do: Schriftart wählbar, Worksheet-Crafter-Blätter lesen",
   "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen",
   "To-do: Weglegen direkt in der Mappe",
   "Update-Hinweis zeigt nur die Änderungen seit der installierten Version",
-  "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe",
-  "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld"
+  "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe"
  ],
  "changes": [
+  {
+   "number": "74",
+   "text": "Werkzeugleiste passt auf kleinere iPads; AirDrop bei Fertig abgesetzt"
+  },
   {
    "number": "73",
    "text": "Mappe ohne Ansage; lange drücken in der Mappe: auch Weglegen in den Schrank"
@@ -247,10 +251,6 @@
   {
    "number": "15",
    "text": "Native App: alle Teile implementiert (noch ungeprüft, Durchsicht folgt)"
-  },
-  {
-   "number": "14",
-   "text": "Native App: Bauplan (ARCHITEKTUR.md) und gemeinsame Datentypen; alte Einzeldateien entfernt (Umbau läuft)"
   }
  ]
 }

@@ -312,13 +312,30 @@ struct FinishView: View {
         }
     }
 
-    /// Optional: small AirDrop buttons (this page, the whole Heft, all pages of today).
+    /// Optional and set apart from "Abgeben" (teacher, November 2026: it looked like more ways of handing in): a thin
+    /// line, the caption "Zusätzlich mit AirDrop senden", then small grey AirDrop buttons (this page, the whole Heft,
+    /// all pages of today). They only open the share sheet; nothing is saved.
     private var airDropRow: some View {
-        HStack(spacing: 14) {
-            SwiftUI.Image(systemName: "airdrop")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(ExportStyle.slate)
-                .accessibilityHidden(true)
+        VStack(spacing: 10) {
+            Rectangle()
+                .fill(ExportStyle.slate.opacity(0.2))
+                .frame(width: 280, height: 1)
+                .padding(.top, 6)
+            HStack(spacing: 8) {
+                SwiftUI.Image(systemName: "airdrop")
+                Text("Zusätzlich mit AirDrop senden")
+            }
+            .font(.system(size: 16, weight: .medium, design: .rounded))
+            .foregroundColor(ExportStyle.slate.opacity(0.8))
+            .accessibilityElement(children: .combine)
+            HStack(spacing: 12) {
+                airDropButtons
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var airDropButtons: some View {
             if let heft = app.finishHeft {
                 smallShare(app.finishPagePDF, title: "Diese Seite", symbol: "doc.fill", preview: "Hörblatt")
                 smallShare(app.finishHeftPDF, title: "Ganzes Heft", symbol: "book.fill", preview: heft.title)
@@ -329,7 +346,6 @@ struct FinishView: View {
                                preview: "Alle Seiten von heute")
                 }
             }
-        }
     }
 
     /// A small white share button with the AirDrop sign; a spinner while its PDF is still being made.
@@ -342,12 +358,12 @@ struct FinishView: View {
                     Text(title)
                     SwiftUI.Image(systemName: "airdrop")
                 }
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                .foregroundColor(ExportStyle.blue)
-                .padding(.horizontal, 18)
-                .frame(height: 52)
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundColor(ExportStyle.slate)
+                .padding(.horizontal, 16)
+                .frame(height: 44)
                 .background(Capsule().fill(Color.white))
-                .overlay(Capsule().stroke(ExportStyle.blue.opacity(0.5), lineWidth: 2))
+                .overlay(Capsule().stroke(ExportStyle.slate.opacity(0.35), lineWidth: 1.5))
             }
             .buttonStyle(ExportPressStyle())
             .accessibilityLabel(Text(title + " mit AirDrop senden"))
@@ -356,10 +372,10 @@ struct FinishView: View {
                 ProgressView()
                 Text(title)
             }
-            .font(.system(size: 20, weight: .semibold, design: .rounded))
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
             .foregroundColor(ExportStyle.slate)
-            .padding(.horizontal, 18)
-            .frame(height: 52)
+            .padding(.horizontal, 16)
+            .frame(height: 44)
             .background(Capsule().fill(Color.white))
             .accessibilityLabel(Text(title + " wird vorbereitet"))
         }

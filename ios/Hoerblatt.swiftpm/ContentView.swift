@@ -509,62 +509,65 @@ fileprivate struct CVToolTray: View {
 
     var body: some View {
         GeometryReader { g in
+            // (on a smaller iPad the tools shrink so that all of them fit, down to 44 pt; only below that it scrolls)
+            let s = app.settings
+            let k = cvToolScale(s, width: g.size.width)
+            let side = 70 * k
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: 16 * k) {
                     // (the teacher can hide tools: Einstellungen → Werkzeuge; "Wort" always stays)
-                    let s = app.settings
                     if s.shows(.foto) {
-                        CVToolButton(symbol: "camera.fill", color: CVStyle.teal, number: 1, filled: true, caption: "Foto") {
+                        CVToolButton(side: side, symbol: "camera.fill", color: CVStyle.teal, number: 1, filled: true, caption: "Foto") {
                             app.newPhoto()
                         }
                     }
-                    HStack(spacing: 8) {
-                        CVToolButton(symbol: "hand.tap.fill", color: CVStyle.orange, number: 2,
+                    HStack(spacing: 8 * k) {
+                        CVToolButton(side: side, symbol: "hand.tap.fill", color: CVStyle.orange, number: 2,
                                      filled: app.mode == .wort, caption: "Wort vorlesen") {
                             app.setMode(.wort)
                         }
                         if s.shows(.satz) {
-                            CVToolButton(symbol: "text.alignleft", color: CVStyle.orange, number: nil,
+                            CVToolButton(side: side, symbol: "text.alignleft", color: CVStyle.orange, number: nil,
                                          filled: app.mode == .satz, caption: "Satz vorlesen") {
                                 app.setMode(.satz)
                             }
                         }
                     }
-                    .padding(4)
-                    .background(RoundedRectangle(cornerRadius: 22).fill(CVStyle.orange.opacity(0.12)))
+                    .padding(4 * k)
+                    .background(RoundedRectangle(cornerRadius: 22 * k).fill(CVStyle.orange.opacity(0.12)))
                     if s.shows(.sprechen) {
-                        CVToolButton(symbol: "mic.fill", color: CVStyle.lila, number: 3,
+                        CVToolButton(side: side, symbol: "mic.fill", color: CVStyle.lila, number: 3,
                                      filled: app.mode == .sprechen, caption: "Antwort sprechen") {
                             app.setMode(.sprechen)
                         }
                     }
                     if s.shows(.markieren) {
-                        CVToolButton(symbol: "highlighter", color: CVStyle.amber, number: 4,
+                        CVToolButton(side: side, symbol: "highlighter", color: CVStyle.amber, number: 4,
                                      filled: app.mode == .markieren, caption: "Markieren") {
                             app.setMode(.markieren)
                         }
                     }
                     if s.shows(.stift) {
-                        CVToolButton(symbol: "pencil.tip", color: CVStyle.slate, number: nil,
+                        CVToolButton(side: side, symbol: "pencil.tip", color: CVStyle.slate, number: nil,
                                      filled: app.mode == .stift, caption: "Stift") {
                             app.setMode(.stift)
                         }
                     }
                     if s.shows(.radieren) || s.shows(.zurueck) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 8 * k) {
                             if s.shows(.radieren) {
-                                CVToolButton(symbol: "eraser.fill", color: CVStyle.grey, number: nil,
+                                CVToolButton(side: side, symbol: "eraser.fill", color: CVStyle.grey, number: nil,
                                              filled: app.mode == .radieren, caption: "Radiergummi") {
                                     app.setMode(.radieren)
                                 }
                             }
                             if s.shows(.zurueck) {
-                                CVToolButton(symbol: "arrow.uturn.backward", color: CVStyle.slate, number: nil,
+                                CVToolButton(side: side, symbol: "arrow.uturn.backward", color: CVStyle.slate, number: nil,
                                              filled: false, caption: "Zurück") {
                                     app.undo()
                                 }
                                 // (pressed "Zurück" once too often: the step comes again)
-                                CVToolButton(symbol: "arrow.uturn.forward", color: CVStyle.slate, number: nil,
+                                CVToolButton(side: side, symbol: "arrow.uturn.forward", color: CVStyle.slate, number: nil,
                                              filled: false, caption: "Vorwärts") {
                                     app.redo()
                                 }
@@ -572,18 +575,41 @@ fileprivate struct CVToolTray: View {
                         }
                     }
                     if s.shows(.fertig) {
-                        CVToolButton(symbol: "checkmark.square.fill", color: CVStyle.blue, number: 5, filled: true,
+                        CVToolButton(side: side, symbol: "checkmark.square.fill", color: CVStyle.blue, number: 5, filled: true,
                                      caption: "Fertig") {
                             app.finish()
                         }
                     }
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 14 * k)
                 .frame(minWidth: g.size.width, minHeight: g.size.height)
             }
         }
         .frame(height: 92)
     }
+}
+
+/// How much the tool buttons shrink so that all shown tools fit the width (1 = full size, never below 44 pt).
+fileprivate func cvToolScale(_ s: AppSettings, width: CGFloat) -> CGFloat {
+    // full-size widths: buttons 70, gaps 16 between groups, 8 inside a group, the Wort/Satz group has 4 padding
+    var buttons = 1            // Wort
+    var items = 1              // the Wort/Satz group
+    var inner: CGFloat = 8     // the group's padding (4 on each side)
+    if s.shows(.satz) { buttons += 1; inner += 8 }
+    for t in [ToolKey.foto, .sprechen, .markieren, .stift, .fertig] where s.shows(t) {
+        buttons += 1
+        items += 1
+    }
+    let undo = s.shows(.zurueck) ? 2 : 0
+    let erase = s.shows(.radieren) ? 1 : 0
+    if undo + erase > 0 {
+        buttons += undo + erase
+        items += 1
+        inner += CGFloat(undo + erase - 1) * 8
+    }
+    let natural = CGFloat(buttons) * 70 + CGFloat(items - 1) * 16 + inner + 28
+    guard natural > 0, width > 0 else { return 1 }
+    return max(44.0 / 70.0, min(1, width / natural))
 }
 
 // MARK: - Overlays
@@ -694,6 +720,8 @@ fileprivate struct CVDeleteCard: View {
 
 /// Big tool button with the small number of the picture card in the top left corner.
 fileprivate struct CVToolButton: View {
+    /// Width and height (70 at full size; smaller on a small iPad).
+    var side: CGFloat = 70
     let symbol: String
     let color: Color
     let number: Int?
@@ -705,24 +733,24 @@ fileprivate struct CVToolButton: View {
     var body: some View {
         Button(action: action) {
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 18)
+                RoundedRectangle(cornerRadius: 18 * side / 70)
                     .fill(filled ? color : Color.white)
-                RoundedRectangle(cornerRadius: 18)
+                RoundedRectangle(cornerRadius: 18 * side / 70)
                     .stroke(color, lineWidth: 3)
                 Image(systemName: symbol)
-                    .font(.system(size: 30, weight: .semibold))
+                    .font(.system(size: 30 * side / 70, weight: .semibold))
                     .foregroundColor(filled ? Color.white : color)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if let n = number {
                     Text(String(n))
-                        .font(.system(size: 14, weight: .heavy))
+                        .font(.system(size: 14 * max(0.8, side / 70), weight: .heavy))
                         .foregroundColor(filled ? color : Color.white)
-                        .frame(width: 22, height: 22)
+                        .frame(width: 22 * max(0.8, side / 70), height: 22 * max(0.8, side / 70))
                         .background(Circle().fill(filled ? Color.white : color))
-                        .padding(5)
+                        .padding(5 * side / 70)
                 }
             }
-            .frame(width: 70, height: 70)
+            .frame(width: side, height: side)
             .shadow(color: Color.black.opacity(filled ? 0.18 : 0.06), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(CVPressStyle())
