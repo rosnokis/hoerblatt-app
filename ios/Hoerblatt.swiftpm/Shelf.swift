@@ -65,7 +65,7 @@ struct ShelfView: View {
                     Button("Fertig") {
                         app.closeShelf()
                     }
-                    .font(.headline)
+                    .font(.hb(.headline))
                 }
             }
             .confirmationDialog(deleting.map { "„\($0.title)“ löschen?" } ?? "", isPresented: deletingShown,
@@ -133,7 +133,7 @@ struct ShelfView: View {
             }
             if let m = message {
                 Text(m)
-                    .font(.callout)
+                    .font(.hb(.callout))
                     .foregroundColor(.secondary)
             }
         } footer: {
@@ -234,10 +234,10 @@ struct ShelfView: View {
             ShelfThumb(image: app.store.thumbnail(e.id), heft: e.heft)
             VStack(alignment: .leading, spacing: 3) {
                 Text(e.title)
-                    .font(.headline)
+                    .font(.hb(.headline))
                     .lineLimit(2)
                 Text(shelfDetails(e, subject: subject))
-                    .font(.caption)
+                    .font(.hb(.caption))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
             }
@@ -329,7 +329,7 @@ struct ShelfView: View {
             }
         } label: {
             Image(systemName: subject == nil ? "tag" : "tag.fill")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.hb(20, weight: .semibold))
                 .foregroundColor(subject == nil ? ShelfStyle.slate : ShelfStyle.teal)
                 .frame(width: 44, height: 44)
         }
@@ -424,7 +424,7 @@ struct ShelfKnob: View {
                 .animation(holding ? Animation.linear(duration: 1) : Animation.easeOut(duration: 0.15), value: holding)
             // (the cabinet symbol, or a box where this iPadOS has no cabinet)
             Image(systemName: UIImage(systemName: "cabinet") != nil ? "cabinet" : "archivebox")
-                .font(.system(size: 26, weight: .semibold))
+                .font(.hb(26, weight: .semibold))
                 .foregroundColor(ShelfStyle.slate)
         }
         .frame(width: 64, height: 64)
@@ -484,7 +484,7 @@ fileprivate struct ShelfThumb: View {
                 .stroke(Color.black.opacity(0.15), lineWidth: 1)
             if heft {
                 Image(systemName: "book.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.hb(10, weight: .bold))
                     .foregroundColor(.white)
                     .padding(3)
                     .background(Circle().fill(ShelfStyle.teal))

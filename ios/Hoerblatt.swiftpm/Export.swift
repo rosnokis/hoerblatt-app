@@ -169,9 +169,9 @@ struct FinishView: View {
                 }) {
                     HStack(spacing: 10) {
                         SwiftUI.Image(systemName: "arrow.uturn.backward")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(.hb(28, weight: .bold))
                         Text("Zurück")
-                            .font(.title3.weight(.semibold))
+                            .font(.hb(.title3, .semibold))
                     }
                     .foregroundColor(ExportStyle.slate)
                     .padding(.horizontal, 22)
@@ -184,9 +184,9 @@ struct FinishView: View {
                 Spacer(minLength: 0)
                 HStack(spacing: 10) {
                     SwiftUI.Image(systemName: "checkmark.square.fill")
-                        .font(.system(size: 34, weight: .semibold))
+                        .font(.hb(34, weight: .semibold))
                     Text("Fertig")
-                        .font(.title.weight(.bold))
+                        .font(.hb(.title, .bold))
                 }
                 .foregroundColor(ExportStyle.blue)
                 Spacer(minLength: 0)
@@ -221,9 +221,9 @@ struct FinishView: View {
                 }) {
                     HStack(spacing: 16) {
                         SwiftUI.Image(systemName: "hand.thumbsup.fill")
-                            .font(.system(size: 40, weight: .bold))
+                            .font(.hb(40, weight: .bold))
                         Text("Gezeigt")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .font(.hb(34, weight: .bold, design: .rounded))
                     }
                     .foregroundColor(ExportStyle.ink)
                     .padding(.horizontal, 48)
@@ -268,9 +268,9 @@ struct FinishView: View {
         if let result = handedIn, result != .failed {
             HStack(spacing: 16) {
                 SwiftUI.Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 40, weight: .bold))
+                    .font(.hb(40, weight: .bold))
                 Text("Abgegeben")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.hb(34, weight: .bold, design: .rounded))
             }
             .foregroundColor(.white)
             .padding(.horizontal, 48)
@@ -283,9 +283,9 @@ struct FinishView: View {
             Button(action: { handIn(url) }) {
                 HStack(spacing: 16) {
                     SwiftUI.Image(systemName: "tray.and.arrow.down.fill")
-                        .font(.system(size: 40, weight: .bold))
+                        .font(.hb(40, weight: .bold))
                     Text("Abgeben")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(.hb(34, weight: .bold, design: .rounded))
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 48)
@@ -325,7 +325,7 @@ struct FinishView: View {
                 SwiftUI.Image(systemName: "airdrop")
                 Text("Zusätzlich mit AirDrop senden")
             }
-            .font(.system(size: 16, weight: .medium, design: .rounded))
+            .font(.hb(16, weight: .medium, design: .rounded))
             .foregroundColor(ExportStyle.slate.opacity(0.8))
             .accessibilityElement(children: .combine)
             HStack(spacing: 12) {
@@ -358,7 +358,7 @@ struct FinishView: View {
                     Text(title)
                     SwiftUI.Image(systemName: "airdrop")
                 }
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.hb(17, weight: .semibold, design: .rounded))
                 .foregroundColor(ExportStyle.slate)
                 .padding(.horizontal, 16)
                 .frame(height: 44)
@@ -372,7 +372,7 @@ struct FinishView: View {
                 ProgressView()
                 Text(title)
             }
-            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .font(.hb(17, weight: .semibold, design: .rounded))
             .foregroundColor(ExportStyle.slate)
             .padding(.horizontal, 16)
             .frame(height: 44)
@@ -387,7 +387,7 @@ struct FinishView: View {
             ProgressView()
                 .scaleEffect(1.4)
             Text(title)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(.hb(30, weight: .bold, design: .rounded))
         }
         .foregroundColor(ExportStyle.slate)
         .padding(.horizontal, 36)
@@ -754,13 +754,11 @@ struct AnswerLineLayout {
     return out
 }
 
-/// The answers' writing (rounded, semibold), as the field and the finished picture show it.
+/// The answers' writing, as the field and the finished picture show it: the chosen typeface (regular, as the
+/// children's fonts are drawn), without a choice the iPad's font rounded and semibold.
 @MainActor func answerUIFont(_ size: CGFloat) -> UIFont {
-    let base = UIFont.systemFont(ofSize: size, weight: .semibold)
-    if let rounded = base.fontDescriptor.withDesign(.rounded) {
-        return UIFont(descriptor: rounded, size: size)
-    }
-    return base
+    if AppFont.family != nil { return AppFont.ui(size) }
+    return AppFont.ui(size, weight: .semibold, rounded: true)
 }
 
 /// The words of an answer and where they stand, laid out as the field shows them: on the writing lines

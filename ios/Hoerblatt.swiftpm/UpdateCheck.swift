@@ -292,24 +292,24 @@ struct UpdateRows: View {
                 if let v = updates.newer {
                     VStack(alignment: .leading, spacing: 6) {
                         SwiftUI.Label("Version \(v.number) ist verfügbar", systemImage: "arrow.down.circle.fill")
-                            .font(.headline)
+                            .font(.hb(.headline))
                             .foregroundColor(UpdateStyle.teal)
                         Text("Veröffentlicht am \(v.date)")
-                            .font(.caption)
+                            .font(.hb(.caption))
                             .foregroundColor(.secondary)
                         let news = v.newSince(Int(BuildInfo.number) ?? 0)
                         if !news.isEmpty {
                             Text("Neu seit Version \(BuildInfo.number):")
-                                .font(.caption.weight(.semibold))
+                                .font(.hb(.caption, .semibold))
                                 .padding(.top, 2)
                             ForEach(Array(news.prefix(15).enumerated()), id: \.offset) { _, c in
                                 Text((c.number.isEmpty ? "• " : "\(c.number) · ") + c.text)
-                                    .font(.callout)
+                                    .font(.hb(.callout))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             if news.count > 15 {
                                 Text("… und \(news.count - 15) weitere Änderungen")
-                                    .font(.caption)
+                                    .font(.hb(.caption))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -321,7 +321,7 @@ struct UpdateRows: View {
                             updates.install()
                         }) {
                             SwiftUI.Label("Jetzt aktualisieren", systemImage: "arrow.down.app.fill")
-                                .font(.headline)
+                                .font(.hb(.headline))
                         }
                         .disabled(updates.installing != nil)
                     }
@@ -350,7 +350,7 @@ struct UpdateRows: View {
                             .foregroundColor(result.ok ? UpdateStyle.green : .orange)
                         if result.ok {
                             Text("Jetzt in Swift Playgrounds das Projekt schließen und wieder öffnen, dann starten. Mappe, Antworten, Schrank und Einstellungen bleiben erhalten. Die vorige Version liegt als „\(UpdateCheck.backupName)“ daneben.")
-                                .font(.callout)
+                                .font(.hb(.callout))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -369,7 +369,7 @@ struct UpdateRows: View {
                         Text(updates.folderName.map { "Projektordner: \($0)" } ?? "Projektordner noch nicht gewählt")
                         if let m = folderMessage {
                             Text(m)
-                                .font(.caption)
+                                .font(.hb(.caption))
                                 .foregroundColor(.secondary)
                         }
                     }

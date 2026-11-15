@@ -22,6 +22,7 @@ iOS-26-APIs, keine Makros (`#Preview`, `@Observable`), keine Drittbibliotheken. 
 | `Library.swift`, `Shelf.swift` | Mappe und Leiste (nur Ausgegebenes); Schrank für Lehrkräfte (Ausgeben/Weglegen, Fächer, PDF öffnen) |
 | `SettingsView.swift` | Hilfe und Einstellungen (Zahnrad 1 s), Papierkorb, Werkzeuge ausblenden, Fehlersuche |
 | `UpdateCheck.swift`, `ZipRead.swift`, `BuildInfo.swift` | Versionsnummer; Suche nach neuer Version und Update in den Projektordner |
+| `Fonts.swift`, `Schriften/` | Schriftwahl: `AppFont` (gewählte Familie, `Font.hb`, mitgelieferte und eigene Schriften), Einstellungen „Schrift“ |
 | `Diagnosis.swift`, `SelfTest.swift`, `PDFText.swift` | Fehlersuche-Datei, Selbsttest-ZIP; PDF-eigener Text (abgeschaltet, nur Diagnose) |
 
 Die Schnittstellen in den folgenden Abschnitten sind der ursprüngliche Bauplan (Oktober 2026). Sie sind seitdem

@@ -82,8 +82,13 @@ fileprivate let appStatePhotoHint =
         didSet { sheetChanged(.library, from: oldValue, to: showLibrary) }
     }
     @Published var showSettings: Bool = false {
-        didSet { sheetChanged(.settings, from: oldValue, to: showSettings) }
+        didSet {
+            sheetChanged(.settings, from: oldValue, to: showSettings)
+            if oldValue && !showSettings { applyFontSoon() }
+        }
     }
+    /// Counts typeface changes: the screen is built anew with each one (`HoerblattApp`, Fonts.swift).
+    @Published private(set) var fontGeneration = 0
     /// The Schrank (teachers only: opens from the Mappe after pressing 1 s).
     @Published var showShelf: Bool = false {
         didSet { sheetChanged(.shelf, from: oldValue, to: showShelf) }
@@ -168,6 +173,9 @@ fileprivate let appStatePhotoHint =
         speaker.tone = settings.tone
         speaker.voiceId = settings.voiceId
         AnswerStyle.wordSpacing = CGFloat(settings.answerWordSpacing)
+        AppFont.registerAll()
+        AppFont.use(settings.fontFamily)
+        AppFont.styleBars()
 
         // the page(s) open when the app was last used
         let defaults = UserDefaults.standard
@@ -1072,6 +1080,19 @@ fileprivate let appStatePhotoHint =
     }
 
     // MARK: - Private: sheets one after another
+
+    /// A typeface chosen in the settings takes effect once they have gone (building the screen anew under an open
+    /// sheet would close it).
+    private func applyFontSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self = self, !self.showSettings else { return }
+            if AppFont.use(self.settings.fontFamily) {
+                AppFont.styleBars()
+                for c in self.openControllers { c.endPageReading() }
+                self.fontGeneration += 1
+            }
+        }
+    }
 
     private func sheetChanged(_ kind: AppStateSheet, from old: Bool, to new: Bool) {
         if settingSheets || old == new { return }

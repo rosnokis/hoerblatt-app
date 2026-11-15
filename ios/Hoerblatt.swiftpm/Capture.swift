@@ -129,7 +129,7 @@ struct PhotoHelpView: View {
                     Spacer()
                     Button(action: onCancel) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 26, weight: .bold))
+                            .font(.hb(26, weight: .bold))
                             .foregroundColor(CapStyle.slate)
                             .frame(width: 64, height: 64)
                             .background(Circle().fill(Color.white))
@@ -138,7 +138,7 @@ struct PhotoHelpView: View {
                     .accessibilityLabel(Text("Abbrechen"))
                 }
                 Text("So wird das Foto gut")
-                    .font(.title.weight(.bold))
+                    .font(.hb(.title, .bold))
                     .foregroundColor(CapStyle.ink)
                     .multilineTextAlignment(.center)
                 HStack(alignment: .top, spacing: 14) {
@@ -153,13 +153,13 @@ struct PhotoHelpView: View {
                     }
                 }
                 Text("Leg das Heft flach hin. Halte das iPad gerade darüber. Das ganze Blatt muss auf das Foto.")
-                    .font(.title3)
+                    .font(.hb(.title3))
                     .foregroundColor(CapStyle.slate)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(action: onGo) {
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 54, weight: .semibold))
+                        .font(.hb(54, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(width: 132, height: 132)
                         .background(Circle().fill(CapStyle.teal))
@@ -196,14 +196,14 @@ fileprivate struct CapHelpTile<Content: View>: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 150)
                 Text("\(number)")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.hb(20, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 34, height: 34)
                     .background(Circle().fill(CapStyle.teal))
                     .padding(8)
             }
             Text(caption)
-                .font(.callout)
+                .font(.hb(.callout))
                 .foregroundColor(CapStyle.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -220,7 +220,7 @@ fileprivate struct CapFlatSheetPicture: View {
     var body: some View {
         VStack(spacing: 2) {
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 70))
+                .font(.hb(70))
                 .foregroundColor(CapStyle.teal)
                 .rotation3DEffect(.degrees(58), axis: (x: 1, y: 0, z: 0))
             Capsule()
@@ -235,14 +235,14 @@ fileprivate struct CapAboveSheetPicture: View {
     var body: some View {
         VStack(spacing: 2) {
             Image(systemName: "ipad.landscape")
-                .font(.system(size: 48))
+                .font(.hb(48))
                 .foregroundColor(CapStyle.slate)
                 .rotation3DEffect(.degrees(58), axis: (x: 1, y: 0, z: 0))
             Image(systemName: "arrow.down")
-                .font(.system(size: 22, weight: .bold))
+                .font(.hb(22, weight: .bold))
                 .foregroundColor(CapStyle.teal)
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 44))
+                .font(.hb(44))
                 .foregroundColor(CapStyle.teal)
                 .rotation3DEffect(.degrees(58), axis: (x: 1, y: 0, z: 0))
             Capsule()
@@ -257,13 +257,13 @@ fileprivate struct CapWholeSheetPicture: View {
     var body: some View {
         ZStack {
             Image(systemName: "viewfinder")
-                .font(.system(size: 104, weight: .light))
+                .font(.hb(104, weight: .light))
                 .foregroundColor(CapStyle.slate)
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 50))
+                .font(.hb(50))
                 .foregroundColor(CapStyle.teal)
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 30))
+                .font(.hb(30))
                 .foregroundColor(CapStyle.green)
                 .background(Circle().fill(Color.white))
                 .offset(x: 46, y: 46)
@@ -395,17 +395,17 @@ struct PhotoProblemView: View {
                 .ignoresSafeArea()
             VStack(spacing: 16) {
                 Image(systemName: problem.symbol)
-                    .font(.system(size: 60, weight: .semibold))
+                    .font(.hb(60, weight: .semibold))
                     .foregroundColor(CapStyle.amber)
                     .frame(width: 124, height: 124)
                     .background(Circle().fill(CapStyle.amber.opacity(0.15)))
                 Text(problem.title)
-                    .font(.title2.weight(.bold))
+                    .font(.hb(.title2, .bold))
                     .foregroundColor(CapStyle.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(problem.message)
-                    .font(.title3)
+                    .font(.hb(.title3))
                     .foregroundColor(CapStyle.slate)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -435,12 +435,12 @@ fileprivate struct CapRoundButton: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: symbol)
-                    .font(.system(size: 40, weight: .bold))
+                    .font(.hb(40, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 96, height: 96)
                     .background(Circle().fill(color))
                 Text(caption)
-                    .font(.headline)
+                    .font(.hb(.headline))
                     .foregroundColor(CapStyle.slate)
             }
         }

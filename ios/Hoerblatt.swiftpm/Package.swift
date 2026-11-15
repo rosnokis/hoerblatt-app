@@ -31,6 +31,6 @@ let package = Package(
         )
     ],
     targets: [
-        .executableTarget(name: "AppModule", path: ".")
+        .executableTarget(name: "AppModule", path: ".", resources: [.copy("Schriften")])
     ]
 )

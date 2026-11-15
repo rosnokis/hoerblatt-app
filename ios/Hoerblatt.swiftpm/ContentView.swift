@@ -39,12 +39,15 @@ struct ContentView: View {
             }
             .sheet(isPresented: $app.showLibrary) {
                 LibraryView(app: app)
+                    .font(.hb(.body))
             }
             .sheet(isPresented: $app.showSettings) {
                 SettingsView(app: app)
+                    .font(.hb(.body))
             }
             .sheet(isPresented: $app.showShelf) {
                 ShelfView(app: app)
+                    .font(.hb(.body))
             }
             // (the Dateien picker for a PDF hangs on a view of its own, like the sheets)
             Color.clear
@@ -187,10 +190,10 @@ fileprivate struct CVHeftBar: View {
                         .tint(CVStyle.teal)
                 } else {
                     Image(systemName: "book.fill")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.hb(22, weight: .semibold))
                 }
                 Text("\(index + 1) / \(count)")
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(.hb(26, weight: .bold, design: .rounded))
                     .monospacedDigit()
             }
             .foregroundColor(CVStyle.teal)
@@ -212,7 +215,7 @@ fileprivate struct CVHeftBar: View {
             app.turnPage(delta)
         }) {
             Image(systemName: symbol)
-                .font(.system(size: 30, weight: .heavy))
+                .font(.hb(30, weight: .heavy))
                 .foregroundColor(.white)
                 .frame(width: 68, height: 68)
                 .background(Circle().fill(enabled ? CVStyle.teal : CVStyle.grey.opacity(0.35)))
@@ -237,12 +240,12 @@ fileprivate struct CVSidePlaceholder: View {
         }) {
             VStack(spacing: 18) {
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 60, weight: .semibold))
+                    .font(.hb(60, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 130, height: 130)
                     .background(Circle().fill(CVStyle.teal))
                 Text("Seite aus der Mappe wählen")
-                    .font(.title3.weight(.semibold))
+                    .font(.hb(.title3, .semibold))
                     .foregroundColor(CVStyle.slate)
                     .multilineTextAlignment(.center)
             }
@@ -271,7 +274,7 @@ fileprivate struct CVEmptyState: View {
                 app.newPhoto()
             }) {
                 Image(systemName: "camera.fill")
-                    .font(.system(size: 78, weight: .semibold))
+                    .font(.hb(78, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 190, height: 190)
                     .background(Circle().fill(CVStyle.teal))
@@ -280,7 +283,7 @@ fileprivate struct CVEmptyState: View {
             .buttonStyle(CVPressStyle())
             .accessibilityLabel(Text("Foto machen"))
             Text("Foto vom Blatt machen")
-                .font(.title2.weight(.semibold))
+                .font(.hb(.title2, .semibold))
                 .foregroundColor(CVStyle.slate)
             // (always: the teacher reaches the Schrank through the Mappe, also when nothing is handed out)
             Group {
@@ -289,9 +292,9 @@ fileprivate struct CVEmptyState: View {
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: "folder.fill")
-                            .font(.system(size: 30, weight: .semibold))
+                            .font(.hb(30, weight: .semibold))
                         Text("Mappe")
-                            .font(.title3.weight(.semibold))
+                            .font(.hb(.title3, .semibold))
                     }
                     .foregroundColor(CVStyle.teal)
                     .padding(.horizontal, 28)
@@ -353,7 +356,7 @@ fileprivate struct CVSettingsKnob: View {
                 .rotationEffect(.degrees(-90))
                 .animation(holding ? Animation.linear(duration: 1) : Animation.easeOut(duration: 0.15), value: holding)
             Image(systemName: "gearshape")
-                .font(.system(size: 26, weight: .semibold))
+                .font(.hb(26, weight: .semibold))
                 .foregroundColor(CVStyle.slate)
         }
         // a newer version is there (small, so the child is not drawn to it)
@@ -632,12 +635,12 @@ fileprivate struct CVBusyCard: View {
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 0.3), value: info.progress)
                     Text("\(Int((info.progress * 100).rounded())) %")
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.hb(26, weight: .bold))
                         .foregroundColor(CVStyle.ink)
                 }
                 .frame(width: 140, height: 140)
                 Text(info.message)
-                    .font(.title3.weight(.semibold))
+                    .font(.hb(.title3, .semibold))
                     .foregroundColor(CVStyle.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -664,12 +667,12 @@ fileprivate struct CVDeleteCard: View {
                 picture
                 Text(app.store.isPageOut(info.id) ? "Weglegen oder löschen?"
                      : (app.store.heft(info.id) != nil ? "Dieses Heft löschen?" : "Diese Seite löschen?"))
-                    .font(.title2.weight(.bold))
+                    .font(.hb(.title2, .bold))
                     .foregroundColor(CVStyle.ink)
                     .multilineTextAlignment(.center)
                 if !info.title.isEmpty {
                     Text(info.title)
-                        .font(.headline)
+                        .font(.hb(.headline))
                         .foregroundColor(CVStyle.slate)
                         .multilineTextAlignment(.center)
                 }
@@ -710,7 +713,7 @@ fileprivate struct CVDeleteCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.black.opacity(0.12), lineWidth: 1))
         } else {
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 80))
+                .font(.hb(80))
                 .foregroundColor(CVStyle.slate)
         }
     }
@@ -738,12 +741,12 @@ fileprivate struct CVToolButton: View {
                 RoundedRectangle(cornerRadius: 18 * side / 70)
                     .stroke(color, lineWidth: 3)
                 Image(systemName: symbol)
-                    .font(.system(size: 30 * side / 70, weight: .semibold))
+                    .font(.hb(30 * side / 70, weight: .semibold))
                     .foregroundColor(filled ? Color.white : color)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if let n = number {
                     Text(String(n))
-                        .font(.system(size: 14 * max(0.8, side / 70), weight: .heavy))
+                        .font(.hb(14 * max(0.8, side / 70), weight: .heavy))
                         .foregroundColor(filled ? color : Color.white)
                         .frame(width: 22 * max(0.8, side / 70), height: 22 * max(0.8, side / 70))
                         .background(Circle().fill(filled ? Color.white : color))
@@ -768,7 +771,7 @@ fileprivate struct CVSquareButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 28, weight: .semibold))
+                .font(.hb(28, weight: .semibold))
                 .foregroundColor(filled ? Color.white : color)
                 .frame(width: 64, height: 64)
                 .background(RoundedRectangle(cornerRadius: 16).fill(filled ? color : Color.white))
@@ -789,7 +792,7 @@ fileprivate struct CVRoundButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: size * 0.42, weight: .bold))
+                .font(.hb(size * 0.42, weight: .bold))
                 .foregroundColor(.white)
                 .frame(width: size, height: size)
                 .background(Circle().fill(color))
@@ -815,7 +818,7 @@ fileprivate struct CVColorDot: View {
                     .stroke(selected ? CVStyle.ink : Color.black.opacity(0.15), lineWidth: selected ? 4 : 1.5)
                 if selected {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 22, weight: .heavy))
+                        .font(.hb(22, weight: .heavy))
                         .foregroundColor(.white)
                         .shadow(color: Color.black.opacity(0.5), radius: 1, x: 0, y: 1)
                 }

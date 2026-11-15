@@ -176,15 +176,15 @@ struct HandinSettingsSection: View {
         Section {
             HStack(spacing: 12) {
                 Image(systemName: handin.folderName == nil ? "folder.badge.questionmark" : "folder.fill")
-                    .font(.title2)
+                    .font(.hb(.title2))
                     .foregroundColor(handin.folderName == nil ? .orange : Color(red: 15.0 / 255, green: 118.0 / 255,
                                                                                  blue: 110.0 / 255))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(handin.folderName ?? "Noch kein Ordner gewählt")
-                        .font(.headline)
+                        .font(.hb(.headline))
                     if handin.folderName == nil {
                         Text("Abgaben werden vorerst in der App gesammelt und kommen in den Ordner, sobald einer gewählt ist.")
-                            .font(.caption)
+                            .font(.hb(.caption))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -192,7 +192,7 @@ struct HandinSettingsSection: View {
             if handin.waitingCount > 0 {
                 Text(handin.waitingCount == 1 ? "1 Abgabe wartet in der App auf den Ordner."
                      : "\(handin.waitingCount) Abgaben warten in der App auf den Ordner.")
-                    .font(.callout)
+                    .font(.hb(.callout))
                 if handin.folderName != nil {
                     Button("Jetzt in den Ordner legen") {
                         handin.moveWaiting()
@@ -207,7 +207,7 @@ struct HandinSettingsSection: View {
             }
             if let m = message {
                 Text(m)
-                    .font(.callout)
+                    .font(.hb(.callout))
             }
         } header: {
             Text("Abgabe (PDF speichern)")

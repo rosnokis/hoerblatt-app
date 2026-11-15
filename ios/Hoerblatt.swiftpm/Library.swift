@@ -44,7 +44,7 @@ struct LibraryView: View {
                 .padding(20)
                 if pages.isEmpty && books.isEmpty {
                     Text("Die Mappe ist leer. Mach ein Foto von einem Blatt.")
-                        .font(.title3.weight(.semibold))
+                        .font(.hb(.title3, .semibold))
                         .foregroundColor(LibraryStyle.slate)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
@@ -60,18 +60,18 @@ struct LibraryView: View {
     private var header: some View {
         HStack(spacing: 14) {
             Image(systemName: "folder.fill")
-                .font(.system(size: 30, weight: .semibold))
+                .font(.hb(30, weight: .semibold))
                 .foregroundColor(LibraryStyle.teal)
             Text("Mappe")
-                .font(.title.weight(.bold))
+                .font(.hb(.title, .bold))
                 .foregroundColor(LibraryStyle.ink)
             if app.twoPages {
                 let side = app.activeSide
                 HStack(spacing: 8) {
                     Image(systemName: side == .left ? "rectangle.lefthalf.filled" : "rectangle.righthalf.filled")
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.hb(24, weight: .semibold))
                     Text(side == .left ? "Kommt nach links" : "Kommt nach rechts")
-                        .font(.headline)
+                        .font(.hb(.headline))
                 }
                 .foregroundColor(libraryColor(side))
                 .padding(.horizontal, 14)
@@ -86,7 +86,7 @@ struct LibraryView: View {
                 app.showLibrary = false
             }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.hb(26, weight: .bold))
                     .foregroundColor(LibraryStyle.slate)
                     .frame(width: 64, height: 64)
                     .background(Circle().fill(Color.white))
@@ -168,17 +168,17 @@ fileprivate struct LibraryActionTile: View {
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(LibraryStyle.teal, style: StrokeStyle(lineWidth: 3, dash: filled ? [] : [10, 7]))
                     Image(systemName: symbol)
-                        .font(.system(size: 64, weight: .semibold))
+                        .font(.hb(64, weight: .semibold))
                         .foregroundColor(filled ? Color.white : LibraryStyle.teal)
                 }
                 .frame(height: LibraryStyle.tileHeight)
                 Text(title)
-                    .font(.headline)
+                    .font(.hb(.headline))
                     .foregroundColor(LibraryStyle.ink)
                     .lineLimit(2)
                 // (keeps the same height as a page tile with its date)
                 Text(" ")
-                    .font(.caption)
+                    .font(.hb(.caption))
             }
         }
         .buttonStyle(LibraryPressStyle())
@@ -206,7 +206,7 @@ fileprivate struct LibraryPageTile: View {
                     .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 2)
                 if let s = side {
                     Image(systemName: libraryBadge(s, twoPages: app.twoPages))
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.hb(20, weight: .bold))
                         .foregroundColor(.white)
                         .frame(width: 40, height: 40)
                         .background(Circle().fill(libraryColor(s)))
@@ -214,11 +214,11 @@ fileprivate struct LibraryPageTile: View {
                 }
             }
             Text(libraryTitle(info))
-                .font(.headline)
+                .font(.hb(.headline))
                 .foregroundColor(LibraryStyle.ink)
                 .lineLimit(2)
             Text(libraryDateText(info.created))
-                .font(.caption)
+                .font(.hb(.caption))
                 .foregroundColor(LibraryStyle.slate)
                 .lineLimit(1)
         }
@@ -252,7 +252,7 @@ fileprivate struct LibraryPageTile: View {
                 .padding(6)
         } else {
             Image(systemName: "doc.text.fill")
-                .font(.system(size: 60))
+                .font(.hb(60))
                 .foregroundColor(LibraryStyle.slate.opacity(0.6))
         }
     }
@@ -315,14 +315,14 @@ fileprivate struct LibraryStripThumb: View {
                     .padding(3)
             } else {
                 Image(systemName: "doc.text.fill")
-                    .font(.system(size: 26))
+                    .font(.hb(26))
                     .foregroundColor(LibraryStyle.slate.opacity(0.6))
             }
             RoundedRectangle(cornerRadius: 8)
                 .stroke(edge, lineWidth: side == nil ? 1 : 4)
             if heft {
                 Image(systemName: "book.fill")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.hb(13, weight: .bold))
                     .foregroundColor(.white)
                     .padding(4)
                     .background(Circle().fill(LibraryStyle.teal))

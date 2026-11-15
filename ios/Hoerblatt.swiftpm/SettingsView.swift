@@ -31,6 +31,7 @@ struct SettingsView: View {
                 toolsSection
                 HandinSettingsSection(handin: app.handin)
                 answerSection
+                FontSettingsSection(family: $app.settings.fontFamily)
                 mappeSection
                 trashSection
                 helpSection
@@ -46,7 +47,7 @@ struct SettingsView: View {
                     Button("Fertig") {
                         app.showSettings = false
                     }
-                    .font(.headline)
+                    .font(.hb(.headline))
                 }
             }
         }
@@ -159,7 +160,7 @@ struct SettingsView: View {
                     Image(systemName: "mic.slash.fill")
                         .foregroundColor(.orange)
                     Text("Das Mikrofon oder die Spracherkennung ist nicht erlaubt oder nicht verfügbar. Das Kind antwortet deshalb über die Tastatur. Erlauben: iPad-Einstellungen → Datenschutz & Sicherheit → Mikrofon bzw. Spracherkennung.")
-                        .font(.callout)
+                        .font(.hb(.callout))
                         .foregroundColor(.secondary)
                 }
             }
@@ -298,7 +299,7 @@ struct SettingsView: View {
                         Text(settingsTrashTitle(item))
                             .lineLimit(2)
                         Text(settingsTrashDate(item, daysLeft: app.store.daysLeft(item)))
-                            .font(.footnote)
+                            .font(.hb(.footnote))
                             .foregroundColor(.secondary)
                     }
                     Spacer(minLength: 8)
@@ -363,13 +364,13 @@ struct SettingsView: View {
         Section {
             HStack(spacing: 12) {
                 Image(systemName: "number.circle.fill")
-                    .font(.title2)
+                    .font(.hb(.title2))
                     .foregroundColor(SettingsStyle.teal)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Version \(BuildInfo.number)")
-                        .font(.headline)
+                        .font(.hb(.headline))
                     Text(BuildInfo.date + " · Erkennung \(Recognizer.version)")
-                        .font(.caption)
+                        .font(.hb(.caption))
                         .foregroundColor(.secondary)
                 }
             }
@@ -432,9 +433,9 @@ struct SettingsView: View {
     private var sharingSection: some View {
         Section {
             Text("Normal gibt das Kind mit „Abgeben“ ab: Die PDF liegt danach im Abgabe-Ordner (siehe oben) in der Dateien-App dieses iPads.")
-                .font(.callout)
+                .font(.hb(.callout))
             Text("Zusätzlich per AirDrop: Auf dem Lehrer-iPad Einstellungen → Allgemein → AirDrop → „Für alle für 10 Minuten“. Das Kind tippt bei „Fertig“ auf einen kleinen Knopf mit dem AirDrop-Zeichen, dann auf AirDrop und auf das Lehrer-iPad. Erscheint ein Code, gibt das Kind ihn ein.")
-                .font(.callout)
+                .font(.hb(.callout))
         } header: {
             Text("Abgabe und AirDrop")
         }
@@ -444,9 +445,9 @@ struct SettingsView: View {
     private var privacySection: some View {
         Section {
             Text("Fotos, Antworten, Markierungen und Stiftstriche bleiben auf diesem iPad (ohne iCloud-Sicherung). Die Texterkennung läuft auf dem Gerät; es wird nichts hochgeladen. Abgegebene PDFs liegen in dem Ordner, den Sie gewählt haben – ist das ein Cloud-Ordner, auch dort. Ins Internet geht die App nur für die Suche nach einer neuen Version (oben, abschaltbar): Sie liest eine Datei von GitHub und sendet nichts.")
-                .font(.callout)
+                .font(.hb(.callout))
             Text("Ausnahme: Gesprochene Antworten erkennt Apple wie beim Tastatur-Diktat. Kann das iPad die Sprache nicht selbst erkennen, geschieht das gegebenenfalls auf Servern von Apple.")
-                .font(.callout)
+                .font(.hb(.callout))
         } header: {
             Text("Datenschutz")
         }
@@ -486,11 +487,11 @@ struct SettingsView: View {
             }
             if !voices.contains(where: { $0.male }) {
                 Text("Auf diesem iPad ist noch keine männliche deutsche Stimme geladen.")
-                    .font(.callout)
+                    .font(.hb(.callout))
                     .foregroundColor(.orange)
             }
             Text("Weitere Stimmen laden (auch männliche): iPad-Einstellungen → Bedienungshilfen → Gesprochene Inhalte → Stimmen → Deutsch. Dort eine Stimme antippen und laden – am natürlichsten klingen die mit „(Premium)“ oder „(Erweitert)“. Danach hier „Liste neu laden“ tippen.")
-                .font(.callout)
+                .font(.hb(.callout))
         } header: {
             Text("Stimme")
         }
@@ -535,12 +536,12 @@ fileprivate struct SettingsStepRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(color)
                 Image(systemName: symbol)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.hb(20, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if let n = number {
                     Text(n)
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.hb(10, weight: .heavy))
                         .foregroundColor(color)
                         .frame(width: 15, height: 15)
                         .background(Circle().fill(Color.white))
@@ -550,9 +551,9 @@ fileprivate struct SettingsStepRow: View {
             .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.headline)
+                    .font(.hb(.headline))
                 Text(text)
-                    .font(.callout)
+                    .font(.hb(.callout))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

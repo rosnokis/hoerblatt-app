@@ -9,8 +9,19 @@ struct HoerblattApp: App {
     var body: some Scene {
         WindowGroup {
             // fixed light look: the picture-card colours sit on white cards, also on an iPad set to dark mode
-            ContentView(app: app)
+            HoerblattRoot(app: app)
                 .preferredColorScheme(.light)
         }
+    }
+}
+
+/// The screen in the chosen typeface; built anew when the teacher chooses another one (Fonts.swift).
+struct HoerblattRoot: View {
+    @ObservedObject var app: AppState
+
+    var body: some View {
+        ContentView(app: app)
+            .font(.hb(.body))
+            .id(app.fontGeneration)
     }
 }

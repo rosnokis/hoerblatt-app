@@ -169,7 +169,7 @@ struct AnswerLensView: View {
                     HStack(spacing: 0) {
                         ForEach(0..<letters.count, id: \.self) { k in
                             Text(letters[k])
-                                .font(.system(size: 64, weight: .semibold, design: .rounded))
+                                .font(.hb(64, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color(red: 0.11, green: 0.25, blue: 0.69))
                                 .padding(.vertical, 4)
                                 .background(colors[k].map { Color(uiColor: $0.fill) } ?? Color.clear)
@@ -205,7 +205,7 @@ struct AnswerLensView: View {
             HStack(spacing: gap) {
                 ForEach(0..<n, id: \.self) { k in
                     Text(letters[k])
-                        .font(.system(size: min(64, tile * 0.72), weight: .semibold, design: .rounded))
+                        .font(.hb(min(64, tile * 0.72), weight: .semibold, design: .rounded))
                         .foregroundColor(LensStyle.ink)
                         .frame(width: tile, height: 112)
                         .background(RoundedRectangle(cornerRadius: 14)
@@ -249,7 +249,7 @@ struct AnswerLensView: View {
                                     lineWidth: app.settings.markColor == c ? 4 : 1.5)
                         if app.settings.markColor == c {
                             SwiftUI.Image(systemName: "checkmark")
-                                .font(.system(size: 22, weight: .heavy))
+                                .font(.hb(22, weight: .heavy))
                                 .foregroundColor(.white)
                                 .shadow(color: Color.black.opacity(0.5), radius: 1, x: 0, y: 1)
                         }
@@ -276,7 +276,7 @@ struct AnswerLensView: View {
                             _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             SwiftUI.Image(systemName: symbol)
-                .font(.system(size: 30, weight: .bold))
+                .font(.hb(30, weight: .bold))
                 .foregroundColor(.white)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(color))
@@ -383,7 +383,7 @@ struct WordLensView: View {
             HStack(spacing: gap) {
                 ForEach(0..<n, id: \.self) { k in
                     Text(letters[k])
-                        .font(.system(size: min(64, tile * 0.72), weight: .semibold, design: .rounded))
+                        .font(.hb(min(64, tile * 0.72), weight: .semibold, design: .rounded))
                         .foregroundColor(LensStyle.ink)
                         .frame(width: tile, height: 112)
                         .background(RoundedRectangle(cornerRadius: 14).fill(tileColor(colors[k])))
@@ -426,7 +426,7 @@ struct WordLensView: View {
                                     lineWidth: app.settings.markColor == c ? 4 : 1.5)
                         if app.settings.markColor == c {
                             SwiftUI.Image(systemName: "checkmark")
-                                .font(.system(size: 22, weight: .heavy))
+                                .font(.hb(22, weight: .heavy))
                                 .foregroundColor(.white)
                                 .shadow(color: Color.black.opacity(0.5), radius: 1, x: 0, y: 1)
                         }
@@ -453,7 +453,7 @@ struct WordLensView: View {
                        _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             SwiftUI.Image(systemName: symbol)
-                .font(.system(size: 30, weight: .bold))
+                .font(.hb(30, weight: .bold))
                 .foregroundColor(.white)
                 .frame(width: 72, height: 72)
                 .background(Circle().fill(color))

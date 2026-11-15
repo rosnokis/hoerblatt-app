@@ -1,0 +1,10 @@
+Schriften, die mit dem Hörblatt mitgeliefert werden (Einstellungen → Schrift). Unverändert aus den Original-Paketen.
+
+- Playwrite DE Grund (TypeTogether, Playwrite Project) – SIL Open Font License 1.1, siehe PlaywriteDEGrund-OFL.txt
+- OpenDyslexic (Abelardo/Abbie Gonzalez, auf Bitstream Vera) – Bitstream-Vera-Lizenz + CC BY 3.0, siehe OpenDyslexic-Lizenz.txt
+- Andika (SIL International) – SIL Open Font License 1.1, siehe Andika-OFL.txt
+- Lexend (The Lexend Project Authors) – SIL Open Font License 1.1, siehe Lexend-OFL.txt
+- Atkinson Hyperlegible (Braille Institute of America) – SIL Open Font License 1.1, siehe AtkinsonHyperlegible-OFL.txt
+
+Die Grundschrift des Grundschulverbands ist nicht dabei: ihre Lizenz erlaubt nur die eigene, nicht-kommerzielle
+Nutzung, keine Weitergabe. Wer sie hat, fügt sie in den Einstellungen als eigene Schrift hinzu.
