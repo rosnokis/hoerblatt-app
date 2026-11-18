@@ -423,6 +423,10 @@ struct Reading {
         }
         // heading and text (typical height of each line)
         if max(h, h2) > min(h, h2) * 1.4 { return true }
+        // a heading more than twice as tall as the page's text, above a line Live Text drew tall as well (a slanted
+        // line on a curved book page: "Szenenwechsel" / "„Das klingt wie eine Vollbremsung“")
+        let pth = page.textHeight
+        if pth.isFinite && pth > 1 && max(h, h2) > pth * 2.2 && min(h, h2) < max(h, h2) * 0.85 { return true }
         // heading and text in different colours (a dark blue heading over black text, same size)
         if let ia = rowInk[a.li], let ib = rowInk[b.li] {
             let dx = ia.br - ib.br, dy = ia.gr - ib.gr

@@ -1,17 +1,21 @@
 {
- "number": "89",
- "date": "18.11.2026, 05:18 Uhr",
+ "number": "90",
+ "date": "18.11.2026, 06:06 Uhr",
  "notes": [
+  "Große Überschrift über schräger Buchzeile ist eigener Satz, Selbsttest meldet App- und Erkennungs-Version",
   "Gescannte Bücher: Buchkante am unteren Rand ist keine lila Lücke mehr",
   "Gescannte Doppelseiten (PDF quer) links/rechts getrennt lesen, wörtliche Rede ohne Komma als ein Satz",
   "Selbsttest in Teilen bis 25 MB, damit jede ZIP hochgeladen werden kann",
   "Mappe: Hinweis „Nach rechts/links“ nur im Querformat, kürzer",
   "Anleitung für Lehrkräfte: Kurzanleitung zuerst, Mappe und Schrank neu erklärt, allgemein formuliert",
   "Anleitung für Lehrkräfte: Schnellstart, beschriftete Bilder, Einstellungen wie in der App",
-  "Schreibblatt: Text beginnt unter dem Vorlese-Knopf",
-  "Anleitung für Lehrkräfte: Fotos von Schrank und Abgabe"
+  "Schreibblatt: Text beginnt unter dem Vorlese-Knopf"
  ],
  "changes": [
+  {
+   "number": "90",
+   "text": "Große Überschrift über schräger Buchzeile ist eigener Satz, Selbsttest meldet App- und Erkennungs-Version"
+  },
   {
    "number": "89",
    "text": "Gescannte Bücher: Buchkante am unteren Rand ist keine lila Lücke mehr"
@@ -247,10 +251,6 @@
   {
    "number": "31",
    "text": "Tabellen mit Live-Text-Wörtern: Zeilenkästen auflösen, lange Linien nicht als Buchstaben; Zahnrad 1 s"
-  },
-  {
-   "number": "30",
-   "text": "Linux-Testaufbau (Swift in Docker); Tabellen- und Satz-Korrekturen aus den Heftseiten"
   }
  ]
 }

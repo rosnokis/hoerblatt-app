@@ -88,6 +88,8 @@ enum SelfTestScope {
             var d = PageReport.dict(page, reading: reading)
             d["number"] = n
             d["kind"] = item.pdfPage == nil ? "foto" : "pdf"
+            // with which recognition the page was read (older pages are read again in the background after an update)
+            d["readVersion"] = stored.readVersion ?? 1
             // Vision's own words (before the layout analysis), to replay the page exactly
             if let raw = stored.visionWords {
                 d["vision"] = raw.map { w -> [String: Any] in
@@ -116,6 +118,8 @@ enum SelfTestScope {
             "created": ISO8601DateFormatter().string(from: Date()),
             "device": ["system": UIDevice.current.systemVersion, "model": UIDevice.current.model] as [String: String],
             "voice": speechVoiceReport(preferred: app.settings.voiceId),
+            "app": ["version": BuildInfo.number, "date": BuildInfo.date, "recognizer": String(Recognizer.version)]
+                as [String: String],
             "pages": pages
         ]
         if let h = heftInfo {
