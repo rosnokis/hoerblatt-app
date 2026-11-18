@@ -22,6 +22,7 @@ iOS-26-APIs, keine Makros (`#Preview`, `@Observable`), keine Drittbibliotheken. 
 | `Library.swift`, `Shelf.swift` | Mappe und Leiste (nur Ausgegebenes); Schrank für Lehrkräfte (Ausgeben/Weglegen, Fächer, PDF öffnen) |
 | `SettingsView.swift` | Hilfe und Einstellungen (Zahnrad 1 s), Papierkorb, Werkzeuge ausblenden, Fehlersuche |
 | `UpdateCheck.swift`, `ZipRead.swift`, `BuildInfo.swift` | Versionsnummer; Suche nach neuer Version und Update in den Projektordner |
+| `Tour.swift` | Führung fürs Kind: gelbes „?“, Werkzeug leuchtet, Stimme erklärt (`Tour`, `TourOverlay`) |
 | `Fonts.swift`, `Schriften/` | Schriftwahl: `AppFont` (gewählte Familie, `Font.hb`, mitgelieferte und eigene Schriften), Einstellungen „Schrift“ |
 | `Diagnosis.swift`, `SelfTest.swift`, `PDFText.swift` | Fehlersuche-Datei, Selbsttest-ZIP; PDF-eigener Text (abgeschaltet, nur Diagnose) |
 

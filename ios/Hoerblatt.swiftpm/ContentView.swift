@@ -74,6 +74,10 @@ struct ContentView: View {
                 CVDeleteCard(app: app, info: info)
             }
         }
+        // the child's tour: dark screen, the meant tool lit (frames from `tourTarget`, Tour.swift)
+        .overlayPreferenceValue(TourFrames.self) { anchors in
+            TourOverlay(tour: app.tour, anchors: anchors)
+        }
         .background(CVOrientationReader(landscape: $landscape))
         .sheet(isPresented: $app.showFinish) {
             if let image = app.finishImage {
@@ -331,11 +335,35 @@ fileprivate struct CVHeader: View {
                     app.setTwoPages(!app.twoPages)
                 }
             }
+            if app.settings.shows(.hilfe) {
+                CVHelpKnob(app: app)
+                    .tourTarget(.hilfe)
+            }
             CVSettingsKnob(app: app)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Color.white.opacity(0.9).ignoresSafeArea(edges: .top))
+    }
+}
+
+/// The child's "?": starts the spoken tour (Tour.swift); a second tap ends it.
+fileprivate struct CVHelpKnob: View {
+    @ObservedObject var app: AppState
+
+    var body: some View {
+        Button(action: {
+            if app.tour.index != nil { app.tour.stop() } else { app.tour.start(app) }
+        }) {
+            Image(systemName: "questionmark")
+                .font(.system(size: 30, weight: .heavy))
+                .foregroundColor(.black)
+                .frame(width: 56, height: 56)
+                .background(Circle().fill(TourStyle.yellow))
+                .overlay(Circle().stroke(Color.black.opacity(0.25), lineWidth: 2))
+        }
+        .buttonStyle(CVPressStyle())
+        .accessibilityLabel(Text("Führung: so geht das Hörblatt"))
     }
 }
 
@@ -529,11 +557,13 @@ fileprivate struct CVToolTray: View {
                                      filled: app.mode == .wort, caption: "Wort vorlesen") {
                             app.setMode(.wort)
                         }
+                        .tourTarget(.wort)
                         if s.shows(.satz) {
                             CVToolButton(side: side, symbol: "text.alignleft", color: CVStyle.orange, number: nil,
                                          filled: app.mode == .satz, caption: "Satz vorlesen") {
                                 app.setMode(.satz)
                             }
+                            .tourTarget(.satz)
                         }
                     }
                     .padding(4 * k)
@@ -543,6 +573,7 @@ fileprivate struct CVToolTray: View {
                                      filled: app.mode == .sprechen, caption: "Antwort sprechen") {
                             app.setMode(.sprechen)
                         }
+                        .tourTarget(.sprechen)
                     }
                     if s.shows(.markieren) {
                         CVToolButton(side: side, symbol: "highlighter", color: CVStyle.amber, number: 4,
@@ -582,6 +613,7 @@ fileprivate struct CVToolTray: View {
                                      caption: "Fertig") {
                             app.finish()
                         }
+                        .tourTarget(.fertig)
                     }
                 }
                 .padding(.horizontal, 14 * k)

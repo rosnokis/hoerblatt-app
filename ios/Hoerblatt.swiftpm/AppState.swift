@@ -133,6 +133,8 @@ fileprivate let appStatePhotoHint =
 
     /// Is there a newer version in the app repository? (`AppSettings.updateCheck`)
     let updates: UpdateCheck
+    /// The spoken tour for the child (yellow "?" in the header, Tour.swift).
+    let tour = Tour()
 
     private var bag = Set<AnyCancellable>()
     /// Set while this class itself opens or closes a sheet (no re-planning then).

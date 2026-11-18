@@ -343,7 +343,7 @@ enum Side: String, Codable {
 
 /// Tools the teacher can hide (Einstellungen → Werkzeuge). "Wort" always stays: it is what the iPad is mostly for.
 enum ToolKey: String, Codable, CaseIterable, Identifiable {
-    case foto, satz, seite, sprechen, markieren, stift, radieren, zurueck, fertig
+    case foto, satz, seite, sprechen, markieren, stift, radieren, zurueck, fertig, hilfe
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -356,6 +356,7 @@ enum ToolKey: String, Codable, CaseIterable, Identifiable {
         case .radieren: return "Radiergummi"
         case .zurueck: return "Zurück und Vorwärts"
         case .fertig: return "5 Fertig"
+        case .hilfe: return "? Führung fürs Kind"
         }
     }
 }

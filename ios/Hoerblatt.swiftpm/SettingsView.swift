@@ -395,7 +395,7 @@ struct SettingsView: View {
         } header: {
             Text("Werkzeuge zeigen")
         } footer: {
-            Text("Ausgeschaltete Werkzeuge verschwinden aus der Leiste unten (▶ oben links auf der Seite). „Wort vorlesen“ bleibt immer. Ohne „Sprechen“ startet das Antippen einer Lücke kein Mikrofon mehr, die Lücke wird nur vorgelesen. „Zurück und Vorwärts“ blendet beide Pfeile aus.")
+            Text("Ausgeschaltete Werkzeuge verschwinden aus der Leiste unten (▶ oben links auf der Seite). „Wort vorlesen“ bleibt immer. Ohne „Sprechen“ startet das Antippen einer Lücke kein Mikrofon mehr, die Lücke wird nur vorgelesen. „Zurück und Vorwärts“ blendet beide Pfeile aus. „? Führung fürs Kind“ ist das gelbe Fragezeichen oben: Es erklärt dem Kind mit Stimme und Leuchten Wort, Satz, Sprechen und Fertig (nur die Werkzeuge, die zu sehen sind).")
         }
     }
 
