@@ -1,5 +1,5 @@
 {
- "number": "53",
+ "number": "78",
  "date": "18.11.2026, 02:47 Uhr",
  "notes": [
   "Führung fürs Kind in der App: gelbes Fragezeichen, Werkzeuge leuchten, Stimme erklärt",
@@ -13,216 +13,244 @@
  ],
  "changes": [
   {
-   "number": "53",
+   "number": "78",
    "text": "Führung fürs Kind in der App: gelbes Fragezeichen, Werkzeuge leuchten, Stimme erklärt"
   },
   {
-   "number": "52",
+   "number": "77",
    "text": "Bildkarte: Abgeben statt Teilen/AirDrop"
   },
   {
-   "number": "51",
+   "number": "76",
    "text": "Bild-Anleitung fürs Kind zum Ausdrucken (Wort, Satz, Sprechen, Abgeben)"
   },
   {
-   "number": "50",
+   "number": "75",
    "text": "Schrift wählbar: mitgelieferte freie Schriften, Schriften des iPads, eigene Schrift hinzufügen"
   },
   {
-   "number": "49",
+   "number": "74",
    "text": "Werkzeugleiste passt auf kleinere iPads; AirDrop bei Fertig abgesetzt"
   },
   {
-   "number": "48",
+   "number": "73",
    "text": "Mappe ohne Ansage; lange drücken in der Mappe: auch Weglegen in den Schrank"
   },
   {
-   "number": "47",
+   "number": "72",
    "text": "Satzzeichen beim Sprechen: automatisch und gesprochen (Punkt, Fragezeichen …)"
   },
   {
-   "number": "46",
+   "number": "71",
    "text": "To-do: Schriftart wählbar, Worksheet-Crafter-Blätter lesen"
   },
   {
-   "number": "45",
+   "number": "70",
    "text": "Vorwärts neben Zurück; Ankreuz-Kästchen mit einem Tipp ankreuzen"
   },
   {
-   "number": "44",
+   "number": "69",
    "text": "To-do: Weglegen direkt in der Mappe"
   },
   {
-   "number": "43",
+   "number": "68",
    "text": "Update-Hinweis zeigt nur die Änderungen seit der installierten Version"
   },
   {
-   "number": "42",
+   "number": "67",
    "text": "Stimme frei wählen: Liste der deutschen Stimmen mit männlich/weiblich, Hörprobe"
   },
   {
-   "number": "41",
+   "number": "66",
    "text": "Durchsicht: Papierkorb- und Mappe-Texte, Update-Sicherung bei zweitem Antippen, Antworttext in der PDF wie im Feld"
   },
   {
-   "number": "40",
+   "number": "65",
    "text": "Dokumentation und Beschreibungen auf aktuellen Stand: Hilfetexte, READMEs, Bauplan, Projektkontext"
   },
   {
-   "number": "39",
+   "number": "64",
    "text": "Update direkt aus der App: Projektordner wählen, ZIP prüfen, Sicherung, neue Dateien einspielen"
   },
   {
-   "number": "38",
+   "number": "63",
    "text": "Update-Hinweis: App prüft auf neue Version, Knopf „Neue Version laden“, Projekt-ZIP im App-Repo"
   },
   {
-   "number": "37",
+   "number": "62",
    "text": "Schrank: Fach anlegen und umbenennen im Listenfeld statt Hinweisfenster (Tastatur kam nicht)"
   },
   {
-   "number": "36",
+   "number": "61",
    "text": "Schrank: Kind sieht nur Ausgegebenes, Weglegen am Tagesende und von Hand, Fächer für Lehrkräfte"
   },
   {
-   "number": "35",
+   "number": "60",
    "text": "Leeres Blatt heißt Schreibblatt"
   },
   {
-   "number": "34",
+   "number": "59",
    "text": "Antworten bearbeiten wie Text: Wort löschen, einfügen, Wortabstand, Markieren/Wort-Lupe; leeres Schreibblatt"
   },
   {
-   "number": "33",
+   "number": "58",
    "text": "Antworten: mehrere neue Wörter leuchten, Satz liest ganzen Satz; Linie hinter Text gehört zum Satz"
   },
   {
-   "number": "32",
+   "number": "57",
    "text": "Antworten: Leuchten im Feld sichtbar, Wort-Umrandungen, beim Neu-Sprechen pulsiert nur das Wort"
   },
   {
-   "number": "31",
+   "number": "56",
    "text": "Versionsnummer in den Einstellungen"
   },
   {
-   "number": "30",
+   "number": "55",
    "text": "Seiten nach einem Update neu lesen, Antworten, Markierungen und Stiftstriche bleiben"
   },
   {
-   "number": "29",
+   "number": "54",
    "text": "Antworten wie Text: Wort antippen, mitleuchten, Wort neu sprechen; Werkzeuge ausblendbar"
   },
   {
-   "number": "28",
+   "number": "53",
    "text": "Fotos: Schreiblinien am Papierrand, runde Rahmen, Antwortmöglichkeiten und Listen"
   },
   {
-   "number": "27",
+   "number": "52",
    "text": "Abgabe: PDF wird auf dem iPad gespeichert, AirDrop nur noch optional"
   },
   {
-   "number": "26",
+   "number": "51",
    "text": "Fertig: AirDrop-Zeichen in den Teilen-Knöpfen"
   },
   {
-   "number": "25",
+   "number": "50",
    "text": "Sprechen: nach einer kurzen Pause bleibt das vorher Gesprochene stehen"
   },
   {
-   "number": "24",
+   "number": "49",
    "text": "Lange Antwort über mehrere Linien füllt das ganze Feld statt winzig auf den Linien"
   },
   {
-   "number": "23",
+   "number": "48",
    "text": "Antwort über mehrere Linien: auf die Linien geschrieben, ein Feld in Stufenform, Antippen nur auf dem Feld"
   },
   {
-   "number": "22",
+   "number": "47",
    "text": "Fertig gibt eine PDF ab: diese Seite, ganzes Heft oder alle Seiten von heute"
   },
   {
-   "number": "21",
+   "number": "46",
    "text": "Schreiblinien über mehrere Zeilen werden ein Antwortfeld"
   },
   {
-   "number": "20",
+   "number": "45",
    "text": "Code-Review: Kamera-Zuschnitt, zwei Seiten beim Vorlesen, Nachbarseitenrest, Dateinamen, Papierkorb, run.sh"
   },
   {
-   "number": "19",
+   "number": "44",
    "text": "Ganze Seite vorlesen (▶ oben links), Doppelseiten trennen, Nachbarseitenreste auslassen"
   },
   {
-   "number": "18",
+   "number": "43",
    "text": "Mitlesen Wort für Wort, Heft immer in der Leiste, kein Foto-Hinweis, Antworten passen in Zellen, Satzenden auf Buchfotos"
   },
   {
-   "number": "17",
+   "number": "42",
    "text": "Ankreuz-Kästchen: keine Sprech-Felder, Antippen sagt Beschriftung und wählt Stift; richtią → richtig"
   },
   {
-   "number": "16",
+   "number": "41",
    "text": "Für Nicht-Leser: Zuhör-Anzeige in jedem Modus, Pling vor dem Mikrofon, leere Mappe angesagt, Foto wählen nur Lehrkraft"
   },
   {
-   "number": "15",
+   "number": "40",
    "text": "Lücke antippen startet sofort das Diktieren (Wort, Satz, Sprechen)"
   },
   {
-   "number": "14",
+   "number": "39",
    "text": "Einfache Kamera: löst selbst aus, großer Knopf, kein Behalten/Sichern"
   },
   {
-   "number": "13",
+   "number": "38",
    "text": "Papierkorb für gelöschte Seiten und Hefte (30 Tage, nur Lehrkraft)"
   },
   {
-   "number": "12",
+   "number": "37",
    "text": "Erster Selbsttest ausgewertet: falsche Lücken in Wörtern, Überschriften nach Farbe, A/B-Aufgaben, Symbol-Beschriftungen"
   },
   {
-   "number": "11",
+   "number": "36",
    "text": "Selbsttest auch für Fotos vorbereitet (offenes Foto / alle Fotos)"
   },
   {
-   "number": "10",
+   "number": "35",
    "text": "Selbsttest: ganzes Heft automatisch prüfen (App) und auswerten (selftest.py)"
   },
   {
-   "number": "9",
+   "number": "34",
    "text": "Platzhalter statt Klassenbezeichnung"
   },
   {
-   "number": "8",
+   "number": "33",
    "text": "Tabellen: Wörter in Zellen einzeln vorlesen, Satzende nach kurzer Zeile"
   },
   {
-   "number": "7",
+   "number": "32",
    "text": "Datenschutz: Klassenangabe aus den Notizen entfernt; Anleitung Zahnrad 1 s"
   },
   {
-   "number": "6",
+   "number": "31",
    "text": "Tabellen mit Live-Text-Wörtern: Zeilenkästen auflösen, lange Linien nicht als Buchstaben; Zahnrad 1 s"
   },
   {
-   "number": "5",
+   "number": "30",
    "text": "Linux-Testaufbau (Swift in Docker); Tabellen- und Satz-Korrekturen aus den Heftseiten"
   },
   {
-   "number": "4",
+   "number": "29",
    "text": "PDF-Seiten wieder mit Vision lesen; Fehlersuche-Datei; Heftseiten-Ansage aus Seitennummer"
   },
   {
-   "number": "3",
+   "number": "28",
    "text": "PDF-Text: Zeichenlage über Auswahl, Zeichen ohne Lage verbinden keine Wörter mehr"
   },
   {
-   "number": "2",
+   "number": "27",
    "text": "Heft: erste Seite sofort, Rest im Hintergrund lesen (gewünschte Seite zuerst)"
   },
   {
-   "number": "1",
+   "number": "26",
    "text": "PDF-Text: Wörter auch an Lagesprüngen trennen (Tabellenzellen ohne Leerzeichen)"
+  },
+  {
+   "number": "25",
+   "text": "PDF-Auswahl: einzelne Datei (Result<URL>); Mikrofon-Erlaubnis über AVAudioApplication"
+  },
+  {
+   "number": "24",
+   "text": "PDF: eigenen Text der PDF nutzen; Tabellen mit dunklem Kopf und seitenhohe Tabellen"
+  },
+  {
+   "number": "23",
+   "text": "Leiste oben: lange drücken löscht eine Seite (mit Rückfrage)"
+  },
+  {
+   "number": "22",
+   "text": "PDF als Heft: einlesen, blättern, Abgabe als Seite oder ganzes Heft"
+  },
+  {
+   "number": "21",
+   "text": "Markieren: Wort-Lupe für Wortteile (Buchstaben-Kacheln statt langsamem Wischen)"
+  },
+  {
+   "number": "20",
+   "text": "Fertig: erst der Lehrkraft zeigen (Daumen), dann Teilen; Bildkarte als Word"
+  },
+  {
+   "number": "19",
+   "text": "Bildkarte: erst der Lehrkraft zeigen, dann abschicken"
   }
  ]
 }
