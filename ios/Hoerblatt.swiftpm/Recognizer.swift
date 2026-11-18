@@ -23,7 +23,7 @@ enum Recognizer {
     /// order is made anew from the words whenever a page opens.)
     /// 2: November 2026 (paper edge, round frames). 3: a long line right after a word on its baseline belongs to its
     /// line of text ("Ich vermute, dass ……").
-    static let version = 3
+    static let version = 4
 
     /// Takes a few seconds. `progress` (0…1, message for the waiting screen) is called on any thread.
     /// `textWords`: the words of a PDF page that has its own text, in pixels of `input` (upright, scale 1, long side

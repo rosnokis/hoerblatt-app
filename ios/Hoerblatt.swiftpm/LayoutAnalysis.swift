@@ -1553,9 +1553,24 @@ fileprivate final class LAEngine {
         // writing lines stacked under each other are one answer (teacher: one big field, not one per line) – also a
         // line after text ("Ich vermute, dass ____") with the free lines below it. A line with text of its own beside it
         // ("weil ____") or printed text between two lines starts a new answer.
+        // a scanned double page of a book (PDF page in landscape): the lower edge of a page is drawn as a long line
+        // below all text, from the fold in the middle out to the side of the picture – no writing line
+        // (answer lines at the end of a worksheet start at the text's margin, not at the fold, and leave the page's
+        // margin free)
         var merged = Set<Int>()
+        if cleanPage && Double(W) > Double(H) * 1.15 {
+            let textBottom = words.filter { !$0.junk }.map { $0.y1 }.max() ?? Double(H)
+            let mid = Double(W) / 2, near = Double(W) * 0.08
+            for (gi, g) in gaps.enumerated() where g.y0 == nil && !g.check && !g.hasLi && g.y > textBottom {
+                let fromFold = abs(g.x0 - mid) < near || abs(g.x1 - mid) < near
+                let toSide = g.x0 < Double(W) * 0.1 || g.x1 > Double(W) * 0.9
+                // (or a faint edge in the last twentieth of the picture: no writing line sits in the page's margin)
+                if (fromFold && toSide) || g.y > Double(H) * 0.95 { merged.insert(gi) }
+            }
+        }
         var moreOf: [Int: [Int]] = [:]
-        let lineGaps = gaps.indices.filter { gaps[$0].y0 == nil && !gaps[$0].check }.sorted { gaps[$0].y < gaps[$1].y }
+        let lineGaps = gaps.indices.filter { gaps[$0].y0 == nil && !gaps[$0].check && !merged.contains($0) }
+            .sorted { gaps[$0].y < gaps[$1].y }
         for a in lineGaps where !merged.contains(a) {
             // a blank in the middle of a sentence ("Das Werkzeug ____ hilft mir …") is an answer of its own
             let first = gaps[a]

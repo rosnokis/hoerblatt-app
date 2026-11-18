@@ -1,17 +1,21 @@
 {
- "number": "88",
- "date": "18.11.2026, 05:09 Uhr",
+ "number": "89",
+ "date": "18.11.2026, 05:18 Uhr",
  "notes": [
+  "Gescannte Bücher: Buchkante am unteren Rand ist keine lila Lücke mehr",
   "Gescannte Doppelseiten (PDF quer) links/rechts getrennt lesen, wörtliche Rede ohne Komma als ein Satz",
   "Selbsttest in Teilen bis 25 MB, damit jede ZIP hochgeladen werden kann",
   "Mappe: Hinweis „Nach rechts/links“ nur im Querformat, kürzer",
   "Anleitung für Lehrkräfte: Kurzanleitung zuerst, Mappe und Schrank neu erklärt, allgemein formuliert",
   "Anleitung für Lehrkräfte: Schnellstart, beschriftete Bilder, Einstellungen wie in der App",
   "Schreibblatt: Text beginnt unter dem Vorlese-Knopf",
-  "Anleitung für Lehrkräfte: Fotos von Schrank und Abgabe",
-  "Anleitung für Lehrkräfte mit Bildschirmfotos"
+  "Anleitung für Lehrkräfte: Fotos von Schrank und Abgabe"
  ],
  "changes": [
+  {
+   "number": "89",
+   "text": "Gescannte Bücher: Buchkante am unteren Rand ist keine lila Lücke mehr"
+  },
   {
    "number": "88",
    "text": "Gescannte Doppelseiten (PDF quer) links/rechts getrennt lesen, wörtliche Rede ohne Komma als ein Satz"
@@ -247,10 +251,6 @@
   {
    "number": "30",
    "text": "Linux-Testaufbau (Swift in Docker); Tabellen- und Satz-Korrekturen aus den Heftseiten"
-  },
-  {
-   "number": "29",
-   "text": "PDF-Seiten wieder mit Vision lesen; Fehlersuche-Datei; Heftseiten-Ansage aus Seitennummer"
   }
  ]
 }
