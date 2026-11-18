@@ -383,6 +383,12 @@ struct Reading {
             let nx = items[k + 1]
             if nx.gap != nil && nx.li == x.li { return false }
         }
+        // direct speech ending in ! or ? goes on when a small word follows ("„Wie unfair!“, ärgerte sich Justus.";
+        // Live Text often loses the comma after the quote)
+        if k + 1 < items.count, readingQuotedExclamation(t), let nw = items[k + 1].word,
+           items[k + 1].part == x.part, readingStartsLower(page.words[nw].text) {
+            return false
+        }
         return readingEndsSentence(t)
     }
 
@@ -706,10 +712,11 @@ fileprivate func readingRows(_ items: [ReadingItem], page: Page, firstRow: Int) 
 }
 
 /// A photo of an open book: vertical bands without any text split it into its pages (left before right). A column at
-/// the photo's edge with cut-off lines is the neighbouring page (`edge`). PDF pages (Hefte) are never split; a
-/// worksheet has text across such bands (headings, instructions) and stays one page.
+/// the photo's edge with cut-off lines is the neighbouring page (`edge`). PDF pages (Hefte) in portrait are never split
+/// (a worksheet has text across such bands and stays one page); a PDF page in landscape is often a scanned double page
+/// of a book and is split like a photo, but has no neighbouring page cut off at its edge.
 fileprivate func readingColumns(_ page: Page) -> (cuts: [CGFloat], edge: Set<Int>) {
-    if page.heft != nil { return ([], []) }
+    if page.heft != nil && page.pixelSize.width < page.pixelSize.height * 1.15 { return ([], []) }
     let ws = page.words.filter { $0.text.contains(where: { $0.isLetter }) && $0.rect.width > 0 && $0.rect.minX.isFinite }
     guard ws.count >= 30 else { return ([], []) }
     let th = max(4, page.textHeight.isFinite && page.textHeight > 1 ? page.textHeight : 20)
@@ -719,7 +726,10 @@ fileprivate func readingColumns(_ page: Page) -> (cuts: [CGFloat], edge: Set<Int
     var count = [Int](repeating: 0, count: n)
     // (writing lines and fields count like words: "Möchtest du ____ ein Eis essen?" is one line of one page)
     // (and so do printed boxes and table cells: a table is one page, however wide its columns stand apart)
-    let spans = ws.map { $0.rect } + page.gaps.filter { $0.kind != .check }.map { $0.rect } + page.boxes.map { $0.rect }
+    // (on a scanned book page a line below all text is the shadow of the book's edge, not a writing line)
+    let textBottom = ws.map { $0.rect.maxY }.max() ?? 0
+    let lines = page.gaps.filter { $0.kind != .check && !(page.heft != nil && !$0.inText && $0.rect.minY > textBottom) }
+    let spans = ws.map { $0.rect } + lines.map { $0.rect } + page.boxes.map { $0.rect }
     for r in spans where r.minX.isFinite && r.maxX.isFinite {
         let a = max(0, Int(r.minX / binW)), b = min(n - 1, Int(r.maxX / binW))
         if a <= b { for k in a...b { count[k] += 1 } }
@@ -740,7 +750,9 @@ fileprivate func readingColumns(_ page: Page) -> (cuts: [CGFloat], edge: Set<Int
         var e = k
         while e + 1 < end && count[e + 1] <= noise { e += 1 }
         let x0 = CGFloat(k) * binW, x1 = CGFloat(e + 1) * binW
-        if x1 - x0 >= th * 2.5 {
+        // (a scanned double page of a book, a PDF page in landscape: the fold in the middle may be narrower)
+        let fold = page.heft != nil && (x0 + x1) / 2 > width * 0.4 && (x0 + x1) / 2 < width * 0.6
+        if x1 - x0 >= th * (fold ? 1.0 : 2.5) {
             let left = ws.filter { $0.rect.midX < x0 }, right = ws.filter { $0.rect.midX > x1 }
             // a page needs a few lines; a strip of the neighbouring page cut off at the photo's edge only a little
             func enough(_ side: [Word], atEdge: Bool) -> Bool {
@@ -756,6 +768,7 @@ fileprivate func readingColumns(_ page: Page) -> (cuts: [CGFloat], edge: Set<Int
         k = e + 1
     }
     if cuts.isEmpty { return ([], []) }
+    if page.heft != nil { return (cuts, []) }
     // the neighbouring page: the first or last column, its text running into the photo's edge, not the main page
     var cols = [[Word]](repeating: [], count: cuts.count + 1)
     for w in ws { cols[cuts.filter { w.rect.midX > $0 }.count].append(w) }
@@ -916,6 +929,17 @@ fileprivate func readingEndsSentence(_ t: String) -> Bool {
     let marks: Set<Character> = [".", "!", "?", ":"]
     guard marks.contains(last) else { return false }
     return !readingIsNumberDot(t)
+}
+
+/// "unfair!“", "wirklich?«": ! or ? right before a closing quote (maybe a comma after it).
+fileprivate func readingQuotedExclamation(_ t: String) -> Bool {
+    var cs = Array(t)
+    if cs.last == "," { cs.removeLast() }
+    let quotes: Set<Character> = ["\"", "“", "”", "»", "«", "‘", "’"]
+    guard let q = cs.last, quotes.contains(q) else { return false }
+    while let last = cs.last, quotes.contains(last) { cs.removeLast() }
+    guard let m = cs.last else { return false }
+    return m == "!" || m == "?"
 }
 
 /// Starts with a capital, maybe after an opening quote (JS: /^[„"]?[A-ZÄÖÜ]/).
