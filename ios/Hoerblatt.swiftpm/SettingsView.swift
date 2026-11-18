@@ -17,7 +17,7 @@ struct SettingsView: View {
     @State private var diagnosisURL: URL? = nil
     /// Selbsttest: its progress while it runs, and the package once made.
     @State private var selfTestStatus: SelfTestStatus? = nil
-    @State private var selfTestURL: URL? = nil
+    @State private var selfTestURLs: [URL] = []
     /// Papierkorb: the entry to delete for good (asked first), and the question "leeren?".
     @State private var purgeItem: TrashItem? = nil
     @State private var askEmptyTrash = false
@@ -210,30 +210,32 @@ struct SettingsView: View {
                     ProgressView(value: st.progress)
                 }
             }
-            if let url = selfTestURL {
+            // (a big self test comes in parts of at most ~25 MB: each can be uploaded on its own)
+            ForEach(Array(selfTestURLs.enumerated()), id: \.offset) { k, url in
                 ShareLink(item: url) {
-                    SwiftUI.Label("Selbsttest teilen", systemImage: "square.and.arrow.up")
+                    SwiftUI.Label(selfTestURLs.count == 1 ? "Selbsttest teilen" : "Selbsttest teilen – Teil \(k + 1) von \(selfTestURLs.count)",
+                                  systemImage: "square.and.arrow.up")
                 }
             }
         } header: {
             Text("Fehlersuche")
         } footer: {
-            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden. Der Selbsttest geht alle Seiten des offenen Hefts (oder das offene Foto, oder alle Fotos) durch, tippt jedes Wort und jede Lücke an und packt alles mit den Bildern der Seiten in eine ZIP-Datei. Achtung: Fotos zeigen das Blatt so, wie es fotografiert wurde – auch Handschrift, z. B. den Namen des Kindes. Für den Foto-Test am besten leere Blätter nehmen.")
+            Text("Die Datei beschreibt, wie das Hörblatt die offene Seite gelesen hat (Wörter, ihre Lage, Kästen, Lücken, Sätze). Antworten, Markierungen und Stiftstriche sind nicht darin. Sie hilft, Fehler beim Vorlesen zu finden. Der Selbsttest geht alle Seiten des offenen Hefts (oder das offene Foto, oder alle Fotos) durch, tippt jedes Wort und jede Lücke an und packt alles mit den Bildern der Seiten in eine ZIP-Datei; ein großes Heft kommt in mehreren Teilen (je höchstens etwa 25 MB), die einzeln geteilt werden. Achtung: Fotos zeigen das Blatt so, wie es fotografiert wurde – auch Handschrift, z. B. den Namen des Kindes. Für den Foto-Test am besten leere Blätter nehmen.")
         }
     }
 
     @MainActor
     private func startSelfTest(_ scope: SelfTestScope) {
         guard selfTestStatus == nil else { return }
-        selfTestURL = nil
+        selfTestURLs = []
         selfTestStatus = SelfTestStatus(message: "Selbsttest startet …", progress: 0)
         Task { @MainActor in
-            let url = await SelfTest.run(scope, app: app) { st in
+            let urls = await SelfTest.run(scope, app: app) { st in
                 selfTestStatus = st
             }
             selfTestStatus = nil
-            selfTestURL = url
-            app.announce(url == nil ? "Der Selbsttest hat nicht geklappt." : "Der Selbsttest ist fertig.")
+            selfTestURLs = urls
+            app.announce(urls.isEmpty ? "Der Selbsttest hat nicht geklappt." : "Der Selbsttest ist fertig.")
         }
     }
 

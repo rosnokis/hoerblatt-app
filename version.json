@@ -1,17 +1,21 @@
 {
- "number": "86",
- "date": "18.11.2026, 04:36 Uhr",
+ "number": "87",
+ "date": "18.11.2026, 04:48 Uhr",
  "notes": [
+  "Selbsttest in Teilen bis 25 MB, damit jede ZIP hochgeladen werden kann",
   "Mappe: Hinweis „Nach rechts/links“ nur im Querformat, kürzer",
   "Anleitung für Lehrkräfte: Kurzanleitung zuerst, Mappe und Schrank neu erklärt, allgemein formuliert",
   "Anleitung für Lehrkräfte: Schnellstart, beschriftete Bilder, Einstellungen wie in der App",
   "Schreibblatt: Text beginnt unter dem Vorlese-Knopf",
   "Anleitung für Lehrkräfte: Fotos von Schrank und Abgabe",
   "Anleitung für Lehrkräfte mit Bildschirmfotos",
-  "Anleitung für Lehrkräfte: ohne Verfassernamen",
-  "Anleitung für Lehrkräfte als PDF"
+  "Anleitung für Lehrkräfte: ohne Verfassernamen"
  ],
  "changes": [
+  {
+   "number": "87",
+   "text": "Selbsttest in Teilen bis 25 MB, damit jede ZIP hochgeladen werden kann"
+  },
   {
    "number": "86",
    "text": "Mappe: Hinweis „Nach rechts/links“ nur im Querformat, kürzer"
@@ -247,10 +251,6 @@
   {
    "number": "28",
    "text": "PDF-Text: Zeichenlage über Auswahl, Zeichen ohne Lage verbinden keine Wörter mehr"
-  },
-  {
-   "number": "27",
-   "text": "Heft: erste Seite sofort, Rest im Hintergrund lesen (gewünschte Seite zuerst)"
   }
  ]
 }

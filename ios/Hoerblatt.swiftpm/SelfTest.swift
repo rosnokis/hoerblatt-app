@@ -24,8 +24,9 @@ enum SelfTestScope {
 }
 
 @MainActor enum SelfTest {
-    /// Writes the package (a Heft: once it is read completely). nil: nothing could be written.
-    static func run(_ scope: SelfTestScope, app: AppState, status: @escaping (SelfTestStatus) -> Void) async -> URL? {
+    /// Writes the package (a Heft: once it is read completely); a big one in several ZIPs of at most ~25 MB each, so
+    /// that each can be uploaded in the chat (limit 30 MB). Empty: nothing could be written.
+    static func run(_ scope: SelfTestScope, app: AppState, status: @escaping (SelfTestStatus) -> Void) async -> [URL] {
         // the pages to go through: (page id, number in the package, PDF page to draw again)
         var list: [(id: UUID, number: Int, pdfPage: Int?)] = []
         var heftInfo: [String: Any]? = nil
@@ -40,7 +41,7 @@ enum SelfTestScope {
                                       progress: Double(h.pages.count) / Double(total) * 0.5))
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
-            guard let heft = app.store.heft(hid) else { return nil }
+            guard let heft = app.store.heft(hid) else { return [] }
             heftId = hid
             let numbers = heft.pageNumbers
             for k in numbers.indices.sorted(by: { numbers[$0] < numbers[$1] }) {
@@ -56,7 +57,7 @@ enum SelfTestScope {
                 list.append((id: info.id, number: k + 1, pdfPage: nil))
             }
         }
-        if list.isEmpty { return nil }
+        if list.isEmpty { return [] }
 
         let fm = FileManager.default
         let stamp = selfTestStamp()
@@ -66,7 +67,7 @@ enum SelfTestScope {
         do {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
         } catch {
-            return nil
+            return []
         }
 
         var pages: [[String: Any]] = []
@@ -126,21 +127,56 @@ enum SelfTestScope {
            let settings = try? JSONSerialization.jsonObject(with: data) {
             out["settings"] = settings
         }
-        guard JSONSerialization.isValidJSONObject(out),
-              let json = try? JSONSerialization.data(withJSONObject: out, options: [.prettyPrinted, .sortedKeys])
-        else { return nil }
-        do {
-            try json.write(to: dir.appendingPathComponent("selbsttest.json"), options: .atomic)
-        } catch {
-            return nil
+        // (a big package goes out in parts: the pictures make it big, the report of a page is small)
+        var sizes: [Int] = []
+        for page in pages {
+            var size = (try? JSONSerialization.data(withJSONObject: page))?.count ?? 0
+            if let name = page["image"] as? String,
+               let attrs = try? fm.attributesOfItem(atPath: dir.appendingPathComponent(name).path),
+               let bytes = attrs[.size] as? NSNumber {
+                size += bytes.intValue
+            }
+            sizes.append(size)
         }
+        let parts = selfTestParts(sizes, limit: 25_000_000)
         status(SelfTestStatus(message: "Paket wird gepackt …", progress: 1))
         await Task.yield()
-        let zip = root.appendingPathComponent("Hoerblatt-Selbsttest-" + stamp + ".zip")
-        if selfTestZip(dir, to: zip) { return zip }
-        // (no ZIP: at least the report without pictures)
-        return dir.appendingPathComponent("selbsttest.json")
+        if parts.count <= 1 {
+            guard selfTestWrite(out, to: dir) else { return [] }
+            let zip = root.appendingPathComponent("Hoerblatt-Selbsttest-" + stamp + ".zip")
+            if selfTestZip(dir, to: zip) { return [zip] }
+            // (no ZIP: at least the report without pictures)
+            return [dir.appendingPathComponent("selbsttest.json")]
+        }
+        var urls: [URL] = []
+        for (k, indices) in parts.enumerated() {
+            let name = "Hoerblatt-Selbsttest-" + stamp + "-Teil-\(k + 1)-von-\(parts.count)"
+            let partDir = root.appendingPathComponent(name, isDirectory: true)
+            guard (try? fm.createDirectory(at: partDir, withIntermediateDirectories: true, attributes: nil)) != nil
+            else { return [] }
+            var partOut = out
+            partOut["pages"] = indices.map { pages[$0] }
+            partOut["part"] = ["number": k + 1, "of": parts.count]
+            for i in indices {
+                if let img = pages[i]["image"] as? String {
+                    try? fm.moveItem(at: dir.appendingPathComponent(img), to: partDir.appendingPathComponent(img))
+                }
+            }
+            guard selfTestWrite(partOut, to: partDir) else { return [] }
+            let zip = root.appendingPathComponent(name + ".zip")
+            guard selfTestZip(partDir, to: zip) else { return [] }
+            urls.append(zip)
+        }
+        return urls
     }
+}
+
+/// The report as selbsttest.json in this folder.
+fileprivate func selfTestWrite(_ report: [String: Any], to folder: URL) -> Bool {
+    guard JSONSerialization.isValidJSONObject(report),
+          let json = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+    else { return false }
+    return (try? json.write(to: folder.appendingPathComponent("selbsttest.json"), options: .atomic)) != nil
 }
 
 /// A folder as a ZIP file: the system packs it when the folder is read "for uploading".

@@ -516,3 +516,24 @@ func blankSheetMovedDown(_ page: Page) -> Page {
     p.answers[i].rect = CGRect(x: r.minX, y: want.minY, width: r.width, height: max(r.height - (want.minY - r.minY), want.height))
     return p
 }
+
+// MARK: - Selbsttest in parts
+
+/// Pages of a self test (their sizes in bytes, in order) grouped into parts of at most `limit` bytes each, keeping the
+/// order; a page bigger than the limit gets a part of its own. One part when everything fits.
+func selfTestParts(_ sizes: [Int], limit: Int) -> [[Int]] {
+    var parts: [[Int]] = []
+    var current: [Int] = []
+    var total = 0
+    for (i, size) in sizes.enumerated() {
+        if !current.isEmpty && total + size > limit {
+            parts.append(current)
+            current = []
+            total = 0
+        }
+        current.append(i)
+        total += size
+    }
+    if !current.isEmpty || parts.isEmpty { parts.append(current) }
+    return parts
+}
