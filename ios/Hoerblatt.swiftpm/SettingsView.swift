@@ -376,6 +376,18 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
+            if app.rereadDone < app.rereadTotal {
+                HStack(spacing: 12) {
+                    ProgressView()
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Nach dem Update neu gelesen: \(app.rereadDone) von \(app.rereadTotal) Seiten …")
+                            .font(.hb(.subheadline))
+                        Text("Läuft im Hintergrund; Antworten bleiben. Das Hörblatt dabei offen lassen.")
+                            .font(.hb(.caption))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
             UpdateRows(updates: app.updates, enabled: $app.settings.updateCheck)
         } header: {
             Text("Installierte Version")

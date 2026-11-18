@@ -157,6 +157,10 @@ fileprivate let appStatePhotoHint =
     private var heftReading = false
     /// Pages read before an update are being read again (`startRereading`).
     private var rereading = false
+    /// How far that is (shown in Einstellungen under the version; the self test waits for it).
+    @Published private(set) var rereadDone = 0
+    @Published private(set) var rereadTotal = 0
+    var rereadingBusy: Bool { return rereading }
     /// The child turned to a page not read yet: it is read next and opened.
     private var wantedPage: (heft: UUID, number: Int)? = nil
     /// Hefte and pages that cannot be read ("<heft>/<page>"): not tried again in this run.
@@ -972,6 +976,8 @@ fileprivate let appStatePhotoHint =
                 }
                 await Task.yield()
             }
+            self.rereadTotal = queue.count
+            self.rereadDone = 0
             while true {
                 while self.heftReading {
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -980,9 +986,16 @@ fileprivate let appStatePhotoHint =
                 guard let id = queue.first(where: { open.contains($0) }) ?? queue.first else { break }
                 queue.removeAll(where: { $0 == id })
                 await self.readAgain(id)
+                self.rereadDone = self.rereadTotal - queue.count
             }
+            self.rereadDone = self.rereadTotal
             self.rereading = false
         }
+    }
+
+    /// Self test: pages read with an older recognition are read again first (no-op while that runs anyway).
+    func readOutdatedPages() {
+        startRereading()
     }
 
     private func readAgain(_ id: UUID) async {

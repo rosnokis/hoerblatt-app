@@ -41,6 +41,7 @@ enum SelfTestScope {
                                       progress: Double(h.pages.count) / Double(total) * 0.5))
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
+            await selfTestWaitForRereading(app, status: status)
             guard let heft = app.store.heft(hid) else { return [] }
             heftId = hid
             let numbers = heft.pageNumbers
@@ -50,8 +51,10 @@ enum SelfTestScope {
             heftInfo = ["title": heft.title, "total": heft.pageTotal, "read": heft.pages.count,
                         "unread": heft.unread.map { $0 + 1 }]
         case .photo(let pid):
+            await selfTestWaitForRereading(app, status: status)
             list = [(id: pid, number: 1, pdfPage: nil)]
         case .allPhotos:
+            await selfTestWaitForRereading(app, status: status)
             let photos = app.store.pages.filter { $0.heft == nil }.sorted { $0.created < $1.created }
             for (k, info) in photos.enumerated() {
                 list.append((id: info.id, number: k + 1, pdfPage: nil))
@@ -204,4 +207,16 @@ fileprivate func selfTestStamp() -> String {
     f.locale = Locale(identifier: "de_DE")
     f.dateFormat = "yyyy-MM-dd-HHmm"
     return f.string(from: Date())
+}
+
+/// Pages read before an update are read again with the current recognition before they are tested (the package should
+/// show what the installed version does).
+@MainActor private func selfTestWaitForRereading(_ app: AppState, status: (SelfTestStatus) -> Void) async {
+    app.readOutdatedPages()
+    while app.rereadingBusy {
+        let total = max(1, app.rereadTotal)
+        status(SelfTestStatus(message: "Nach dem Update neu gelesen: \(app.rereadDone) von \(app.rereadTotal) Seiten …",
+                              progress: Double(app.rereadDone) / Double(total) * 0.5))
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+    }
 }
