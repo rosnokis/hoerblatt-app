@@ -1,17 +1,29 @@
 {
- "number": "83",
- "date": "18.11.2026, 04:02 Uhr",
+ "number": "86",
+ "date": "18.11.2026, 04:36 Uhr",
  "notes": [
+  "Mappe: Hinweis „Nach rechts/links“ nur im Querformat, kürzer",
+  "Anleitung für Lehrkräfte: Kurzanleitung zuerst, Mappe und Schrank neu erklärt, allgemein formuliert",
+  "Anleitung für Lehrkräfte: Schnellstart, beschriftete Bilder, Einstellungen wie in der App",
   "Schreibblatt: Text beginnt unter dem Vorlese-Knopf",
   "Anleitung für Lehrkräfte: Fotos von Schrank und Abgabe",
   "Anleitung für Lehrkräfte mit Bildschirmfotos",
   "Anleitung für Lehrkräfte: ohne Verfassernamen",
-  "Anleitung für Lehrkräfte als PDF",
-  "Führung fürs Kind in der App: gelbes Fragezeichen, Werkzeuge leuchten, Stimme erklärt",
-  "Bildkarte: Abgeben statt Teilen/AirDrop",
-  "Bild-Anleitung fürs Kind zum Ausdrucken (Wort, Satz, Sprechen, Abgeben)"
+  "Anleitung für Lehrkräfte als PDF"
  ],
  "changes": [
+  {
+   "number": "86",
+   "text": "Mappe: Hinweis „Nach rechts/links“ nur im Querformat, kürzer"
+  },
+  {
+   "number": "85",
+   "text": "Anleitung für Lehrkräfte: Kurzanleitung zuerst, Mappe und Schrank neu erklärt, allgemein formuliert"
+  },
+  {
+   "number": "84",
+   "text": "Anleitung für Lehrkräfte: Schnellstart, beschriftete Bilder, Einstellungen wie in der App"
+  },
   {
    "number": "83",
    "text": "Schreibblatt: Text beginnt unter dem Vorlese-Knopf"
@@ -239,18 +251,6 @@
   {
    "number": "27",
    "text": "Heft: erste Seite sofort, Rest im Hintergrund lesen (gewünschte Seite zuerst)"
-  },
-  {
-   "number": "26",
-   "text": "PDF-Text: Wörter auch an Lagesprüngen trennen (Tabellenzellen ohne Leerzeichen)"
-  },
-  {
-   "number": "25",
-   "text": "PDF-Auswahl: einzelne Datei (Result<URL>); Mikrofon-Erlaubnis über AVAudioApplication"
-  },
-  {
-   "number": "24",
-   "text": "PDF: eigenen Text der PDF nutzen; Tabellen mit dunklem Kopf und seitenhohe Tabellen"
   }
  ]
 }

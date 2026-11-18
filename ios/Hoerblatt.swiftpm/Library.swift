@@ -65,12 +65,14 @@ struct LibraryView: View {
             Text("Mappe")
                 .font(.hb(.title, .bold))
                 .foregroundColor(LibraryStyle.ink)
-            if app.twoPages {
+            // (two pages stand side by side only in landscape; upright one page fills the screen, so no hint there)
+            if app.twoPages && libraryLandscape() {
                 let side = app.activeSide
                 HStack(spacing: 8) {
                     Image(systemName: side == .left ? "rectangle.lefthalf.filled" : "rectangle.righthalf.filled")
                         .font(.hb(24, weight: .semibold))
-                    Text(side == .left ? "Kommt nach links" : "Kommt nach rechts")
+                    Text(side == .left ? "Nach links" : "Nach rechts")
+                        .lineLimit(1)
                         .font(.hb(.headline))
                 }
                 .foregroundColor(libraryColor(side))
@@ -398,4 +400,10 @@ fileprivate func libraryDateText(_ date: Date) -> String {
     f.timeStyle = .short
     f.doesRelativeDateFormatting = true
     return f.string(from: date)
+}
+
+/// The iPad is held sideways (two pages then stand side by side).
+@MainActor fileprivate func libraryLandscape() -> Bool {
+    let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+    return scene?.interfaceOrientation.isLandscape ?? false
 }
