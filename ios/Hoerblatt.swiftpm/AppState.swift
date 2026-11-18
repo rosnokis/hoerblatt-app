@@ -942,9 +942,7 @@ fileprivate let appStatePhotoHint =
             ctx.fill(CGRect(origin: .zero, size: size))
         }
         let th: CGFloat = 56
-        let margin: CGFloat = 110
-        let writing = Answer(id: UUID(), rect: CGRect(x: margin, y: margin, width: size.width - 2 * margin,
-                                                      height: size.height - 2 * margin), gap: nil, text: "")
+        let writing = Answer(id: UUID(), rect: blankSheetWritingRect(size), gap: nil, text: "")
         var page = Page(id: UUID(), created: Date(), title: "Schreibblatt", pixelSize: size, textHeight: th,
                         words: [], gaps: [], boxes: [], answers: [writing], marks: [], drawing: Data())
         page.blank = true

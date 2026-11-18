@@ -495,3 +495,24 @@ struct PixelImage {
 
     @inline(__always) func lum(_ x: Int, _ y: Int) -> UInt8 { gray[y * width + x] }
 }
+
+// MARK: - Schreibblatt
+
+/// The writing field of an empty Schreibblatt: margins of 110 px, but the text starts below the round ▶ in the top
+/// left corner (52 pt on screen; with two pages side by side it covers ~185 px of a 1696 px wide sheet).
+func blankSheetWritingRect(_ size: CGSize) -> CGRect {
+    let margin: CGFloat = 110
+    let top: CGFloat = 260
+    return CGRect(x: margin, y: top, width: size.width - 2 * margin, height: size.height - top - margin)
+}
+
+/// Schreibblätter made before the field moved down (text started under ▶): the field begins lower, its text flows anew.
+func blankSheetMovedDown(_ page: Page) -> Page {
+    guard page.blank == true, let i = page.answers.indices.first, page.answers[i].gap == nil else { return page }
+    let want = blankSheetWritingRect(page.pixelSize)
+    let r = page.answers[i].rect
+    guard r.minY < want.minY else { return page }
+    var p = page
+    p.answers[i].rect = CGRect(x: r.minX, y: want.minY, width: r.width, height: max(r.height - (want.minY - r.minY), want.height))
+    return p
+}

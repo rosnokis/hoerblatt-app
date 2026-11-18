@@ -86,7 +86,7 @@ enum PageReadState: Equatable {
     private var edgeCache: [Int: [CGFloat]] = [:]
 
     init(page: Page, image: UIImage, app: AppState) {
-        _page = Published(initialValue: page)
+        _page = Published(initialValue: blankSheetMovedDown(page))
         self.image = image
         self.id = page.id
         self.app = app
